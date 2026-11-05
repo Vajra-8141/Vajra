@@ -46,6 +46,9 @@ export function setRpcFetch(fn: typeof fetch, options: { sidecar?: typeof fetch 
   sidecarFetch = options.sidecar ?? fn;
 }
 
+/** The route every chain read takes, for a client that brings its own transport. */
+export const routedFetch: typeof fetch = (...args) => rpcFetch(...args);
+
 const fetchFor = (url: string) => (url === DEVNET.mempool || url === DEVNET.gateway ? sidecarFetch : rpcFetch);
 
 export async function rpc<T = unknown>(url: string, method: string, params: unknown[] = []): Promise<T> {

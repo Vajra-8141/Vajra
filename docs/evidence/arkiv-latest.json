@@ -1,0 +1,49 @@
+{
+ "arkivChain": 7794095,
+ "devnet": 1337,
+ "at": "2026-11-05T21:52:19.856Z",
+ "writer": "0x8108ac6F8eb2945E11938176b7c3EdfC17fF478c",
+ "root": "0xced04393930ba48b36d6e92db07d8b9996e102823f2d303b9c5d7384d139a2fa",
+ "account": "0xc608962288924c0F11D999a61d7043D203E247Ce",
+ "schema": "vajra-leaf-use",
+ "tGLMSpent": "0.05219248915",
+ "entries": [
+  {
+   "step": "reservation",
+   "leaf": 0,
+   "entity": "0xdf923d47414f16ad408b30ad2bd164bc4be30e9601680e504dd0b0bb161bbbc1"
+  },
+  {
+   "step": "freeze",
+   "leaf": 0,
+   "hash": "0xe515b8c627983f3f61c6293ddcc4d6d31734686a7bc9b5a4293d284895563dc4",
+   "entity": "0xc2c79de5e24271074c9b5a63833dc999e6c226edd5d72c0922e4edb3be5b56e7"
+  },
+  {
+   "step": "revealed, not mined",
+   "leaf": 1,
+   "entity": "0x902dc1fd29ae8f58e7906fe38adb5b9bcfe1d083226353d554171cb27831316e"
+  },
+  {
+   "step": "unfreeze",
+   "leaf": 2,
+   "hash": "0xda9a3e63c5549d6a512a1be7137f74c51d37c17a53b8569bfd7a24bc4156a0ab",
+   "entity": "0x8e0e0d7522d43844faf81a80f1ffcc81588b911cd19117c0376ebf9636dc9338"
+  },
+  {
+   "step": "held transaction, mined last",
+   "leaf": 1,
+   "hash": "0xaad327fb0bbeaf3586193175f2480ebf8dfd6ae4b2464832a68805ff79558508"
+  },
+  {
+   "step": "forged use",
+   "leaf": 3,
+   "entity": "0x4f42e5831c73a15ced54dea01bcbb9ff6c2f2bfcb462ba0cc0b7f23bae1f2876"
+  },
+  {
+   "step": "forged reservation",
+   "leaf": 3,
+   "entity": "0x87692ea05c449e6b940e097e0f8148f637a1275039e067b2eaed1aaad9e25eb8"
+  }
+ ]
+}

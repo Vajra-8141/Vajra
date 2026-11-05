@@ -52,12 +52,41 @@ Status follows the ledger in the spec: a module is BUILT only if it runs on the 
 | ERC-8441 stealth, co-signed spend, paymaster | BUILT | `vajra stealth`, passes the ERC's conformance vectors |
 | Dashboard, exposure scanner | BUILT | every flow driven in a real browser over the Nym mixnet, with a scripted wallet |
 | Master key on hardware | BUILT | a real ESP32 signed through the CLI (7 mined) and the dashboard (3 mined), with a person pressing BOOT. **Not safe from a computer it is plugged into**: see [`docs/HARDWARE.md`](docs/HARDWARE.md) |
+| Leaf registry on Arkiv | BUILT | `vajra arkiv`, on the live Arkiv testnet and devnet. The dashboard reads it and verifies each signature in the browser |
 | Nominee | NOT STARTED | |
 | STARK recovery | DESIGNED | spec §9; **no proof exists** |
 | Shielded notes | DESIGNED | spec §10; **no hidden balances exist** |
 
 **The privacy boundary:** dashboard reads are private and the harbor is sealed until used. Balances, rules and the queue are
-public on chain, and sending a transaction shows your IP to the mempool. Hidden balances are not built.
+public on chain, and sending a transaction shows your IP to the mempool. Hidden balances are not built. The leaf registry is the
+exception to private reads: Arkiv refuses requests from the Nym route, so the dashboard asks before reading it directly, and the
+bridge connects to Arkiv directly, which shows it your IP and key tree.
+
+## Leaf registry on Arkiv
+
+A one-time key must never sign twice, on any device. The signer's counter fails when a backup is restored, and the chain's nonce only
+moves when a transaction is mined, so a signature that was revealed and never mined is invisible to it. Every master operation now
+reads a public registry on [Arkiv](https://arkiv.network) before signing, reserves the key with an entity that expires in 5
+minutes, and publishes the signature afterwards.
+
+Anyone can write to Arkiv, so nothing is believed because of who wrote it. **Each record carries the signature itself, and every
+reader verifies it**, so a thief cannot forge "this key is spent" to block an escape. If Arkiv is unreachable, signing goes on: the way
+out must not depend on it.
+
+**Writer wallet:** `0x8108ac6F8eb2945E11938176b7c3EdfC17fF478c`, on Rabdi, chain 7,794,095. `vajra arkiv` also funds a throwaway wallet
+on each run to write the forged entities it tests against.
+
+**Run a query.** This needs nothing installed and no key, and returns every use of one key tree:
+
+    curl -s https://rpc.rabdi.db-chain.testnet.arkiv.network -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"arkiv_query","params":["arkiv.schema = str(\u0027vajra-leaf-use\u0027) AND root = key(0xced04393930ba48b36d6e92db07d8b9996e102823f2d303b9c5d7384d139a2fa)",{"select":{"key":true,"attributes":{"leaf":true,"op":true,"txHash":true}},"limit":"0x64"}]}'
+
+The public endpoint has a small shared budget, so this can answer `ANON_COST_LIMITED`. A free key from
+[hub.arkiv.network](https://hub.arkiv.network) goes on the end of the URL. To verify the signatures as well:
+
+    node packages/cli/src/main.ts leaves 0xced04393930ba48b36d6e92db07d8b9996e102823f2d303b9c5d7384d139a2fa
+
+Design and judging answers are in [`arkiv/`](arkiv/): [schema](arkiv/schema.md), [why Arkiv](arkiv/why-arkiv.md),
+[how it is used](arkiv/how-you-use-arkiv.md), [reach](arkiv/reach.md), [friction](arkiv/friction.md).
 
 ## Tested attacks
 
@@ -101,9 +130,16 @@ Or with the dashboard, where your wallet is the daily key:
     vajra bridge                                # holds the master key, in its own terminal
     pnpm --filter @vajra/dashboard dev          # http://localhost:3000
 
+The leaf registry is optional. To turn it on, put a free access key and a wallet holding tGLM, both from
+[hub.arkiv.network](https://hub.arkiv.network), in `.env`:
+
+    ARKIV=your-access-key
+    DEV_WALLET_PRIVATE_KEY=your-testnet-key
+
 The tests that run against the devnet, and write to it:
 
     vajra e2e        # the account, and every attack
+    vajra arkiv      # two copies of one key, on Arkiv and the devnet
     vajra stealth    # a stealth payment, and who cannot spend it
     vajra pin        # the blocked escape
     vajra budget     # the validation cap
@@ -117,6 +153,7 @@ The tests that run against the devnet, and write to it:
     firmware            the ESP32 signer, and its logic as a portable library
     contracts           VajraAccount, Wots, VajraFactory, SponsorPaymaster
     docs                measured gas, devnet findings, stealth design, demo runbook, upstream patch
+    arkiv               how the leaf registry uses Arkiv, and the judging answers
 
 The rulebook runs in the SENDER frame, because `TIMESTAMP` is banned in validation in every mempool. VERIFY enforces who may
 act and what shape the transaction has. That is what makes the priority rule structural: a daily-signed transaction that
@@ -130,7 +167,8 @@ reaches a master function never becomes valid.
 - **Privacy:** dashboard reads go through [anon-rpc](https://github.com/ethereum/anon-rpc), over the Nym mixnet by default. If
   the route fails, the dashboard stops rather than falling back to a direct connection. Transactions do not use it: the sidecar
   refuses requests that arrive through the Nym worker, so they go straight to the mempool, and the page says so before you
-  sign. The CLI and the bridge connect directly, because anon-rpc is browser-only today. No analytics, no trackers.
+  sign. Arkiv refuses them too, so the page asks before reading it directly. The CLI and the bridge connect directly, because
+  anon-rpc is browser-only today. No analytics, no trackers.
 - **Security:** a hash-based master key that the daily key cannot override, with the priority enforced in validation.
 
 ## What this does not prove

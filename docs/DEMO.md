@@ -67,6 +67,10 @@ case is a sender who also owns a quantum computer. See `STEALTH.md`.
 key in the mempool. It is also advice rather than a mechanism. The same gap exists today: a drainer with your seed holds a key
 equal to yours, and only a second factor enforced in validation can outrank it.
 
+**What if someone restores a backup of the key?** That is the failure one-time keys cannot survive, and the chain cannot catch all of
+it: a signature that was revealed and never mined leaves no trace there. Every signature is published on Arkiv and checked before
+signing. `vajra arkiv` shows a restored copy moving past a key the chain still thinks is unused. See `arkiv/why-arkiv.md`.
+
 **What happens when the tree runs out?** The last leaf can only install a new tree, and rotation is tested live.
 
 **Why not replace the thief's transaction with a fee bump?** An escape on the linear nonce could, but then it is a fee war

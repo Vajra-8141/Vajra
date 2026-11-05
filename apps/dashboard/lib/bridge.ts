@@ -9,6 +9,8 @@ export interface BridgeStatus {
   harbor: `0x${string}` | null;
   account: `0x${string}` | null;
   rootMatches: boolean | null;
+  nextLeaf: number | null;
+  registryWriter: `0x${string}` | null;
 }
 
 export interface MasterResult {

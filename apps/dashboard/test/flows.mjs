@@ -76,6 +76,9 @@ const spend = async (to, amount) => {
 };
 const idle = () => waitFor(async () => (await page.getByRole("button", { name: /Sign and send|Sending/ }).textContent()) === "Sign and send", "the spend to finish");
 
+/** What went wrong, not counting what the key panel says about the next key. */
+const problem = async () => (await page.locator(".banner.error:not(.next-leaf)").first().textContent({ timeout: 500 }).catch(() => null)) ?? "";
+
 /** Asks for a master operation. A prompt nobody pressed comes back as Declined, which costs nothing, so it is asked again. */
 const approve = async (op, button, done) => {
   if (GATE) {
@@ -84,8 +87,9 @@ const approve = async (op, button, done) => {
   }
   for (let prompt = 0; prompt < 5; prompt++) {
     await button().click();
-    await waitFor(async () => (await done()) || (await banner("error")).includes("Declined"), op);
+    await waitFor(async () => (await done()) || (await problem()) !== "", op);
     if (await done()) return;
+    if (!(await problem()).includes("Declined")) return console.log(`${op} failed: ${(await problem()).slice(0, 120)}`);
     console.log(`no press for ${op}, asking again`);
   }
 };
@@ -108,6 +112,19 @@ await shot("3-queued");
 
 await approve("veto", () => page.getByRole("button", { name: "Veto" }).first(), async () => (await banner("ok")).includes("Veto"));
 check((await banner("ok")).includes("on chain"), `the master key vetoed it: ${await banner("ok")}${await banner("error")}`);
+
+// The page reads Arkiv after an operation. A row that says verified was checked in this browser, not taken from anyone.
+const leaves = page.locator(".leaves");
+const direct = page.getByRole("button", { name: "Read Arkiv directly" });
+if (ROUTE === "nym") {
+  check(await waitFor(() => direct.isVisible(), "the question", 15_000), "on the private route the page asks before reading Arkiv");
+  check((await leaves.locator("tbody tr").count()) === 0, "and has read nothing until it is told to");
+  await direct.click();
+}
+const veto = leaves.locator("tbody tr", { hasText: "veto" }).first();
+await waitFor(async () => (await veto.count()) > 0 || (await leaves.textContent()).includes("did not answer"), "Arkiv to show the veto", 90_000);
+check((await veto.count()) > 0 && (await veto.textContent()).includes("signature verified"), `the veto is on Arkiv, verified in this browser: ${(await leaves.locator(".banner").first().textContent({ timeout: 500 }).catch(() => "")).slice(0, 90)}`);
+await shot("3b-arkiv");
 
 await approve("freeze", () => page.getByRole("button", { name: "Freeze" }), async () => (await banner("frozen")).includes("Frozen"));
 check((await banner("frozen")).includes("Frozen"), "the freeze shows");

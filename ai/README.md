@@ -18,6 +18,11 @@ that made it:
 
 ## Where testing changed the design
 
+- The leaf registry's first design would have let a thief block an escape by forging "this key is spent", because anyone can write to
+  Arkiv. Records now carry the signature, and every reader verifies it.
+- The dashboard's key panel raised a false "your key is behind" warning after every operation. The browser test found it.
+- Arkiv reads could not go over the Nym route. Falling back quietly would have broken a stated privacy promise, so the page asks.
+
 These came from running the code rather than from reasoning about it, and each overturned something in the original plan:
 
 - The alt mempool refuses more than 100,000 gas of validation even for a staked sender, so the plan to rely on that budget

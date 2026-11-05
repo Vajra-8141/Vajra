@@ -16,3 +16,5 @@ broadcast/
 apps/dashboard/public/evidence/
 apps/dashboard/next-env.d.ts
 apps/dashboard/tsconfig.tsbuildinfo
+# written by next dev
+apps/dashboard/AGENTS.md

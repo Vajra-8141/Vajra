@@ -35,6 +35,7 @@ import {
 import { fileStore, loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 import { Device } from "./device.ts";
+import { claimLeaf, publishUse, theRegistry } from "./registry.ts";
 
 /** Above this, the fitted cost would pass the VERIFY limit; the digest is redrawn before anything is revealed. */
 const MAX_HASHES = 660;
@@ -64,8 +65,13 @@ export interface Wallet {
   harborSalt: Hex;
 }
 
-// A device account and a software account are different accounts, and neither may displace the other.
-const walletPath = keyPath(useDevice() ? "wallet.device.json" : "wallet.json");
+// A device account and a software account are different accounts, and neither may displace the other. Nor may the emulator,
+// which is why a test can run the device path without touching the account of a real board.
+const walletFile = () => {
+  if (!useDevice()) return "wallet.json";
+  return process.env.VAJRA_DEVICE?.startsWith("emulator:") ? "wallet.emulator.json" : "wallet.device.json";
+};
+const walletPath = keyPath(walletFile());
 const signerPath = keyPath("signer.json");
 const nextSignerPath = keyPath("signer.next.json");
 
@@ -166,7 +172,7 @@ async function runOnDevice(request: MasterOp, log: (line: string) => void): Prom
 
   const rotating = request.op === "rotate";
   const next = rotating ? await device.nextRoot() : null;
-  const leaf = info.left === 0 ? ROTATION_LEAF : info.next;
+  const leaf = await claimLeaf({ root: info.root, leaf: info.left === 0 ? ROTATION_LEAF : info.next, account: wallet.account, op: request.op, canSkip: false, log });
   const { tx, hashes, digest } = prepareMasterTx({
     root: info.root,
     leaf,
@@ -180,7 +186,13 @@ async function runOnDevice(request: MasterOp, log: (line: string) => void): Prom
   const blob = await device.sign(encodeTx(tx));
   // The leaf is already spent by now. This is about the error: here it names the signer, and a mempool would only say "bad signature".
   if (!verifyMasterSignature(WOTS_W16, hexToBytes(digest), hexToBytes(blob), hexToBytes(info.root))) throw new Error("the signer returned a signature that does not verify");
-  const { hash, receipt } = await submit(withMasterSignature(tx, blob), { log });
+  const use = { root: info.root, leaf, account: wallet.account, digest, signature: blob, op: request.op };
+  const { hash, receipt } = await submit(withMasterSignature(tx, blob), { log }).catch(async (error: Error) => {
+    // Refused or lost, the signature has still been revealed, and that is what the record is for.
+    await publishUse(use, log);
+    throw error;
+  });
+  await publishUse({ ...use, txHash: hash }, log);
   if (!framesSucceeded(receipt)) throw new Error(`${hash} was mined but a frame failed`);
   if (rotating) {
     log("confirm on the signer: switch to the new tree");
@@ -201,8 +213,15 @@ export async function runMasterOp(request: MasterOp, log: (line: string) => void
   const next = rotating ? new MasterSigner(WOTS_W16, fileStore(nextSignerPath), newSeed) : null;
   const call = rotating ? ops.rotateRoot(next!.root) : callFor(request, wallet);
   // The reserved leaf is for when the ordinary ones are gone; a rotation before that uses an ordinary one.
-  const signed = signMasterTx({ signer, account: wallet.account, epochSalt, calls: [call], rotation: rotating && signer.leavesLeft === 0, maxHashes: MAX_HASHES });
-  const { hash, receipt } = await submit(signed.tx, { log });
+  const rotation = rotating && signer.leavesLeft === 0;
+  const leaf = await claimLeaf({ root: signer.root, leaf: signer.nextLeaf(rotation), account: wallet.account, op: request.op, canSkip: !rotation, log });
+  const signed = signMasterTx({ signer, account: wallet.account, epochSalt, calls: [call], rotation, leaf, maxHashes: MAX_HASHES });
+  const use = { root: signer.root, leaf, account: wallet.account, digest: signed.digest, signature: signer.sign(leaf, signed.digest), op: request.op };
+  const { hash, receipt } = await submit(signed.tx, { log }).catch(async (error: Error) => {
+    await publishUse(use, log);
+    throw error;
+  });
+  await publishUse({ ...use, txHash: hash }, log);
   if (!framesSucceeded(receipt)) throw new Error(`${hash} was mined but a frame failed`);
   if (rotating) {
     renameSync(signerPath, `${signerPath}.retired-${Date.now()}`);
@@ -226,6 +245,10 @@ export interface WalletStatus {
   harbor: Address | null;
   account: Address | null;
   rootMatches: boolean | null;
+  /** The leaf the next operation would use. */
+  nextLeaf: number | null;
+  /** The wallet writing to the leaf registry on Arkiv, if there is one. */
+  registryWriter: Address | null;
 }
 
 export async function walletStatus(): Promise<WalletStatus> {
@@ -233,18 +256,19 @@ export async function walletStatus(): Promise<WalletStatus> {
   const harbor = wallet?.harbor ?? null;
   const account = wallet?.account ?? null;
   const known = async (root: Hex) => (wallet ? (await accountState(wallet.account)).wotsRoot.toLowerCase() === root.toLowerCase() : null);
+  const registryWriter = theRegistry()?.address ?? null;
 
   if (useDevice()) {
     try {
       const info = await (await theDevice()).info();
-      return { signer: info.kind, connected: true, root: info.root, leavesLeft: info.left, harbor, account, rootMatches: await known(info.root) };
+      return { signer: info.kind, connected: true, root: info.root, leavesLeft: info.left, harbor, account, rootMatches: await known(info.root), nextLeaf: info.next, registryWriter };
     } catch {
       // An unplugged signer is a state of its own: nothing about its keys can be claimed.
-      return { signer: "esp32", connected: false, root: null, leavesLeft: null, harbor, account, rootMatches: null };
+      return { signer: "esp32", connected: false, root: null, leavesLeft: null, harbor, account, rootMatches: null, nextLeaf: null, registryWriter };
     }
   }
   const signer = masterSigner();
-  return { signer: "software", connected: true, root: signer.root, leavesLeft: signer.leavesLeft, harbor, account, rootMatches: await known(signer.root) };
+  return { signer: "software", connected: true, root: signer.root, leavesLeft: signer.leavesLeft, harbor, account, rootMatches: await known(signer.root), nextLeaf: ROTATION_LEAF - signer.leavesLeft, registryWriter };
 }
 
 export const dailyKeyPath = keyPath("daily.key");

@@ -1,8 +1,14 @@
-import { type Address, formatEther, parseEther } from "viem";
+import { type Address, type Hex, formatEther, parseEther } from "viem";
+import { LeafRegistry } from "@vajra/core/registry";
 import { ETH, RpcError, accountAbi, accountState, ops, publicClient, refusalName, signDaily, submit } from "@vajra/core";
 import { startBridge } from "./bridge.ts";
 import { deploy } from "./deploy.ts";
 import { closeDevice, createWallet, localDailyAddress, localDailyKey, requireWallet, runMasterOp, theDevice, walletStatus } from "./wallet.ts";
+
+// Optional: it only holds what the leaf registry needs, and everything works without one.
+try {
+  process.loadEnvFile(new URL("../../../.env", import.meta.url).pathname);
+} catch {}
 
 const [command, ...args] = process.argv.slice(2);
 
@@ -22,6 +28,17 @@ const { flags, rest } = parse(args);
 const report = (r: { hash: string; block: number; verifyGas: number; leaf: number; leavesLeft: number }) =>
   console.log(`mined ${r.hash}\nblock ${r.block}, VERIFY ${r.verifyGas} gas, leaf ${r.leaf}, ${r.leavesLeft} leaves left`);
 
+/** Anyone can run this: it needs no keys, and it believes nothing it cannot verify. */
+async function leaves(root: Hex) {
+  const registry = new LeafRegistry({ accessKey: process.env.ARKIV ?? "", writers: [] });
+  const snapshot = await registry.snapshot(root, { patience: 45_000 });
+  if (!snapshot) throw new Error(`Arkiv did not answer: ${registry.lastFailure}. Without a key this read shares a small public budget: put a free key from hub.arkiv.network in ARKIV.`);
+  console.log(`key tree ${root}\n${snapshot.uses.length} verified uses, ${snapshot.rejected} forged or damaged, ${snapshot.reservations.length + snapshot.ignored} live reservations`);
+  for (const use of snapshot.uses.sort((a, b) => a.leaf - b.leaf)) {
+    console.log(`  leaf ${use.leaf}: ${use.op}, ${new Date(use.at * 1000).toISOString()}, ${use.txHash ?? "revealed, no transaction recorded"}`);
+  }
+}
+
 async function status() {
   const s = await walletStatus();
   console.log(`master signer: ${s.signer}${s.connected ? `, ${s.leavesLeft} leaves left` : ", NOT CONNECTED"}`);
@@ -32,6 +49,7 @@ async function status() {
   console.log(`account ${s.account}\nbalance ${formatEther(balance)} ETH`);
   console.log(`daily limit ${formatEther(rule[1])} ETH, ${formatEther(rule[3])} used in the last 24 hours`);
   console.log(`daily key ${chain.dailyKey}\nfrozen ${chain.frozen}\nqueued items ${chain.nextItem}`);
+  console.log(`leaf registry ${s.registryWriter ? `on Arkiv, writer ${s.registryWriter}` : "off: no keys in .env"}`);
   if (s.rootMatches === false) console.log("CHAIN STATE UNKNOWN: the account's root is not this signer's");
 }
 
@@ -87,8 +105,17 @@ switch (command) {
     else console.log(await device.info());
     break;
   }
+  case "leaves": {
+    const root = (rest[0] ?? (await walletStatus()).root) as Hex | null;
+    if (!root) throw new Error("usage: vajra leaves <root>");
+    await leaves(root);
+    break;
+  }
   case "deploy":
     await deploy(rest[0]);
+    break;
+  case "arkiv":
+    await import("./registry-e2e.ts");
     break;
   case "e2e":
   case "device-e2e":
@@ -107,7 +134,8 @@ daily:    spend <to> <eth>
 master:   veto <id> | freeze | unfreeze | escape | rotate | set-daily <address>
 service:  bridge
 signer:   device | device wipe          (VAJRA_SIGNER=device keeps the master key on the hardware)
-devnet:   deploy [w16|w256|stealth] | e2e | device-e2e | stealth | measure | pin | budget`);
+registry: leaves [root]                 (what Arkiv knows about a key tree; needs no keys)
+devnet:   deploy [w16|w256|stealth] | e2e | device-e2e | stealth | measure | pin | budget | arkiv`);
     process.exit(1);
 }
 

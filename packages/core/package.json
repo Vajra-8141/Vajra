@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@arkiv-network/sdk": "1.0.1",
     "@forshtat/hegota-support": "0.0.1",
     "@noble/curves": "1.9.1",
     "@noble/hashes": "^1.8.0",

@@ -19,6 +19,7 @@ import {
   withTimeout,
   withWalletSignature,
 } from "@vajra/core";
+import { OneTimeKeys } from "../components/leaves";
 import { type BridgeStatus, bridgeStatus, createOnBridge, master } from "../lib/bridge";
 import { NETWORKS, useReads } from "../lib/reads";
 import { connectWallet, hasWallet, personalSign } from "../lib/wallet";
@@ -130,6 +131,7 @@ export default function AccountPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [armed, setArmed] = useState(false);
   const [log, setLog] = useState<string[]>([]);
+  const [operations, setOperations] = useState(0);
   const bottom = useRef<HTMLDivElement>(null);
 
   const say = useCallback((line: string) => setLog((l) => [...l.slice(-40), line]), []);
@@ -200,6 +202,9 @@ export default function AccountPage() {
       const r = await master(request);
       say(`mined ${short(r.hash)} in block ${r.block}, VERIFY ${r.verifyGas.toLocaleString()} gas, leaf ${r.leaf}`);
       setNotice(`${label} is on chain.`);
+      // In this order. Read first, and the page sees the key it just used as spent by someone else, and raises a false alarm.
+      await refreshBridge();
+      setOperations((n) => n + 1);
     });
 
   const spend = () =>
@@ -366,6 +371,10 @@ export default function AccountPage() {
               </button>
             </div>
           </section>
+
+          {bridge && (
+            <OneTimeKeys root={bridge.root} nextLeaf={bridge.nextLeaf} writer={bridge.registryWriter} hardware={bridge.signer === "esp32"} ready={status === "ready"} directOnly={!!NETWORKS[network].directToMempool} tick={operations} />
+          )}
 
           <section className="card danger" aria-labelledby="escape">
             <h2 id="escape">Escape</h2>
