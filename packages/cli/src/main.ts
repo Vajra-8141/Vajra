@@ -2,7 +2,7 @@ import { type Address, formatEther, parseEther } from "viem";
 import { ETH, RpcError, accountAbi, accountState, ops, publicClient, refusalName, signDaily, submit } from "@vajra/core";
 import { startBridge } from "./bridge.ts";
 import { deploy } from "./deploy.ts";
-import { createWallet, localDailyAddress, localDailyKey, requireWallet, runMasterOp, walletStatus } from "./wallet.ts";
+import { closeDevice, createWallet, localDailyAddress, localDailyKey, requireWallet, runMasterOp, theDevice, walletStatus } from "./wallet.ts";
 
 const [command, ...args] = process.argv.slice(2);
 
@@ -24,7 +24,7 @@ const report = (r: { hash: string; block: number; verifyGas: number; leaf: numbe
 
 async function status() {
   const s = await walletStatus();
-  console.log(`master signer: ${s.signer}, ${s.leavesLeft} leaves left`);
+  console.log(`master signer: ${s.signer}${s.connected ? `, ${s.leavesLeft} leaves left` : ", NOT CONNECTED"}`);
   if (!s.account) return console.log("no account yet");
   const chain = await accountState(s.account);
   const balance = await publicClient.getBalance({ address: s.account });
@@ -81,10 +81,17 @@ switch (command) {
   case "bridge":
     startBridge();
     break;
+  case "device": {
+    const device = await theDevice();
+    if (rest[0] === "wipe") console.log(await device.wipe());
+    else console.log(await device.info());
+    break;
+  }
   case "deploy":
     await deploy(rest[0]);
     break;
   case "e2e":
+  case "device-e2e":
   case "stealth":
   case "measure":
   case "pin":
@@ -99,6 +106,9 @@ account:  create --harbor <address> [--daily <address>] [--limit eth] [--allowan
 daily:    spend <to> <eth>
 master:   veto <id> | freeze | unfreeze | escape | rotate | set-daily <address>
 service:  bridge
-devnet:   deploy [w16|w256|stealth] | e2e | stealth | measure | pin | budget`);
+signer:   device | device wipe          (VAJRA_SIGNER=device keeps the master key on the hardware)
+devnet:   deploy [w16|w256|stealth] | e2e | device-e2e | stealth | measure | pin | budget`);
     process.exit(1);
 }
+
+if (command !== "bridge") await closeDevice();

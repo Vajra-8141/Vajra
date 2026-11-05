@@ -1,15 +1,17 @@
 /**
  * A user's wallet on this machine: the master signer, and what the account needs to remember.
  *
- * The master key here is a seed in a file. That is the software stand-in for the hardware signer, not a substitute for
- * it, and anything shown to a user should say so. Everything above this file only asks for operations; none of it sees
- * the seed, which is what lets a device take this file's place without the rest changing.
+ * `VAJRA_SIGNER=device` keeps the master key on the hardware signer. Otherwise it is a seed in a file on this machine, on
+ * the same computer as the wallet, and anything shown to a user has to say so. Everything above this file only asks for
+ * operations, and none of it sees the seed.
  */
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { type Address, type Hex, bytesToHex, parseEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
+  ChainStateUnknown,
+  DEVNET,
   ETH,
   MasterSigner,
   ROTATION_LEAF,
@@ -18,18 +20,41 @@ import {
   assertRootMatches,
   createAccount,
   deployments,
+  encodeTx,
   framesSucceeded,
   harborCommitment,
   ops,
+  prepareMasterTx,
   signMasterTx,
   submit,
+  withMasterSignature,
   type Call,
 } from "@vajra/core";
 import { fileStore, loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
+import { Device } from "./device.ts";
 
 /** Above this, the fitted cost would pass the VERIFY limit; the digest is redrawn before anything is revealed. */
 const MAX_HASHES = 660;
+
+const useDevice = () => process.env.VAJRA_SIGNER === "device";
+
+let shared: Promise<Device> | null = null;
+
+/** One owner for the port: the board resets on open, and a second opener would fail anyway. */
+export function theDevice(): Promise<Device> {
+  shared ??= Device.open().catch((error) => {
+    shared = null;
+    throw error;
+  });
+  return shared;
+}
+
+export async function closeDevice() {
+  const open = shared;
+  shared = null;
+  if (open) await (await open).close();
+}
 
 export interface Wallet {
   account: Address;
@@ -65,7 +90,8 @@ export interface CreateOptions {
 
 export async function createWallet(o: CreateOptions): Promise<Wallet> {
   if (loadWallet()) throw new Error("an account already exists on this machine");
-  const signer = masterSigner();
+  const device = useDevice() ? await theDevice() : null;
+  const root = device ? (await device.info()).root : masterSigner().root;
   const harborSalt = bytesToHex(randomBytes(32));
   const { w16, genesis } = deployments();
   const funder = loadOrCreateKey(keyPath("deployer.key"));
@@ -74,7 +100,7 @@ export async function createWallet(o: CreateOptions): Promise<Wallet> {
     w16.factory,
     {
       dailyKey: o.dailyKey,
-      wotsRoot: signer.root,
+      wotsRoot: root,
       epochSalt: genesis,
       harborCommitment: harborCommitment(o.harbor, harborSalt),
       queueDelay: BigInt(o.queueDelay),
@@ -86,6 +112,7 @@ export async function createWallet(o: CreateOptions): Promise<Wallet> {
     },
     parseEther(o.fund),
   );
+  if (device) await device.pair(account, DEVNET.chainId, genesis);
   const wallet: Wallet = { account, harbor: o.harbor, harborSalt };
   writeFileSync(walletPath, JSON.stringify(wallet, null, 1), { mode: 0o600 });
   return wallet;
@@ -128,8 +155,41 @@ function callFor(request: MasterOp, wallet: Wallet): Call {
   }
 }
 
+/** The device path: it gets the whole unsigned transaction, and decides for itself what it is being asked to sign. */
+async function runOnDevice(request: MasterOp, log: (line: string) => void): Promise<MasterResult> {
+  const wallet = requireWallet();
+  const device = await theDevice();
+  const info = await device.info();
+  const state = await accountState(wallet.account);
+  if (state.wotsRoot.toLowerCase() !== info.root.toLowerCase()) throw new ChainStateUnknown(info.root, state.wotsRoot);
+
+  const rotating = request.op === "rotate";
+  const next = rotating ? await device.nextRoot() : null;
+  const leaf = info.left === 0 ? ROTATION_LEAF : info.next;
+  const { tx, hashes } = prepareMasterTx({
+    root: info.root,
+    leaf,
+    params: WOTS_W16,
+    account: wallet.account,
+    epochSalt: state.epochSalt,
+    calls: [rotating ? ops.rotateRoot(next!) : callFor(request, wallet)],
+    maxHashes: MAX_HASHES,
+  });
+  log(`confirm on the signer: ${request.op}`);
+  const blob = await device.sign(encodeTx(tx));
+  const { hash, receipt } = await submit(withMasterSignature(tx, blob), { log });
+  if (!framesSucceeded(receipt)) throw new Error(`${hash} was mined but a frame failed`);
+  if (rotating) {
+    log("confirm on the signer: switch to the new tree");
+    await device.rotated(next!);
+  }
+  const after = await device.info();
+  return { hash, block: Number(receipt.blockNumber), verifyGas: Number(BigInt(receipt.frameReceipts[0]!.gasUsed)), leaf, hashes, leavesLeft: after.left };
+}
+
 /** Signs and lands one master operation. Refuses before signing if the chain's root is not this signer's. */
 export async function runMasterOp(request: MasterOp, log: (line: string) => void = () => {}): Promise<MasterResult> {
+  if (useDevice()) return runOnDevice(request, log);
   const wallet = requireWallet();
   const signer = masterSigner();
   const { epochSalt } = await assertRootMatches(signer, wallet.account);
@@ -155,13 +215,33 @@ export async function runMasterOp(request: MasterOp, log: (line: string) => void
   };
 }
 
-export async function walletStatus() {
+export interface WalletStatus {
+  signer: "software" | "esp32" | "emulator";
+  connected: boolean;
+  root: Hex | null;
+  leavesLeft: number | null;
+  harbor: Address | null;
+  account: Address | null;
+  rootMatches: boolean | null;
+}
+
+export async function walletStatus(): Promise<WalletStatus> {
   const wallet = loadWallet();
+  const harbor = wallet?.harbor ?? null;
+  const account = wallet?.account ?? null;
+  const known = async (root: Hex) => (wallet ? (await accountState(wallet.account)).wotsRoot.toLowerCase() === root.toLowerCase() : null);
+
+  if (useDevice()) {
+    try {
+      const info = await (await theDevice()).info();
+      return { signer: info.kind, connected: true, root: info.root, leavesLeft: info.left, harbor, account, rootMatches: await known(info.root) };
+    } catch {
+      // An unplugged signer is a state of its own: nothing about its keys can be claimed.
+      return { signer: "esp32", connected: false, root: null, leavesLeft: null, harbor, account, rootMatches: null };
+    }
+  }
   const signer = masterSigner();
-  const base = { signer: "software" as const, root: signer.root, leavesLeft: signer.leavesLeft, harbor: wallet?.harbor ?? null };
-  if (!wallet) return { ...base, account: null, rootMatches: null };
-  const state = await accountState(wallet.account);
-  return { ...base, account: wallet.account, rootMatches: state.wotsRoot.toLowerCase() === signer.root.toLowerCase() };
+  return { signer: "software", connected: true, root: signer.root, leavesLeft: signer.leavesLeft, harbor, account, rootMatches: await known(signer.root) };
 }
 
 export const dailyKeyPath = keyPath("daily.key");

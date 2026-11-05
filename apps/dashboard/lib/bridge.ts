@@ -2,9 +2,10 @@
 export const BRIDGE = "http://127.0.0.1:8787";
 
 export interface BridgeStatus {
-  signer: "software";
-  root: `0x${string}`;
-  leavesLeft: number;
+  signer: "software" | "esp32" | "emulator";
+  connected: boolean;
+  root: `0x${string}` | null;
+  leavesLeft: number | null;
   harbor: `0x${string}` | null;
   account: `0x${string}` | null;
   rootMatches: boolean | null;

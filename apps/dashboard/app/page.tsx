@@ -38,6 +38,12 @@ const POLL_PAUSE_MS = 8_000;
 /** How long `submit` keeps watching for a receipt, which over a mixnet is several slow round trips per check. */
 const SUBMIT_TIMEOUT_MS = 420_000;
 
+const SIGNER_TEXT: Record<BridgeStatus["signer"], string> = {
+  software: "Held by a software signer on this machine, which malware here could reach.",
+  esp32: "Held on your USB signer. Read each operation on its screen and press BOOT to approve.",
+  emulator: "Held by a device emulator: a test harness, not hardware.",
+};
+
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 const eth = (wei: bigint) => `${Number(formatEther(wei)).toLocaleString(undefined, { maximumFractionDigits: 6 })} ETH`;
 const explain = (error: unknown) => {
@@ -190,7 +196,7 @@ export default function AccountPage() {
 
   const asMaster = (label: string, request: Record<string, string>) =>
     run(label, async () => {
-      say(`master: ${label}`);
+      say(bridge !== "down" && bridge?.signer === "esp32" ? `${label}: check the signer's screen and press BOOT` : `master: ${label}`);
       const r = await master(request);
       say(`mined ${short(r.hash)} in block ${r.block}, VERIFY ${r.verifyGas.toLocaleString()} gas, leaf ${r.leaf}`);
       setNotice(`${label} is on chain.`);
@@ -341,9 +347,9 @@ export default function AccountPage() {
         <div className="stack">
           <section className="card master" aria-labelledby="master">
             <h2 id="master">Master key</h2>
-            <div className="big">{leaves}</div>
+            <div className="big">{leaves ?? "Unknown"}</div>
             <div className="sub">
-              one-time keys left of {ROTATION_LEAF}, plus one reserved for rotation. Held by a software signer on this machine.
+              {leaves === null ? "The signer is not connected, so nothing is claimed about its keys." : `one-time keys left of ${ROTATION_LEAF}, plus one reserved for rotation.`} {SIGNER_TEXT[bridge.signer]}
             </div>
             <div className="actions" style={{ marginTop: 12 }}>
               {known?.frozen ? (

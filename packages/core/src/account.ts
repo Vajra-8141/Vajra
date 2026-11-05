@@ -1,5 +1,5 @@
 /** Reading a VajraAccount, and the master- and daily-key operations a client can ask of it. */
-import { type Address, type Hex, concat, decodeEventLog, decodeFunctionResult, encodeFunctionData, keccak256, zeroAddress, zeroHash } from "viem";
+import { type Address, type Hex, concat, decodeEventLog, decodeFunctionResult, encodeFunctionData, hexToBytes, keccak256, zeroAddress, zeroHash } from "viem";
 import { publicClient, waitForSuccess, walletFor, LEGACY_GAS_PRICE } from "./chain.ts";
 import { DEVNET, rpcBatch } from "./devnet.ts";
 import {
@@ -18,6 +18,7 @@ import {
   withMasterSignature,
 } from "./frame.ts";
 import { ChainStateUnknown, type MasterSigner } from "./signer.ts";
+import { type WotsParams, verifyHashCount } from "./wots.ts";
 import VajraFactory from "./artifacts/VajraFactory.json" with { type: "json" };
 import deployed from "./deployments/1337.json" with { type: "json" };
 
@@ -201,13 +202,37 @@ export const ops = {
 };
 
 /**
- * Builds and signs a master transaction.
+ * Builds a master transaction that will fit, without signing it.
  *
- * The VERIFY limit has to be fixed before signing, because it is part of what gets signed, while the gas actually
- * needed depends on the digest. A signature cannot be tried against a node first: that would reveal the leaf. So the
- * hash count is read off the digest locally, and if a digest would be too expensive, one unit of a harmless limit
- * changes to draw a new digest. Nothing has been revealed at that point, so this costs nothing but hashing.
+ * The VERIFY limit has to be fixed before signing, because it is part of what gets signed, while the gas actually needed
+ * depends on the digest. A signature cannot be tried against a node first: that would reveal the leaf. So the hash count
+ * is read off the digest locally, and if a digest would be too expensive, one unit of a harmless limit changes to draw a
+ * new digest. Nothing has been revealed at that point, so this costs nothing but hashing.
  */
+export function prepareMasterTx(a: {
+  root: Hex;
+  leaf: number;
+  params: WotsParams;
+  account: Address;
+  epochSalt: Hex;
+  calls: Call[];
+  verifyGas?: bigint;
+  maxHashes?: number;
+  fees?: Fees;
+}): { tx: FrameTx; hashes: number; digest: Hex } {
+  const nonceKey = leafNonceKey(a.root, a.leaf);
+  const limit = a.maxHashes ?? Number.POSITIVE_INFINITY;
+  for (let tweak = 0n; tweak < 10_000n; tweak++) {
+    const calls = a.calls.map((c, i) => (i === 0 ? { ...c, execution: c.execution + tweak } : c));
+    const tx = masterTx({ account: a.account, root: a.root, leaf: a.leaf, calls, verifyGas: a.verifyGas, fees: a.fees });
+    const digest = masterDigest({ chainId: DEVNET.chainId, epochSalt: a.epochSalt, account: a.account, nonceKey, sigHash: sigHash(tx) });
+    const hashes = verifyHashCount(a.params, hexToBytes(digest));
+    if (hashes <= limit) return { tx, hashes, digest };
+  }
+  throw new Error("no digest under the hash limit");
+}
+
+/** Prepares a master transaction and signs it with a signer held in this process. */
 export function signMasterTx(a: {
   signer: MasterSigner;
   account: Address;
@@ -220,18 +245,8 @@ export function signMasterTx(a: {
   fees?: Fees;
 }): { tx: FrameTx; leaf: number; hashes: number; digest: Hex } {
   const leaf = a.leaf ?? a.signer.nextLeaf(a.rotation);
-  const root = a.signer.root;
-  const nonceKey = leafNonceKey(root, leaf);
-  const limit = a.maxHashes ?? Number.POSITIVE_INFINITY;
-  for (let tweak = 0n; tweak < 10_000n; tweak++) {
-    const calls = a.calls.map((c, i) => (i === 0 ? { ...c, execution: c.execution + tweak } : c));
-    const tx = masterTx({ account: a.account, root, leaf, calls, verifyGas: a.verifyGas, fees: a.fees });
-    const digest = masterDigest({ chainId: DEVNET.chainId, epochSalt: a.epochSalt, account: a.account, nonceKey, sigHash: sigHash(tx) });
-    const hashes = a.signer.hashCount(digest);
-    if (hashes > limit) continue;
-    return { tx: withMasterSignature(tx, a.signer.sign(leaf, digest)), leaf, hashes, digest };
-  }
-  throw new Error("no digest under the hash limit");
+  const { tx, hashes, digest } = prepareMasterTx({ ...a, root: a.signer.root, leaf, params: a.signer.params });
+  return { tx: withMasterSignature(tx, a.signer.sign(leaf, digest)), leaf, hashes, digest };
 }
 
 /**

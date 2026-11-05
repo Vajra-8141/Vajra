@@ -3,8 +3,8 @@
 Replaces the demo in spec 03 §7. Its opening beat, the public mempool rejecting a transaction on gas while the alt mempool
 admits it, does not happen on the live devnet: both refuse over 100,000 gas. See `FINDINGS.md`.
 
-Every beat below has run on the live devnet. The master key is a software signer, so say that if the hardware is not on the
-table.
+Every beat below has run on the live devnet. If the hardware is on the table, run the bridge with `VAJRA_SIGNER=device` and
+press BOOT for each master operation. Otherwise the master key is a software signer, so say that.
 
 ## Before you go on stage
 

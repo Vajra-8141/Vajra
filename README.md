@@ -51,7 +51,7 @@ Status follows the ledger in the spec: a module is BUILT only if it runs on the 
 | Stock wallets as the daily key | BUILT | personal_sign path mined; exercised with a scripted wallet, not the MetaMask extension |
 | ERC-8441 stealth, co-signed spend, paymaster | BUILT | `vajra stealth`, passes the ERC's conformance vectors |
 | Dashboard, exposure scanner | BUILT | every flow driven in a real browser over the Nym mixnet, with a scripted wallet |
-| Master key on hardware | NOT STARTED | the signer is software on this machine, behind the interface a device will use |
+| Master key on hardware | IN BUILD | the firmware compiles and its logic has signed on the devnet through a native build; **it has not run on a board**. See [`docs/HARDWARE.md`](docs/HARDWARE.md) |
 | Nominee | NOT STARTED | |
 | STARK recovery | DESIGNED | spec §9; **no proof exists** |
 | Shielded notes | DESIGNED | spec §10; **no hidden balances exist** |
@@ -86,7 +86,7 @@ Needs Node 22.18 or newer, pnpm and Foundry.
 
     git submodule update --init
     pnpm install
-    pnpm test && pnpm test:contracts
+    pnpm test && pnpm test:contracts && pnpm test:firmware
 
 The contracts are already on the devnet, at the addresses in `packages/core/src/deployments/1337.json`.
 
@@ -114,6 +114,7 @@ The tests that run against the devnet, and write to it:
     packages/core       WOTS, frame transactions, stealth payments, exposure. Runs in a browser and in Node.
     packages/cli        the wallet, the bridge, and the live test runs
     apps/dashboard      Next.js: account, exposure scanner, proof page
+    firmware            the ESP32 signer, and its logic as a portable library
     contracts           VajraAccount, Wots, VajraFactory, SponsorPaymaster
     docs                measured gas, devnet findings, stealth design, demo runbook, upstream patch
 
@@ -139,10 +140,10 @@ reaches a master function never becomes valid.
    LMS, XMSS or SPHINCS+, which are heavier.
 2. **Stealth spending has a remaining case.** A sender who also owns a quantum computer can spend what it sent. See
    [`docs/STEALTH.md`](docs/STEALTH.md).
-3. **The master key is a software signer, on the same machine as the wallet.** Its seed sits in a file, so a phished seed
-   phrase cannot reach it, but malware on that machine gets both keys and the rulebook protects nothing. The two keys only
-   outrank each other if they live apart. The bridge also signs what the dashboard asks for and shows no confirmation, which
-   a device would.
+3. **By default the master key is a software signer, on the same machine as the wallet.** Its seed sits in a file, so a
+   phished seed phrase cannot reach it, but malware on that machine gets both keys and the rulebook protects nothing. The two
+   keys only outrank each other if they live apart, which is what the hardware signer is for. The ESP32 itself is a prototype:
+   its flash is readable by whoever holds it, and it has no PIN.
 4. **The rulebook does not bound gas across transactions.** A thief can burn the account's ETH through many transactions,
    each under the per-transaction cost cap. That leaves through fees, not the daily limit.
 5. **A 64-leaf tree is a demo lifetime.** Rotation works. Backing up one-time key state across devices is the known unsolved
