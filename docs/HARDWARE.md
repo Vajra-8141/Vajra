@@ -5,9 +5,9 @@ An ESP32 that holds the master key on its own device, and shows each operation o
 **Do not plug it into a computer you do not trust.** Any program on that computer can copy the master key in half a second, and
 can press the button for it. Both are measured below, under [What a computer can do to this board](#what-a-computer-can-do-to-this-board).
 
-**Status: the firmware runs on a real ESP32, shows its state on the LCD, and talks to the client over USB. It has not yet
-signed a transaction from the board.** Its logic has signed on the devnet through a native build.
-Everything below marked unverified is waiting on that.
+**Status: a real ESP32 has signed 7 transactions that were mined on the live devnet, with a person pressing BOOT for each one,
+including a veto, a rotation and an escape.** The evidence is in `docs/evidence/device-esp32-latest.json`. The bridge and the
+dashboard have not been run against the real board yet.
 
 ## Why it exists
 
@@ -54,8 +54,8 @@ screen as coming from the host, because it is only a convenience.
 | Device logic against the TypeScript implementation | Byte-identical signatures: `make -C firmware test` |
 | Negative controls | Removing the write-ahead, the reuse check, the button or the account check each fails the tests |
 | Signatures accepted by the deployed account | 7 mined transactions through the native build: `docs/evidence/device-emulator-latest.json` |
-| A compromised host speaking the protocol, on the live devnet | Six attacks refused before reaching the button, no leaf burned |
-| The serial client | Exercised through a pseudo-terminal |
+| A compromised host speaking the protocol, on the live devnet | Six attacks refused before reaching the button, no leaf burned, on the native build and the board |
+| The serial client | 25 transfers on one open port with no retries, and every fault in `packages/cli/test/device.test.ts` |
 | ESP32 cross-compile | Succeeds: 401 KB flash, 38 KB RAM |
 | Flashing and running on a real ESP32 | **Works**: ESP32-D0WD-V3 |
 | Hardware RNG seed, NVS persistence across resets and reflashes | **Works**: the root survived both |
@@ -63,7 +63,7 @@ screen as coming from the host, because it is only a convenience.
 | Screen detection | **Works**: reports `screen=no` with no display attached |
 | Display on the bus | **Works**: a 16x2 LCD at `0x27`, and its controller reads back the text written to it |
 | Text readable on the LCD | **Works**, once the contrast trimmer is set |
-| **BOOT button, signing from the board** | **Unverified** |
+| BOOT button, signing from the board | **Works**: 7 mined transactions, `docs/evidence/device-esp32-latest.json` |
 | **A press proves a person was there** | **False on this board**: the computer can press it |
 | **The key stays on the device** | **False on this board**: the computer can read it |
 
@@ -104,7 +104,7 @@ Flash and check it:
     cd firmware && pio run -e esp32 -t upload
     node packages/cli/src/main.ts device                    # should report kind: 'esp32'
 
-The real test, which needs about ten button presses:
+The real test, which needs nine button presses:
 
     VAJRA_SIGNER=device node packages/cli/src/main.ts device-e2e
 

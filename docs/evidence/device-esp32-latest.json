@@ -1,0 +1,57 @@
+{
+ "chainId": 1337,
+ "signer": "esp32",
+ "at": "2026-11-05T21:15:59.680Z",
+ "account": "0xe3C374A57ffa7989AeDAbbD13f0F45d370456618",
+ "transactions": [
+  {
+   "step": "freeze",
+   "hash": "0x80e60964ed0188ff322f378934482e078303559226a286e542e661238e279920",
+   "block": 407192,
+   "verifyGas": 89940,
+   "leaf": 1
+  },
+  {
+   "step": "unfreeze",
+   "hash": "0x6e85fe4851f47e5194836c4b09e237a875f090ada4632117daf71246aac66a8f",
+   "block": 407194,
+   "verifyGas": 92685,
+   "leaf": 2
+  },
+  {
+   "step": "veto item 0",
+   "hash": "0x67f0ba385fa4dd2aa1e1fd02fbda8e0e1f7582eb1826e0c34eec43762df155ad",
+   "block": 407199,
+   "verifyGas": 87378,
+   "leaf": 3
+  },
+  {
+   "step": "rotate to the device's next tree",
+   "hash": "0x0e3e3e224817c0991d118b9a9aabed01c6668e57ae9e33352ac90b74411781c3",
+   "block": 407212,
+   "verifyGas": 88242,
+   "leaf": 4
+  },
+  {
+   "step": "the new tree signs",
+   "hash": "0xebf2ad6d0ac00e6eb303475ff31e6dd75a0205db9f94ce3298556ef1eb3d6297",
+   "block": 407227,
+   "verifyGas": 84168,
+   "leaf": 0
+  },
+  {
+   "step": "and unfreezes",
+   "hash": "0x9dfa823d66cdcf9ab067d0f65acb023e80510fc20cf2316c27d9be5c068f7ae4",
+   "block": 407234,
+   "verifyGas": 91086,
+   "leaf": 1
+  },
+  {
+   "step": "escape to 0xc7a6c9E63592CF5ABF0cF3F33fBBb37bc038E3aF",
+   "hash": "0x26da671fa3d65e49345519bcb5000d8cb01fafcabec4f3846ef555e75bd43fe3",
+   "block": 407236,
+   "verifyGas": 90591,
+   "leaf": 2
+  }
+ ]
+}
