@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.next/
+out/
+cache/
+broadcast/
+*.log
+.env
+.env.*
+# key material and local signer state, never commit
+.vajra/
+*.key
+# internal battle plan, kept out of the public repo
+03-VAJRA-SPEC.md

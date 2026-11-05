@@ -1,0 +1,13 @@
+{
+  "name": "vajra",
+  "private": true,
+  "type": "module",
+  "description": "An Ethereum account with bank-account rules and a hash-based master key",
+  "scripts": {
+    "test": "pnpm -r test",
+    "test:contracts": "forge test --root contracts",
+    "build:contracts": "forge build --root contracts",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "packageManager": "pnpm@9.4.0"
+}

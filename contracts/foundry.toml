@@ -1,0 +1,16 @@
+[profile.default]
+src = "src"
+out = "out"
+test = "test"
+libs = ["lib"]
+solc_version = "0.8.28"
+via_ir = true
+optimizer = true
+optimizer_runs = 200
+evm_version = "cancun"
+remappings = [
+  "@forshtat/hegota-support/=../packages/core/node_modules/@forshtat/hegota-support/",
+  "forge-std/=lib/forge-std/src/",
+]
+allow_paths = ["../packages/core/node_modules", "../node_modules"]
+fs_permissions = [{ access = "read", path = "./test/vectors" }]
