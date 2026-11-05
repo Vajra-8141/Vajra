@@ -2,8 +2,8 @@
  "chainId": 1337,
  "genesis": "0x196a1589ac71e2f305b1fbc7bfd23e55367f9fd6eb9da97e2f572c2791e17bbc",
  "w16": {
-  "implementation": "0x55c624aad41e850ce57ce67ca8975acc056d66fd",
-  "factory": "0x068c8cfaa26a7231e4a85de516628d0d4dd7c474",
+  "implementation": "0x81a88b931ec828a14bfac321d5ef59b7e5070752",
+  "factory": "0x62595a3e351eaa9c071ff2b42ae4ed977dac3f2a",
   "logW": 4,
   "len2": 3
  },

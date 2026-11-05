@@ -1,9 +1,9 @@
 import { deploy } from "./deploy.ts";
 
-const [command] = process.argv.slice(2);
+const [command, argument] = process.argv.slice(2);
 switch (command) {
   case "deploy":
-    await deploy();
+    await deploy(argument);
     break;
   case "e2e":
     await import("./e2e.ts");

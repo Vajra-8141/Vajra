@@ -39,6 +39,8 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// Spending is tracked in hourly buckets. 25 of them keep the window at or above a full 24 hours.
     uint256 private constant BUCKETS = 25;
 
+    /// Domain of the digest a stock wallet signs.
+    bytes32 private constant WALLET_TAG = keccak256("vajra.daily.v1");
     /// Gas a single token gets during a sweep, enough for a proxied USDC transfer with room to spare.
     uint256 private constant SWEEP_GAS = 300_000;
 
@@ -151,6 +153,7 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     error NotDailyKey();
     error SignatureNotBoundToTransaction();
     error BadMasterSignature();
+    error NonceKeyNotBoundToLeaf(uint256 leaf);
     error DailyTxCostExceeded(uint256 cost);
     error FrameNotAllowed(uint256 frame);
     error ItemNotPending(uint256 id);
@@ -201,20 +204,7 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     function validateDaily(Scope scope) external {
         Layout storage s = _layout();
         if (s.frozen) revert AccountFrozen();
-        address key = s.dailyKey;
-        if (key == address(0) || address(uint160(sigparam(0, SigParam.RESOLVED_SIGNER))) != key) revert NotDailyKey();
-
-        // The protocol verifies an ECDSA signature against its `msg` field, and `msg` may be any digest. Unbound, every
-        // signature this key has ever produced would pass here, for any message, on any site. Empty means the protocol
-        // used the signature hash; the only other digest accepted is that hash under personal_sign, which is what lets
-        // a stock wallet act as the daily key.
-        uint256 signed = sigparam(0, SigParam.MSG);
-        if (signed != 0) {
-            bytes32 sigHash = bytes32(txparam(TxParam.SIG_HASH));
-            if (bytes32(signed) != keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", sigHash))) {
-                revert SignatureNotBoundToTransaction();
-            }
-        }
+        _requireDailySignature(s.dailyKey);
 
         // Fees are paid before the rulebook runs, so they are the one way value can leave without passing it.
         if (scope == Scope.EXECUTION_AND_PAYMENT) {
@@ -237,6 +227,45 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         approve(scope);
     }
 
+    /// A daily signature has to commit to the whole transaction. The protocol has already checked the ECDSA signature
+    /// against the entry's `msg`, so what matters here is what `msg` is.
+    ///
+    /// Empty means the signature hash, which commits to every frame. That is the form a client holding the key uses.
+    ///
+    /// Anything else has to be proven, because the protocol verifies a signature against whatever `msg` holds: left
+    /// unchecked, any signature this key ever produced, for any message on any site, would pass here. A stock wallet
+    /// cannot produce the empty form, since it cannot sign a frame transaction, and `msg` cannot commit to the signature
+    /// hash either, since an entry with a `msg` keeps its own bytes inside that hash. So for a wallet the digest is
+    /// rebuilt here from the transaction's fields, and personal_sign is applied to that.
+    function _requireDailySignature(address key) private view {
+        if (key == address(0) || address(uint160(sigparam(0, SigParam.RESOLVED_SIGNER))) != key) revert NotDailyKey();
+        uint256 signed = sigparam(0, SigParam.MSG);
+        if (signed != 0 && bytes32(signed) != _walletDigest()) revert SignatureNotBoundToTransaction();
+    }
+
+    /// Covers everything a wallet signature leaves open. The shape is pinned to `[VERIFY, SENDER]` so that no frame can
+    /// sit outside the digest, and the body frame's target and value are held to the account and zero by `validateDaily`.
+    function _walletDigest() private view returns (bytes32) {
+        if (txparam(TxParam.CURRENT_FRAME_INDEX) != 0 || txparam(TxParam.FRAME_COUNT) != 2) {
+            revert SignatureNotBoundToTransaction();
+        }
+        bytes32 message = keccak256(
+            abi.encode(
+                WALLET_TAG,
+                block.chainid,
+                address(this),
+                txparam(TxParam.NONCE),
+                txparam(TxParam.NONCE_KEYS_HASH),
+                txparam(TxParam.MAX_FEE),
+                txparam(TxParam.MAX_PRIORITY_FEE_PER_GAS),
+                frameparam(1, FrameParam.EXECUTION_GAS_LIMIT),
+                frameparam(1, FrameParam.STATE_GAS_LIMIT),
+                keccak256(framedatacopy(0, frameparam(1, FrameParam.DATA_LENGTH), 1))
+            )
+        );
+        return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", message));
+    }
+
     /// VERIFY frame for the master key. The signature rides in an ARBITRARY entry so that the signature hash, which
     /// elides those bytes, can commit to everything else: `leaf (1 byte) ‖ WOTS signature ‖ Merkle path`.
     ///
@@ -256,12 +285,10 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         // refuses a second transaction on this leaf, including after a rotation back to an old root.
         bytes32 root = s.wotsRoot;
         uint256 nonceKey = uint256(keccak256(abi.encodePacked(root, uint8(leaf))));
-        if (
-            txparam(TxParam.NONCE_KEY_COUNT) != 1 || txparam(TxParam.NONCE_KEY_0) != nonceKey
-                || txparam(TxParam.NONCE) != 0
-        ) {
-            revert LeafAlreadySpent(leaf);
+        if (txparam(TxParam.NONCE_KEY_COUNT) != 1 || txparam(TxParam.NONCE_KEY_0) != nonceKey) {
+            revert NonceKeyNotBoundToLeaf(leaf);
         }
+        if (txparam(TxParam.NONCE) != 0) revert LeafAlreadySpent(leaf);
 
         bytes32 digest = masterDigest(nonceKey, bytes32(txparam(TxParam.SIG_HASH)));
         bytes32 leafKey = Wots.recoverLeaf(digest, sig, LOG_W, LEN2);

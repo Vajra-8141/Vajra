@@ -1,5 +1,5 @@
 /** Deploys the implementations and factories. Safe to run again after a devnet reset: `pnpm vajra deploy`. */
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { type Address, type Hex, zeroAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { DEVNET, LEGACY_GAS_PRICE, ensureFunded, genesisHash, loadOrCreateKey, publicClient, waitForSuccess, walletFor } from "@vajra/core";
@@ -10,7 +10,8 @@ const load = (name: string) =>
 export const deploymentsPath = new URL("../../core/src/deployments/1337.json", import.meta.url);
 export const keyPath = (name: string) => new URL(`../../../.vajra/${name}`, import.meta.url).pathname;
 
-export async function deploy() {
+/** Each implementation costs ~18M gas. `only` redeploys one of them and keeps the other's addresses. */
+export async function deploy(only?: string) {
   const key = loadOrCreateKey(keyPath("deployer.key"));
   const deployer = privateKeyToAccount(key).address;
   console.log("deployer", deployer, "balance", await ensureFunded(deployer));
@@ -25,8 +26,10 @@ export async function deploy() {
   }
 
   const genesis = await genesisHash();
-  const out: Record<string, unknown> = { chainId: DEVNET.chainId, genesis };
+  const previous = existsSync(deploymentsPath) ? JSON.parse(readFileSync(deploymentsPath, "utf8")) : {};
+  const out: Record<string, unknown> = { ...previous, chainId: DEVNET.chainId, genesis };
   for (const [label, logW, len2] of [["w16", 4, 3], ["w256", 8, 3]] as const) {
+    if (only && only !== label) continue;
     const implementation = await create("VajraAccount", [logW, len2]);
     const factory = await create("VajraFactory", [implementation]);
     out[label] = { implementation, factory, logW, len2 };

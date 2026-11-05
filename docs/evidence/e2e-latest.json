@@ -1,71 +1,95 @@
 {
  "chainId": 1337,
- "at": "2026-11-05T17:53:16.946Z",
- "account": "0xeC4857Fd7058AB5150D71FaB67B4f5582E7c14eE",
- "implementation": "0x55c624aad41e850ce57ce67ca8975acc056d66fd",
+ "at": "2026-11-05T18:10:10.909Z",
+ "account": "0x1203a28845f5A89f74fA8182c95550de3C38C23C",
+ "implementation": "0x81a88b931ec828a14bfac321d5ef59b7e5070752",
  "transactions": [
   {
    "step": "daily spend inside the cooling allowance",
-   "hash": "0xf0720c9b69ff8287e64115642065604f813c314307fbb760a2d0b43bdf35da90",
-   "block": 405133,
-   "verifyGas": 30707,
-   "totalGas": 597258,
+   "hash": "0x6d5bf91734431ec85d49a28f3cf9e266270331b04d60b6e7cc217b343a6ce418",
+   "block": 405330,
+   "verifyGas": 30759,
+   "totalGas": 597310,
    "attempts": 1
   },
   {
    "step": "spend above the cooling allowance",
-   "hash": "0x8d5ed57d753f15a4ab9130dfb88a080262033e142ba9311ce97eb9ea6c9a3bbb",
-   "block": 405135,
-   "verifyGas": 30707,
-   "totalGas": 616199,
+   "hash": "0xbdcf7da6d1458a38af012184fedbe2a8413fae0e500e1938bbd70c981bd8f323",
+   "block": 405333,
+   "verifyGas": 30759,
+   "totalGas": 616263,
    "attempts": 1
   },
   {
    "step": "spend above the daily limit",
-   "hash": "0xef8a36d4d4dd0c1532e2ad3a0e49e98dda62fbb9dfd93928fab602a038d70e44",
-   "block": 405153,
-   "verifyGas": 30707,
-   "totalGas": 407797,
-   "attempts": 2
+   "hash": "0xbbdb1177d99203a88a9244dad7500f2ad765051d58d45f9f98911f6f6cd516ee",
+   "block": 405343,
+   "verifyGas": 30759,
+   "totalGas": 407873,
+   "attempts": 1
   },
   {
    "step": "master veto",
-   "hash": "0x57fc879a01b32b0d542366ea3e4e1e2101f1bd0d1bf588c5a68d39dbe3941d81",
-   "block": 405158,
-   "verifyGas": 87586,
+   "hash": "0xb6de726f9fad1596455e847259e3c8cf8ef5b1b4bf0f8a0d6a1751a7511637c7",
+   "block": 405345,
+   "verifyGas": 89339,
+   "totalGas": 169466,
+   "attempts": 1
+  },
+  {
+   "step": "daily spend signed with personal_sign",
+   "hash": "0x0450768b1fec33aac6a6f048b3a912a062152d4b80cb21e4a2b47d8671644230",
+   "block": 405348,
+   "verifyGas": 42318,
+   "totalGas": 108514,
+   "attempts": 1
+  },
+  {
+   "step": "master rotates to a new tree",
+   "hash": "0x19c5817f3d39e71e48fbd6cf273c09eb4471542831021fcaf7b8069880e457e5",
+   "block": 405350,
+   "verifyGas": 92819,
+   "totalGas": 169466,
+   "attempts": 1
+  },
+  {
+   "step": "the new tree signs",
+   "hash": "0x329500daf184ee99fae3fa3e9b308917e98822ba013995cab9ad331927cb6a06",
+   "block": 405353,
+   "verifyGas": 89990,
    "totalGas": 169466,
    "attempts": 1
   },
   {
    "step": "master freeze",
-   "hash": "0xd8615e0fddc9298b7fdb933dea2405b955b04dbb2a0eb356486401fef10acd20",
-   "block": 405163,
-   "verifyGas": 89524,
+   "hash": "0xd2f1ae77029edd5eb8ac02b5d555f2885f6db52802e13ff6a224e14f31dfde52",
+   "block": 405358,
+   "verifyGas": 90626,
    "totalGas": 167418,
    "attempts": 1
   },
   {
    "step": "master unfreeze",
-   "hash": "0xd5c6f867f66922116d9b41ba9958e3f8c691e3ec59488deb6c9213e9b98170fd",
-   "block": 405168,
-   "verifyGas": 96457,
+   "hash": "0xf57ae505ddffa0c1a2f4893d4cd6f9036371f6703096b208c3b181d8fa95ac29",
+   "block": 405365,
+   "verifyGas": 90923,
    "totalGas": 167418,
    "attempts": 1
   },
   {
    "step": "queue a large spend",
-   "hash": "0x32ea4dfecf7a2f16a67c7c464ce9c7603e71ae3540743d076d6f70400068f457",
-   "block": 405195,
-   "verifyGas": 30707,
-   "totalGas": 407797,
-   "attempts": 2
+   "hash": "0x57bdc53b764f683cbfcbf8763f68c95f74923480e21fc092af0d21543de4f09f",
+   "block": 405368,
+   "verifyGas": 30759,
+   "totalGas": 407873,
+   "attempts": 1
   },
   {
    "step": "master escape",
-   "hash": "0x71512f5d4febc41c127da8fcd83e53b2e9583cf7df55efe77397842a981e9e56",
-   "block": 405208,
-   "verifyGas": 94546,
-   "totalGas": 365111,
+   "hash": "0xd741b6bc870a80070589ceb7c32ab355c08bcc328a7c759ea2d061403ec0d749",
+   "block": 405378,
+   "verifyGas": 93653,
+   "totalGas": 364302,
    "attempts": 1
   }
  ],
@@ -125,6 +149,22 @@
   {
    "attack": "layer 3: the same at the leaf's next sequence, which the protocol alone would allow",
    "refusal": "LeafAlreadySpent"
+  },
+  {
+   "attack": "a wallet signature moved onto a different recipient",
+   "refusal": "SignatureNotBoundToTransaction"
+  },
+  {
+   "attack": "personal_sign from any other key",
+   "refusal": "Invalid frame transaction signature"
+  },
+  {
+   "attack": "the reserved rotation leaf, used for anything else",
+   "refusal": "TreeExhausted"
+  },
+  {
+   "attack": "the old tree after rotation",
+   "refusal": "NonceKeyNotBoundToLeaf"
   },
   {
    "attack": "a daily spend while frozen",

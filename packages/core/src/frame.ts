@@ -7,7 +7,18 @@
 import { getProfile } from "@forshtat/hegota-support/profiles";
 import { toWire } from "@forshtat/hegota-support/rpc";
 import * as lib from "@forshtat/hegota-support/tx";
-import { type Address, type Hex, concat, encodeAbiParameters, encodeFunctionData, keccak256, numberToHex } from "viem";
+import {
+  type Address,
+  type Hex,
+  concat,
+  encodeAbiParameters,
+  encodeFunctionData,
+  hashMessage,
+  keccak256,
+  numberToHex,
+  parseSignature,
+  toBytes,
+} from "viem";
 import { DEVNET, RpcError, rpc, sleep } from "./devnet.ts";
 import VajraAccount from "./artifacts/VajraAccount.json" with { type: "json" };
 
@@ -79,6 +90,43 @@ export function dailyTx(a: { account: Address; dailyKey: Address; nonce: bigint;
 }
 
 export const signDailyTx = (tx: FrameTx, privateKey: Hex) => lib.signTx(profile, tx, privateKey);
+
+const WALLET_TAG = keccak256(toBytes("vajra.daily.v1"));
+
+/** `keccak256(be32(len) ‖ be32(k0) ‖ ...)`, TXPARAM's NONCE_KEYS_HASH. */
+const nonceKeysHash = (keys: bigint[]): Hex =>
+  keccak256(concat([numberToHex(keys.length, { size: 32 }), ...keys.map((k) => numberToHex(k, { size: 32 }))]));
+
+/** The 32 bytes a stock wallet is asked to personal_sign: what the account rebuilds in `_walletDigest`. */
+export function walletMessage(tx: FrameTx): Hex {
+  const body = tx.frames[1];
+  if (tx.frames.length !== 2 || !body) throw new Error("a wallet-signed transaction is exactly [VERIFY, SENDER]");
+  return keccak256(
+    encodeAbiParameters(
+      Array.from({ length: 10 }, (_, i) => ({ type: i === 0 || i === 4 || i === 9 ? "bytes32" : i === 2 ? "address" : "uint256" })),
+      [
+        WALLET_TAG,
+        tx.chainId,
+        tx.sender,
+        tx.nonceSeq,
+        nonceKeysHash(tx.nonceKeys),
+        tx.fees.maxFeePerGas,
+        tx.fees.maxPriorityFeePerGas,
+        body.limits.execution,
+        body.limits.state,
+        keccak256(body.data),
+      ],
+    ),
+  );
+}
+
+/** Attaches a wallet's 65-byte `r ‖ s ‖ v` signature, repacked as the protocol wants it: `v (0 or 1) ‖ r ‖ s`. */
+export function withWalletSignature(tx: FrameTx, signature: Hex): FrameTx {
+  const { r, s, yParity } = parseSignature(signature);
+  const packed = concat([numberToHex(yParity ?? 0, { size: 1 }), r, s]);
+  const msg = hashMessage({ raw: walletMessage(tx) });
+  return { ...tx, signatures: tx.signatures.map((e, i) => (i === 0 ? { ...e, msg, signature: packed } : e)) };
+}
 
 /** Spec §5, and `masterDigest` on the account. */
 export function masterDigest(a: { chainId: number; epochSalt: Hex; account: Address; nonceKey: bigint; sigHash: Hex }): Hex {
@@ -184,4 +232,3 @@ export async function submit(tx: FrameTx, opts: { timeoutMs?: number; log?: (lin
 
 export const framesSucceeded = (r: FrameReceipt) => r.status === "0x1" && r.frameReceipts.every((f) => f.status === "0x1");
 
-export { encodeAbiParameters };

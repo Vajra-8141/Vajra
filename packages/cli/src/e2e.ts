@@ -42,7 +42,9 @@ import {
   type FrameTx,
   waitForSuccess,
   walletFor,
+  walletMessage,
   withMasterSignature,
+  withWalletSignature,
   wotsSign,
 } from "@vajra/core";
 import { keyPath } from "./deploy.ts";
@@ -104,8 +106,8 @@ const harborSalt = keccak256(toHex(`harbor ${Date.now()}`));
 const seed = crypto.getRandomValues(new Uint8Array(32));
 const signer = new MasterSigner(WOTS_W16, memoryStore(), () => seed);
 
-const LIMIT = parseEther("0.01");
-const ALLOWANCE = parseEther("0.004");
+const LIMIT = parseEther("0.001");
+const ALLOWANCE = parseEther("0.0004");
 const QUEUE_DELAY = 45n;
 const COOLING = 30n;
 const waitSeconds = (s: bigint) => new Promise((r) => setTimeout(r, Number(s) * 1000));
@@ -126,22 +128,23 @@ const account = await createAccount(
     dailyLimits: [LIMIT],
     coolingAllowances: [ALLOWANCE],
   },
-  parseEther("0.09"),
+  parseEther("0.02"),
 );
 console.log(`account ${account}, daily key ${daily}`);
 const balance = (address: Address) => publicClient.getBalance({ address });
 
-const master = (calls: Call[]) => signMasterTx({ signer, account, epochSalt: genesis, calls, maxHashes: MAX_HASHES }).tx;
+let activeSigner = signer;
+const master = (calls: Call[]) => signMasterTx({ signer: activeSigner, account, epochSalt: genesis, calls, maxHashes: MAX_HASHES }).tx;
 const dailySigned = (calls: Call[]) => signDaily({ key: dailyPrivate, dailyKey: daily, account, calls });
 const queuedIn = (receipt: Awaited<ReturnType<typeof mined>>["receipt"]) => queuedEvents(receipt.frameReceipts[1]!.logs as { topics: Hex[]; data: Hex }[]);
 
 console.log("\n1. the daily key spends under the rules");
-await mined("daily spend inside the cooling allowance", await dailySigned([ops.spend(ETH, friend, parseEther("0.003"))]));
-check((await balance(friend)) === parseEther("0.003"), "the payee received the spend");
+await mined("daily spend inside the cooling allowance", await dailySigned([ops.spend(ETH, friend, parseEther("0.0003"))]));
+check((await balance(friend)) === parseEther("0.0003"), "the payee received the spend");
 
 console.log("\n2. a first-time payee is capped by cooling");
 {
-  const { receipt } = await mined("spend above the cooling allowance", await dailySigned([ops.spend(ETH, thief, parseEther("0.005"))]));
+  const { receipt } = await mined("spend above the cooling allowance", await dailySigned([ops.spend(ETH, thief, parseEther("0.0005"))]));
   check((await balance(thief)) === 0n, "nothing reached the fresh address");
   check(queuedIn(receipt)[0]?.reason === 1, "queued with reason NewPayeeCoolingActive");
 }
@@ -150,7 +153,7 @@ console.log("\n3. a spend over the daily limit is queued, in public, and the mas
 await waitSeconds(COOLING);
 let vetoTx: FrameTx;
 {
-  const { receipt } = await mined("spend above the daily limit", await dailySigned([ops.spend(ETH, friend, parseEther("0.05"))]));
+  const { receipt } = await mined("spend above the daily limit", await dailySigned([ops.spend(ETH, friend, parseEther("0.005"))]));
   const [event] = queuedIn(receipt);
   check(event?.reason === 0, "queued with reason DailyLimitExceeded");
   vetoTx = master([ops.veto(event!.id)]);
@@ -168,12 +171,12 @@ await refused("daily key replaces itself", await dailySigned([ops.setDailyKey(th
 await refused("daily key vetoes", await dailySigned([ops.veto(0n)]), "EscapeKeyOutranks");
 await refused(
   "daily key adds a second SENDER frame straight to the thief",
-  await dailySigned([ops.spend(ETH, friend, 1n), { target: thief, data: "0x", value: parseEther("0.03"), execution: 50_000n, state: 200_000n }]),
+  await dailySigned([ops.spend(ETH, friend, 1n), { target: thief, data: "0x", value: parseEther("0.003"), execution: 50_000n, state: 200_000n }]),
   "FrameNotAllowed",
 );
 await refused(
   "daily key attaches value to its call to the account",
-  await dailySigned([{ ...ops.spend(ETH, friend, 1n), value: parseEther("0.03") }]),
+  await dailySigned([{ ...ops.spend(ETH, friend, 1n), value: parseEther("0.003") }]),
   "FrameNotAllowed",
 );
 {
@@ -196,7 +199,7 @@ console.log("\n5. an outsider with no key at all");
   const s = await sign({ hash: old, privateKey: dailyPrivate });
   const packed = `0x${(s.yParity ?? 0).toString(16).padStart(2, "0")}${s.r.slice(2)}${s.s.slice(2)}` as Hex;
   const nonce = BigInt(await publicClient.getTransactionCount({ address: account }));
-  const tx = dailyTx({ account, dailyKey: daily, nonce, calls: [ops.spend(ETH, thief, parseEther("0.001"))] });
+  const tx = dailyTx({ account, dailyKey: daily, nonce, calls: [ops.spend(ETH, thief, parseEther("0.0001"))] });
   await refused(
     "an old signature over an unrelated message",
     { ...tx, signatures: [{ ...tx.signatures[0]!, msg: old, signature: packed }] },
@@ -228,6 +231,54 @@ console.log("\n6. one-time keys, layer by layer");
   await refused("layer 3: the same at the leaf's next sequence, which the protocol alone would allow", forge(1n), "LeafAlreadySpent");
 }
 
+console.log("\n6b. a stock wallet as the daily key");
+{
+  // MetaMask cannot sign a type-0x06 transaction, but it can personal_sign 32 bytes. `signMessage` over raw bytes is
+  // the same call a browser wallet answers.
+  const wallet = privateKeyToAccount(dailyPrivate);
+  const nonce = BigInt(await publicClient.getTransactionCount({ address: account }));
+  const unsigned = dailyTx({ account, dailyKey: daily, nonce, calls: [ops.spend(ETH, friend, parseEther("0.00001"))] });
+  const signature = await wallet.signMessage({ message: { raw: walletMessage(unsigned) } });
+  await mined("daily spend signed with personal_sign", withWalletSignature(unsigned, signature));
+
+  const next = BigInt(await publicClient.getTransactionCount({ address: account }));
+  const honest = dailyTx({ account, dailyKey: daily, nonce: next, calls: [ops.spend(ETH, friend, 1n)] });
+  const approved = await wallet.signMessage({ message: { raw: walletMessage(honest) } });
+
+  const swapped = { ...withWalletSignature(honest, approved), frames: dailyTx({ account, dailyKey: daily, nonce: next, calls: [ops.spend(ETH, thief, 1n)] }).frames };
+  await refused("a wallet signature moved onto a different recipient", swapped, "SignatureNotBoundToTransaction");
+
+  const stranger = privateKeyToAccount(generatePrivateKey());
+  const forged = await stranger.signMessage({ message: { raw: walletMessage(honest) } });
+  await refused("personal_sign from any other key", withWalletSignature(honest, forged), /signature/i);
+}
+
+console.log("\n6c. rotating the key tree");
+{
+  const root = signer.root;
+  const nextSeed = crypto.getRandomValues(new Uint8Array(32));
+  const next = new MasterSigner(WOTS_W16, memoryStore(), () => nextSeed);
+
+  const misuse = signMasterTx({ signer, account, epochSalt: genesis, calls: [ops.freeze()], rotation: true, maxHashes: MAX_HASHES }).tx;
+  await refused("the reserved rotation leaf, used for anything else", misuse, "TreeExhausted");
+
+  // That leaf is now revealed, so rotation uses an ordinary leaf here. The spec's reserved leaf exists for the day the
+  // others run out, and this run has just spent it on proving it cannot be misused.
+  await mined("master rotates to a new tree", master([ops.rotateRoot(next.root)]));
+  const after = await accountState(account);
+  check(after.wotsRoot === next.root && after.wotsRoot !== root, "the account has the new root");
+
+  await refused(
+    "the old tree after rotation",
+    signMasterTx({ signer, account, epochSalt: genesis, calls: [ops.freeze()], maxHashes: MAX_HASHES }).tx,
+    "NonceKeyNotBoundToLeaf",
+  );
+
+  const unfreezeWithNewTree = signMasterTx({ signer: next, account, epochSalt: genesis, calls: [ops.setHarbor(harborCommitment(harbor, harborSalt))], maxHashes: MAX_HASHES }).tx;
+  await mined("the new tree signs", unfreezeWithNewTree);
+  activeSigner = next;
+}
+
 console.log("\n7. the panic button");
 await mined("master freeze", master([ops.freeze()]));
 check((await accountState(account)).frozen, "the account is frozen");
@@ -236,7 +287,7 @@ await mined("master unfreeze", master([ops.unfreeze()]));
 
 console.log("\n8. a queued item runs once it matures, and not before");
 {
-  const { receipt } = await mined("queue a large spend", await dailySigned([ops.spend(ETH, friend, parseEther("0.05"))]));
+  const { receipt } = await mined("queue a large spend", await dailySigned([ops.spend(ETH, friend, parseEther("0.005"))]));
   const [event] = queuedIn(receipt);
   const execute = () =>
     walletFor(key).writeContract({ address: account, abi: accountAbi, functionName: "executeQueued", args: [event!.id], gas: 400_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy", chain: undefined });
@@ -250,7 +301,7 @@ console.log("\n8. a queued item runs once it matures, and not before");
   await waitSeconds(QUEUE_DELAY);
   const before = await balance(friend);
   await waitForSuccess(await execute(), "matured execute");
-  check((await balance(friend)) - before === parseEther("0.05"), "the matured item paid out");
+  check((await balance(friend)) - before === parseEther("0.005"), "the matured item paid out");
 }
 
 console.log("\n9. the escape");
