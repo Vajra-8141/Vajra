@@ -8,6 +8,9 @@ switch (command) {
   case "e2e":
     await import("./e2e.ts");
     break;
+  case "pin":
+    await import("./pin.ts");
+    break;
   case "measure":
     await import("./measure.ts");
     break;
