@@ -2,8 +2,8 @@
 
 An ESP32 that holds the master key, reachable only over a USB cable, that signs nothing without a press of its button.
 
-**Status: the firmware runs on a real ESP32 and talks to the client over USB. It has not yet signed a transaction from the
-board: that needs the display wired and the button pressed.** Its logic has signed on the devnet through a native build.
+**Status: the firmware runs on a real ESP32, shows its state on the LCD, and talks to the client over USB. It has not yet
+signed a transaction from the board.** Its logic has signed on the devnet through a native build.
 Everything below marked unverified is waiting on that.
 
 ## Why it exists
@@ -55,7 +55,8 @@ screen as coming from the host, because it is only a convenience.
 | Boot time on the chip | 10 seconds deriving a tree, 0.4 seconds from the cache |
 | Screen detection | **Works**: reports `screen=no` with no display attached |
 | Display on the bus | **Works**: a 16x2 LCD at `0x27`, and its controller reads back the text written to it |
-| **Text readable on the LCD, BOOT button, signing from the board** | **Unverified** |
+| Text readable on the LCD | **Works**, once the contrast trimmer is set |
+| **BOOT button, signing from the board** | **Unverified** |
 
 ## Setting it up
 
