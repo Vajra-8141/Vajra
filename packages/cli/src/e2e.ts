@@ -24,7 +24,7 @@ import {
   framesSucceeded,
   harborCommitment,
   leafNonceKey,
-  loadOrCreateKey,
+
   masterDigest,
   masterTx,
   memoryStore,
@@ -47,6 +47,7 @@ import {
   withWalletSignature,
   wotsSign,
 } from "@vajra/core";
+import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 
 const MAX_HASHES = 660;

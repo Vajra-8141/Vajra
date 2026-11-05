@@ -3,11 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts", "./*": "./src/*.ts" },
-  "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "@forshtat/hegota-support": "0.0.1",
+    "@noble/curves": "1.9.1",
     "@noble/hashes": "^1.8.0",
+    "@noble/post-quantum": "0.7.1",
     "viem": "^2.57.7"
   },
   "devDependencies": {

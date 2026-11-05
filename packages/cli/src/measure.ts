@@ -16,12 +16,13 @@ import {
   createAccount,
   deployments,
   harborCommitment,
-  loadOrCreateKey,
+
   memoryStore,
   ops,
   signMasterTx,
   simulate,
 } from "@vajra/core";
+import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 
 const SAMPLES = Number(process.env.SAMPLES ?? 24);

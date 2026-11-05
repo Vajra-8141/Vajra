@@ -5,7 +5,8 @@
 import { decodeFunctionResult, encodeFunctionData } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import * as tx from "@forshtat/hegota-support/tx";
-import { DEVNET, RpcError, loadOrCreateKey, profile, publicClient, sendAlt } from "@vajra/core";
+import { DEVNET, RpcError, profile, publicClient, sendAlt } from "@vajra/core";
+import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 
 const abi = [

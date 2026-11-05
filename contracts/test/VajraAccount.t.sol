@@ -5,6 +5,16 @@ import {Test} from "forge-std/Test.sol";
 import {VajraAccount} from "../src/VajraAccount.sol";
 import {VajraFactory} from "../src/VajraFactory.sol";
 
+contract MockRegistry {
+    mapping(address => uint256) public staked;
+    mapping(address => uint32) public delay;
+
+    function addStake(uint32 unstakeDelaySec) external payable {
+        staked[msg.sender] += msg.value;
+        delay[msg.sender] = unstakeDelaySec;
+    }
+}
+
 contract MockToken {
     mapping(address => uint256) public balanceOf;
     bool public broken;
@@ -93,13 +103,15 @@ contract VajraAccountTest is Test {
     address thief = makeAddr("thief");
 
     MockToken usdc;
+    MockRegistry registry;
     VajraFactory factory;
     VajraAccount account;
 
     function setUp() public {
         vm.warp(1_800_000_000);
         usdc = new MockToken();
-        factory = new VajraFactory(address(new VajraAccount(4, 3)));
+        registry = new MockRegistry();
+        factory = new VajraFactory(address(new VajraAccount(4, 3, address(registry))));
         address[] memory assets = new address[](2);
         assets[0] = address(usdc);
         assets[1] = address(0);
@@ -119,7 +131,10 @@ contract VajraAccountTest is Test {
             maxDailyTxCost: 0.05 ether,
             assets: assets,
             dailyLimits: limits,
-            coolingAllowances: cooling
+            coolingAllowances: cooling,
+            coSigner: address(0),
+            stake: 0,
+            unstakeDelay: 0
         });
         account = VajraAccount(payable(factory.create{value: 10 ether}(config)));
         usdc.mint(address(account), 1_000_000e6);
@@ -152,6 +167,33 @@ contract VajraAccountTest is Test {
         assertEq(account.dailyKey(), daily);
         assertEq(account.wotsRoot(), ROOT);
         assertEq(address(account).balance, 10 ether);
+    }
+
+    function test_factory_stakesTheAccountAtCreation() public {
+        VajraAccount.Config memory config;
+        config.wotsRoot = keccak256("staked");
+        config.stake = 0.012 ether;
+        config.unstakeDelay = 1 days;
+        address staked = factory.create{value: 0.05 ether}(config);
+        assertEq(registry.staked(staked), 0.012 ether);
+        assertEq(registry.delay(staked), 1 days);
+        assertEq(staked.balance, 0.038 ether);
+    }
+
+    function test_factory_cannotStakeMoreThanItReceived() public {
+        VajraAccount.Config memory config;
+        config.wotsRoot = keccak256("overstaked");
+        config.stake = 1 ether;
+        vm.expectRevert(VajraAccount.StakeFailed.selector);
+        factory.create{value: 0.5 ether}(config);
+    }
+
+    function test_coSigner_isStored() public {
+        VajraAccount.Config memory config;
+        config.wotsRoot = keccak256("stealth");
+        config.coSigner = makeAddr("stealth key");
+        VajraAccount stealth = VajraAccount(payable(factory.create(config)));
+        assertEq(stealth.coSigner(), makeAddr("stealth key"));
     }
 
     function test_initialize_refusesAnEmptyRoot() public {

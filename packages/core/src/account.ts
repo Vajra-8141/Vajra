@@ -1,6 +1,5 @@
 /** Reading a VajraAccount, and the master- and daily-key operations a client can ask of it. */
-import { readFileSync } from "node:fs";
-import { type Address, type Hex, concat, decodeEventLog, encodeFunctionData, keccak256, zeroAddress } from "viem";
+import { type Address, type Hex, concat, decodeEventLog, encodeFunctionData, keccak256, zeroAddress, zeroHash } from "viem";
 import { publicClient, waitForSuccess, walletFor, LEGACY_GAS_PRICE } from "./chain.ts";
 import { DEVNET } from "./devnet.ts";
 import {
@@ -8,16 +7,19 @@ import {
   type Fees,
   type FrameTx,
   accountAbi,
+  coSignTx,
   dailyTx,
   leafNonceKey,
   masterDigest,
   masterTx,
   sigHash,
   signDailyTx,
+  stealthTx,
   withMasterSignature,
 } from "./frame.ts";
 import { ChainStateUnknown, type MasterSigner } from "./signer.ts";
 import VajraFactory from "./artifacts/VajraFactory.json" with { type: "json" };
+import deployed from "./deployments/1337.json" with { type: "json" };
 
 export interface Deployment {
   implementation: Address;
@@ -26,9 +28,17 @@ export interface Deployment {
   len2: number;
 }
 
-export function deployments(): { chainId: number; genesis: Hex; w16: Deployment; w256: Deployment } {
-  return JSON.parse(readFileSync(new URL("./deployments/1337.json", import.meta.url), "utf8"));
+export interface Deployments {
+  chainId: number;
+  genesis: Hex;
+  w16: Deployment;
+  w256: Deployment;
+  paymaster: Address;
+  announcer: Address;
+  registry: Address;
 }
+
+export const deployments = (): Deployments => deployed as unknown as Deployments;
 
 export interface AccountConfig {
   dailyKey: Address;
@@ -41,7 +51,27 @@ export interface AccountConfig {
   assets: Address[];
   dailyLimits: bigint[];
   coolingAllowances: bigint[];
+  coSigner?: Address;
+  stake?: bigint;
+  unstakeDelay?: number;
 }
+
+const complete = (config: AccountConfig) => ({ coSigner: zeroAddress, stake: 0n, unstakeDelay: 0, ...config });
+
+/** A stealth account: no daily key, no rulebook, and a master key that needs its co-signer. */
+export const stealthConfig = (wotsRoot: Hex, coSigner: Address, epochSalt: Hex): AccountConfig => ({
+  dailyKey: zeroAddress,
+  wotsRoot,
+  epochSalt,
+  harborCommitment: zeroHash,
+  queueDelay: 0n,
+  coolingPeriod: 0n,
+  maxDailyTxCost: 0n,
+  assets: [],
+  dailyLimits: [],
+  coolingAllowances: [],
+  coSigner,
+});
 
 /** The chain holds only this until the escape. */
 export const harborCommitment = (harbor: Address, salt: Hex): Hex => keccak256(concat([harbor, salt]));
@@ -49,7 +79,7 @@ export const harborCommitment = (harbor: Address, salt: Hex): Hex => keccak256(c
 export const ETH = zeroAddress;
 
 export async function predictAccount(factory: Address, config: AccountConfig): Promise<Address> {
-  return (await publicClient.readContract({ address: factory, abi: VajraFactory.abi, functionName: "addressOf", args: [config] })) as Address;
+  return (await publicClient.readContract({ address: factory, abi: VajraFactory.abi, functionName: "addressOf", args: [complete(config)] })) as Address;
 }
 
 /** Deploys the clone with an ordinary transaction; `value` funds it. */
@@ -59,7 +89,7 @@ export async function createAccount(key: Hex, factory: Address, config: AccountC
     address: factory,
     abi: VajraFactory.abi,
     functionName: "create",
-    args: [config],
+    args: [complete(config)],
     value,
     gas: 3_000_000n,
     gasPrice: LEGACY_GAS_PRICE,
@@ -148,6 +178,35 @@ export function signMasterTx(a: {
     const hashes = a.signer.hashCount(digest);
     if (hashes > limit) continue;
     return { tx: withMasterSignature(tx, a.signer.sign(leaf, digest)), leaf, hashes, digest };
+  }
+  throw new Error("no digest under the hash limit");
+}
+
+/**
+ * Signs a stealth spend: the WOTS signature over the digest, then the co-signature over the signature hash. As in
+ * `signMasterTx`, a digest that would not fit is redrawn before anything is revealed.
+ */
+export async function signStealthSpend(a: {
+  signer: MasterSigner;
+  coSignerKey: Hex;
+  coSigner: Address;
+  account: Address;
+  epochSalt: Hex;
+  paymaster: Address;
+  calls: Call[];
+  leaf?: number;
+  maxHashes?: number;
+}): Promise<{ tx: FrameTx; leaf: number; hashes: number }> {
+  const leaf = a.leaf ?? a.signer.nextLeaf();
+  const limit = a.maxHashes ?? 600;
+  for (let tweak = 0n; tweak < 10_000n; tweak++) {
+    const calls = a.calls.map((c, i) => (i === 0 ? { ...c, execution: c.execution + tweak } : c));
+    const tx = stealthTx({ account: a.account, leaf, paymaster: a.paymaster, coSigner: a.coSigner, calls });
+    const digest = masterDigest({ chainId: DEVNET.chainId, epochSalt: a.epochSalt, account: a.account, nonceKey: 0n, sigHash: sigHash(tx) });
+    const hashes = a.signer.hashCount(digest);
+    if (hashes > limit) continue;
+    const signed = withMasterSignature(tx, a.signer.sign(leaf, digest));
+    return { tx: await coSignTx(signed, a.coSignerKey), leaf, hashes };
   }
   throw new Error("no digest under the hash limit");
 }

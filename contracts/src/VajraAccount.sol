@@ -53,6 +53,8 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// Signature words, and the length of the blob a master transaction carries.
     uint256 public immutable CHAINS;
     uint256 private immutable BLOB_LENGTH;
+    /// ERC-8421's IStakingRegistry. Stake is keyed on the caller, so the account has to stake for itself.
+    address public immutable STAKING_REGISTRY;
 
     // -------------------------------------------------------------------------------------------- storage ---------
 
@@ -98,6 +100,11 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         address[] assets;
         uint128[] dailyLimits;
         uint128[] coolingAllowances;
+        /// Set on a stealth account only: a second key that must co-sign every master transaction.
+        address coSigner;
+        /// Staked at creation, and sent to the registry out of the value the account is created with.
+        uint128 stake;
+        uint32 unstakeDelay;
     }
 
     /// @custom:storage-location erc7201:vajra.account.v1
@@ -111,6 +118,7 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         uint64 coolingPeriod;
         uint128 maxDailyTxCost;
         uint256 nextItem;
+        address coSigner;
         address[] assets;
         mapping(address asset => AssetRule) rules;
         mapping(uint256 id => QueuedItem) queue;
@@ -162,11 +170,14 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     error AlreadyInitialized();
     error RuleArraysMismatch();
     error RootRequired();
+    error StakeFailed();
+    error CoSignerRequired();
 
     // ---------------------------------------------------------------------------------------- construction --------
 
     /// The implementation holds no account of its own. It is locked here, and clones initialize through the factory.
-    constructor(uint256 logW, uint256 len2) {
+    constructor(uint256 logW, uint256 len2, address stakingRegistry) {
+        STAKING_REGISTRY = stakingRegistry;
         LOG_W = logW;
         LEN2 = len2;
         CHAINS = 256 / logW + len2;
@@ -189,8 +200,15 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         s.queueDelay = config.queueDelay;
         s.coolingPeriod = config.coolingPeriod;
         s.maxDailyTxCost = config.maxDailyTxCost;
+        s.coSigner = config.coSigner;
         for (uint256 i; i < config.assets.length; ++i) {
             _setRule(config.assets[i], config.dailyLimits[i], config.coolingAllowances[i]);
+        }
+        if (config.stake != 0) {
+            (bool staked,) = STAKING_REGISTRY.call{value: config.stake}(
+                abi.encodeWithSignature("addStake(uint32)", config.unstakeDelay)
+            );
+            if (!staked) revert StakeFailed();
         }
     }
 
@@ -281,14 +299,18 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         }
         if (leaf > ROTATION_LEAF) revert TreeExhausted();
 
-        // One leaf, one key, one use: the nonce key is derived from the root and the leaf, so the protocol itself
-        // refuses a second transaction on this leaf, including after a rotation back to an old root.
         bytes32 root = s.wotsRoot;
-        uint256 nonceKey = uint256(keccak256(abi.encodePacked(root, uint8(leaf))));
-        if (txparam(TxParam.NONCE_KEY_COUNT) != 1 || txparam(TxParam.NONCE_KEY_0) != nonceKey) {
-            revert NonceKeyNotBoundToLeaf(leaf);
+        uint256 nonceKey = txparam(TxParam.NONCE_KEY_0);
+        if (nonceKey == 0) {
+            _requireStealthSpend(s.coSigner, leaf);
+        } else {
+            // One leaf, one key, one use: the nonce key is derived from the root and the leaf, so the protocol itself
+            // refuses a second transaction on this leaf, including after a rotation back to an old root.
+            if (txparam(TxParam.NONCE_KEY_COUNT) != 1 || nonceKey != uint256(keccak256(abi.encodePacked(root, uint8(leaf))))) {
+                revert NonceKeyNotBoundToLeaf(leaf);
+            }
+            if (txparam(TxParam.NONCE) != 0) revert LeafAlreadySpent(leaf);
         }
-        if (txparam(TxParam.NONCE) != 0) revert LeafAlreadySpent(leaf);
 
         bytes32 digest = masterDigest(nonceKey, bytes32(txparam(TxParam.SIG_HASH)));
         bytes32 leafKey = Wots.recoverLeaf(digest, sig, LOG_W, LEN2);
@@ -300,6 +322,19 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         }
 
         approve(scope);
+    }
+
+    /// A stealth account's master key is derived from a secret the sender also holds, so on its own it proves nothing:
+    /// see docs/STEALTH.md. It takes a second signature, from ERC-8441's stealth key, which the sender cannot compute.
+    ///
+    /// With no daily key to race, a stealth account runs on its linear nonce, which saves the 20,000 gas a keyed nonce
+    /// charges on first use. Clones start at nonce 1, so leaf N is nonce N + 1, and the protocol still refuses a repeat.
+    function _requireStealthSpend(address coSigner, uint256 leaf) private view {
+        if (coSigner == address(0)) revert NonceKeyNotBoundToLeaf(leaf);
+        if (txparam(TxParam.NONCE) != leaf + 1) revert LeafAlreadySpent(leaf);
+        if (address(uint160(sigparam(1, SigParam.RESOLVED_SIGNER))) != coSigner || sigparam(1, SigParam.MSG) != 0) {
+            revert CoSignerRequired();
+        }
     }
 
     /// Spec §5. The chain id, account and nonce key are already inside the signature hash; the epoch salt is not, and
@@ -544,6 +579,10 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
 
     function coolingPeriod() external view returns (uint64) {
         return _layout().coolingPeriod;
+    }
+
+    function coSigner() external view returns (address) {
+        return _layout().coSigner;
     }
 
     function nextItem() external view returns (uint256) {

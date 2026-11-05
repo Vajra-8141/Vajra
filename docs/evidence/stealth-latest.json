@@ -1,0 +1,16 @@
+{
+ "chainId": 1337,
+ "at": "2026-11-05T18:28:55.142Z",
+ "account": "0x1c93aD7D85e595Da968B7D46E70521cd28D3337A",
+ "announceTx": "0x371bcb0be1c8138346b2519d5da6aa50e9b4e872e59a7c5577ba6bd86b2c2106",
+ "spendTx": "0x961ac1a81b67979dab95f4c9825bc05577dbb44e8d10e1efa1f3162cdb560e11",
+ "block": 405567,
+ "hashes": 570,
+ "frameGas": [
+  79274,
+  10089,
+  41352
+ ],
+ "attempts": 1,
+ "paymaster": "0x40446c9915b889b82c06f9ad6a6c4aae63b98335"
+}

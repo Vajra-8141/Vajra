@@ -19,7 +19,7 @@ import {
   deployments,
   framesSucceeded,
   harborCommitment,
-  loadOrCreateKey,
+
   memoryStore,
   ops,
   publicClient,
@@ -29,6 +29,7 @@ import {
   submit,
   txHash,
 } from "@vajra/core";
+import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 
 const key = loadOrCreateKey(keyPath("deployer.key"));

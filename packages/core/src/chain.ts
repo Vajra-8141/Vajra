@@ -1,8 +1,6 @@
 /** Ordinary transactions: deployments, and anything that is not a frame transaction. */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
 import { type Address, type Chain, type Hex, createPublicClient, createWalletClient, defineChain, http, parseEther } from "viem";
-import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { privateKeyToAccount } from "viem/accounts";
 import { DEVNET, rpc, sleep } from "./devnet.ts";
 
 export const chain: Chain = defineChain({
@@ -18,14 +16,6 @@ export const publicClient = createPublicClient({ chain, transport: http(DEVNET.e
 export const LEGACY_GAS_PRICE = 2_000_000n;
 
 export const walletFor = (key: Hex) => createWalletClient({ account: privateKeyToAccount(key), chain, transport: http(DEVNET.execution) });
-
-export function loadOrCreateKey(path: string): Hex {
-  if (existsSync(path)) return readFileSync(path, "utf8").trim() as Hex;
-  const key = generatePrivateKey();
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, key, { mode: 0o600 });
-  return key;
-}
 
 /** The faucet gives 1 ETH per address per hour. */
 export async function ensureFunded(address: Address, minimum: bigint = parseEther("0.2")): Promise<bigint> {

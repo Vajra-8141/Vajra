@@ -9,8 +9,6 @@
  * already gave. A signature handed to a node for simulation has been revealed just as surely as one broadcast: callers
  * must treat `sign` as final.
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
 import { type Hex, bytesToHex, hexToBytes } from "viem";
 import {
   KeyTree,
@@ -57,18 +55,6 @@ export interface SignerState {
 export interface SignerStore {
   load(): SignerState | undefined;
   save(state: SignerState): void;
-}
-
-/** Atomic on disk, so a crash cannot forget a leaf that already left. */
-export function fileStore(path: string): SignerStore {
-  return {
-    load: () => (existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as SignerState) : undefined),
-    save(state) {
-      mkdirSync(dirname(path), { recursive: true });
-      writeFileSync(`${path}.tmp`, JSON.stringify(state, null, 1), { mode: 0o600 });
-      renameSync(`${path}.tmp`, path);
-    },
-  };
 }
 
 export function memoryStore(initial?: SignerState): SignerStore {

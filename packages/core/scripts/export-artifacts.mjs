@@ -1,7 +1,7 @@
 // Copies the compiled contracts into the package, so the client runs without Foundry.
 import { readFileSync, writeFileSync } from "node:fs";
 
-const contracts = ["VajraAccount", "VajraFactory"];
+const contracts = ["VajraAccount", "VajraFactory", "SponsorPaymaster"];
 for (const name of contracts) {
   const url = new URL(`../../../contracts/out/${name}.sol/${name}.json`, import.meta.url);
   const { abi, bytecode } = JSON.parse(readFileSync(url, "utf8"));

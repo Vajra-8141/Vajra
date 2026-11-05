@@ -53,6 +53,8 @@ export interface Fees {
 
 export const DEFAULT_FEES: Fees = { maxFeePerGas: 2_000_000_000n, maxPriorityFeePerGas: 1_000_000_000n };
 
+const SPONSOR_SELECTOR = keccak256(toBytes("sponsor()")).slice(0, 10) as Hex;
+
 const senderFrame = (call: Call) =>
   lib.frame(profile, "SENDER", {
     target: call.target ?? null,
@@ -154,6 +156,34 @@ export function masterTx(a: { account: Address; root: Hex; leaf: number; calls: 
     frames: [verifyFrame("validateMaster", Scope.ExecutionAndPayment, limit), ...a.calls.map(senderFrame)],
   });
 }
+
+/**
+ * `limits.execution` budget for a stealth spend. The live cap counts the whole prefix, so `validateMaster` and the
+ * paymaster share it, along with the 2,900 gas of intrinsic cost for the two signature entries.
+ */
+export const STEALTH_LIMITS = { verify: 82_000n, pay: 15_000n } as const;
+
+/**
+ * `[VERIFY(master), VERIFY(pay), SENDER...]` on the account's linear nonce. Two signature entries: entry 0 is the WOTS
+ * blob, entry 1 the ERC-8441 stealth key co-signing. Both are elided from the signature hash, so both sign the same
+ * thing, and neither has to know about the other.
+ */
+export function stealthTx(a: { account: Address; leaf: number; paymaster: Address; coSigner: Address; calls: Call[]; fees?: Fees }): FrameTx {
+  return lib.newTx({
+    chainId: DEVNET.chainId,
+    sender: a.account,
+    nonceSeq: BigInt(a.leaf + 1),
+    fees: fees(a.fees ?? DEFAULT_FEES),
+    signatures: [{ scheme: profile.sigSchemes.ARBITRARY!, signer: "0x", msg: "0x", signature: "0x" }, lib.secp256k1Placeholder(profile, a.coSigner)],
+    frames: [
+      verifyFrame("validateMaster", Scope.Execution, STEALTH_LIMITS.verify),
+      lib.frame(profile, "VERIFY", { scope: "PAYMENT", target: a.paymaster, execution: STEALTH_LIMITS.pay, data: SPONSOR_SELECTOR }),
+      ...a.calls.map(senderFrame),
+    ],
+  });
+}
+
+export const coSignTx = (tx: FrameTx, privateKey: Hex) => lib.signTx(profile, tx, privateKey, 1);
 
 export function withMasterSignature(tx: FrameTx, blob: Hex): FrameTx {
   return { ...tx, signatures: tx.signatures.map((s, i) => (i === 0 ? { ...s, signature: blob } : s)) };
