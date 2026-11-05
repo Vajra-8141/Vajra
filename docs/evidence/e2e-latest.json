@@ -1,95 +1,95 @@
 {
  "chainId": 1337,
- "at": "2026-11-05T18:33:40.980Z",
- "account": "0x9c5050B46694Ce751bFf4C027265c1fa665dD2e0",
- "implementation": "0x0933a6620a43bc29187bde8084f1aeaf38bd0223",
+ "at": "2026-11-05T19:10:36.979Z",
+ "account": "0x102B9F54C0ca55A597f1722b48c395de75c85E2b",
+ "implementation": "0x8095ce1a02b7b6cc913b706bb0bd7c21c29274fd",
  "transactions": [
   {
    "step": "daily spend inside the cooling allowance",
-   "hash": "0x65cf77a40ee7629e11806e81ce519555ec5bba31138979f2dc9696fd99dac12f",
-   "block": 405578,
+   "hash": "0x325bbf35348ef51295eb9ea433c211f1269911aa165fe567c525cceaa47892c4",
+   "block": 405940,
    "verifyGas": 30803,
-   "totalGas": 597386,
+   "totalGas": 597398,
    "attempts": 1
   },
   {
    "step": "spend above the cooling allowance",
-   "hash": "0x7b728811d13edef795dfaa8f72bd8693feb130a2112d76151291cc6439d4a704",
-   "block": 405580,
+   "hash": "0x4e4344befb069de9e28052f8d59a2c0905238ce3a1563168886e68dc3a7469ec",
+   "block": 405942,
    "verifyGas": 30803,
-   "totalGas": 616327,
+   "totalGas": 616363,
    "attempts": 1
   },
   {
    "step": "spend above the daily limit",
-   "hash": "0xe790314b678f34812522110ee92341149d82fa64b17b2423d9113b1f5be9d87a",
-   "block": 405588,
+   "hash": "0xb6e9d61ee3ccb6ff1edb3bd57a064682a06ce2ef463ce82c9571755060ea5c09",
+   "block": 405950,
    "verifyGas": 30803,
    "totalGas": 407949,
    "attempts": 1
   },
   {
    "step": "master veto",
-   "hash": "0xd77ff5c25ed51f314aff425d68f75cd24c830fa185d7b12ab89686e6275a5ac0",
-   "block": 405590,
-   "verifyGas": 89106,
+   "hash": "0x2dc1e3937cebc5190a846c627191951784f06596b3def5a8c80b723dd2000620",
+   "block": 405952,
+   "verifyGas": 93549,
    "totalGas": 169466,
    "attempts": 1
   },
   {
    "step": "daily spend signed with personal_sign",
-   "hash": "0x0a717afc8476980ba9f8ed1c0c8ad034b2c31f3a6d74a1feaa6277e12dac77da",
-   "block": 405593,
+   "hash": "0xa7cec8958fd09b3d1274ccfdf34ba1141d8add109d1b799b5e831200202f4fa9",
+   "block": 405955,
    "verifyGas": 42362,
-   "totalGas": 108590,
+   "totalGas": 108578,
    "attempts": 1
   },
   {
    "step": "master rotates to a new tree",
-   "hash": "0x2dd5301ff3d685f50e41080d119e0233dbcab60a1cd17b8a52bcfff64da428ef",
-   "block": 405595,
-   "verifyGas": 91185,
+   "hash": "0x70d337f5dbc1509f269fa35e8557b5ddf2d835ea86c97fe363e159df4c56ff56",
+   "block": 405957,
+   "verifyGas": 89685,
    "totalGas": 169466,
    "attempts": 1
   },
   {
    "step": "the new tree signs",
-   "hash": "0xda683e0a6e7f19eaa801fb6ef91020eae0e15f1098701b19b25634acb700675d",
-   "block": 405597,
-   "verifyGas": 89856,
+   "hash": "0xa25bab05e76ecf40be5e4a07295eec18f64e759a7c8e00d6549420e695150146",
+   "block": 405960,
+   "verifyGas": 93195,
    "totalGas": 169466,
    "attempts": 1
   },
   {
    "step": "master freeze",
-   "hash": "0x7d6653ced0fcb57e00d1b5e56fdb18a9ee810fc37c2e83f04a717d99640eb8e0",
-   "block": 405598,
-   "verifyGas": 89091,
+   "hash": "0xef3161d500a2a9834d643b406c7df3ae15652481af4425e13092cd263ae1d310",
+   "block": 405962,
+   "verifyGas": 91185,
    "totalGas": 167418,
    "attempts": 1
   },
   {
    "step": "master unfreeze",
-   "hash": "0xdc96e4d5eaf861419c648a5989d056d2b8ce1501af478fbaf2688556169febad",
-   "block": 405600,
-   "verifyGas": 92784,
+   "hash": "0x4f031271af0ff2e10537b58e2585ea32ce03f44ed3d33d7b19fdd6b856b51f6a",
+   "block": 405965,
+   "verifyGas": 87846,
    "totalGas": 167418,
    "attempts": 1
   },
   {
    "step": "queue a large spend",
-   "hash": "0xf00550b92434633e5cddfa25005e5d0375cb3fd1f60505421cccf616b62c588e",
-   "block": 405602,
+   "hash": "0x5e5cf300a17dc9bee1b3b29085256219e7261c44951d0a9c0ca6e1bebb3bfd17",
+   "block": 405968,
    "verifyGas": 30803,
-   "totalGas": 407937,
+   "totalGas": 407949,
    "attempts": 1
   },
   {
    "step": "master escape",
-   "hash": "0xe9e55e17e1b894a61639fa0f1f145a1161dfc676d6dae99c3e7e225833cf75ab",
-   "block": 405613,
-   "verifyGas": 89727,
-   "totalGas": 360432,
+   "hash": "0x65c4fff1a71704275115bf2556553c407243a7b2393529ae33445c992272ad99",
+   "block": 405980,
+   "verifyGas": 95514,
+   "totalGas": 366207,
    "attempts": 1
   }
  ],
@@ -128,6 +128,10 @@
   },
   {
    "attack": "daily key burns the balance through fees",
+   "refusal": "DailyTxCostExceeded"
+  },
+  {
+   "attack": "daily key splits approval across two frames to dodge the fee cap",
    "refusal": "DailyTxCostExceeded"
   },
   {

@@ -5,7 +5,7 @@
  */
 import { randomBytes } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { type Address, type Hex, bytesToHex, decodeErrorResult, encodeFunctionData, hexToBytes, parseAbi, parseAbiItem } from "viem";
+import { type Address, type Hex, bytesToHex, encodeFunctionData, hexToBytes, parseAbi, parseAbiItem } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   DEVNET,
@@ -14,7 +14,6 @@ import {
   RpcError,
   STEALTH_SCHEME_ID,
   WOTS_W16,
-  accountAbi,
   coSignTx,
   createAccount,
   createPayment,
@@ -27,9 +26,11 @@ import {
   openAnnouncement,
   predictAccount,
   publicClient,
+  refusalName,
   sendAlt,
   sigHash,
   signStealthSpend,
+  simulate,
   stealthCoSigner,
   stealthConfig,
   stealthKeygen,
@@ -58,16 +59,6 @@ let failures = 0;
 const check = (ok: boolean, what: string) => {
   console.log(`  ${ok ? "ok  " : "FAIL"} ${what}`);
   if (!ok) failures++;
-};
-
-const refusalName = (message: string) => {
-  const data = /reverted with data (0x[0-9a-fA-F]+)/.exec(message)?.[1] as Hex | undefined;
-  if (!data) return message;
-  try {
-    return decodeErrorResult({ abi: accountAbi, data }).errorName;
-  } catch {
-    return message;
-  }
 };
 
 async function refused(attack: string, tx: FrameTx, expected: string | RegExp) {
@@ -164,6 +155,9 @@ console.log("\n4. who cannot spend it");
 console.log("\n5. the recipient spends, with no ETH anywhere");
 const before = await publicClient.getBalance({ address: paymaster });
 const { tx, hashes } = await signStealthSpend({ signer: found.signer, coSignerKey, coSigner, account, epochSalt: genesis, paymaster, calls: [transfer(payee, 10_000_000n)] });
+// Simulating reveals nothing new: this exact transaction is about to be broadcast.
+const verdict = await simulate(tx);
+console.log(`  canonical mempool's view of this spend: ${verdict.canonicalMempoolViolation ?? "valid"}`);
 const { hash, receipt, attempts } = await submit(tx, { log: (l) => console.log(`    ${l}`) });
 const frames = receipt.frameReceipts.map((f) => Number(BigInt(f.gasUsed)));
 check(framesSucceeded(receipt), `mined ${hash} block ${Number(receipt.blockNumber)}, ${hashes} hashes, frames ${frames.join(" / ")} gas`);
@@ -185,7 +179,7 @@ console.log("\n6. the same leaf again");
 mkdirSync(new URL("../../../docs/evidence/", import.meta.url), { recursive: true });
 writeFileSync(
   new URL("../../../docs/evidence/stealth-latest.json", import.meta.url),
-  JSON.stringify({ chainId: DEVNET.chainId, at: new Date().toISOString(), account, announceTx: announceHash, spendTx: hash, block: Number(receipt.blockNumber), hashes, frameGas: frames, attempts, paymaster }, null, 1) + "\n",
+  JSON.stringify({ chainId: DEVNET.chainId, at: new Date().toISOString(), account, announceTx: announceHash, spendTx: hash, block: Number(receipt.blockNumber), hashes, frameGas: frames, attempts, paymaster, canonicalVerdict: verdict.canonicalMempoolViolation ?? "valid" }, null, 1) + "\n",
 );
 console.log(`\n${failures} failures`);
 if (failures) process.exit(1);

@@ -224,8 +224,10 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         if (s.frozen) revert AccountFrozen();
         _requireDailySignature(s.dailyKey);
 
-        // Fees are paid before the rulebook runs, so they are the one way value can leave without passing it.
-        if (scope == Scope.EXECUTION_AND_PAYMENT) {
+        // Fees are paid before the rulebook runs, so they are the one way value can leave without passing it. The scope
+        // is the signer's to choose, and payment can be approved in a frame of its own, so this has to hold whenever
+        // payment is included in it, not only for the combined scope.
+        if (scope != Scope.EXECUTION) {
             uint256 cost = txparam(TxParam.MAX_COST);
             if (cost > s.maxDailyTxCost) revert DailyTxCostExceeded(cost);
         }

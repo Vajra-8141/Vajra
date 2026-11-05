@@ -66,6 +66,11 @@ bounded by its balance. With no pending transaction, the canonical mempool admit
   allowed, since state gas sits outside it.
 - **Cold account access is 3,000 on this fork**, not 2,600.
 - **The faucet was empty** at 23:00 IST on 2026-11-05, having worked an hour earlier.
+- **anon-rpc routes differ in a browser.** The Nym worker was ready in 16 seconds and served real lookups, so it is the
+  dashboard's default. The Tor worker's demonstration gateway had not come up after 75 seconds.
+- **A stealth spend is also valid on the canonical mempool**, per `ethrex_simulateFrameTransaction`, even with a
+  non-canonical paymaster. So stealth does not depend on the alt mempool, and finding 3 does not apply to it: a stealth
+  account has no daily key for a thief to race with.
 
 ## 5. Where the specs had to change
 

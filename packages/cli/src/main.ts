@@ -1,5 +1,5 @@
 import { type Address, formatEther, parseEther } from "viem";
-import { ETH, accountAbi, accountState, ops, publicClient, signDaily, submit } from "@vajra/core";
+import { ETH, RpcError, accountAbi, accountState, ops, publicClient, refusalName, signDaily, submit } from "@vajra/core";
 import { startBridge } from "./bridge.ts";
 import { deploy } from "./deploy.ts";
 import { createWallet, localDailyAddress, localDailyKey, requireWallet, runMasterOp, walletStatus } from "./wallet.ts";
@@ -34,6 +34,11 @@ async function status() {
   console.log(`daily key ${chain.dailyKey}\nfrozen ${chain.frozen}\nqueued items ${chain.nextItem}`);
   if (s.rootMatches === false) console.log("CHAIN STATE UNKNOWN: the account's root is not this signer's");
 }
+
+process.on("uncaughtException", (error) => {
+  console.error(`refused: ${error instanceof RpcError ? refusalName(error.message) : error.message}`);
+  process.exit(1);
+});
 
 switch (command) {
   case "create": {

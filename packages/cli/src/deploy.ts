@@ -52,7 +52,7 @@ export async function deploy(only?: string) {
   }
   if (want("stealth")) {
     const cloneRuntime = concat(["0x363d3d373d3d3d363d73", out.w16.implementation, "0x5af43d82803e903d91602b57fd5bf3"]);
-    out.paymaster = await create("SponsorPaymaster", [keccak256(cloneRuntime)], parseEther("0.05"));
+    out.paymaster = await create("SponsorPaymaster", [keccak256(cloneRuntime)], parseEther("0.015"));
     out.announcer ??= await createStock("ERC5564Announcer");
     out.registry ??= await createStock("ERC6538Registry");
   }

@@ -2,8 +2,8 @@
  "chainId": 1337,
  "genesis": "0x196a1589ac71e2f305b1fbc7bfd23e55367f9fd6eb9da97e2f572c2791e17bbc",
  "w16": {
-  "implementation": "0x0933a6620a43bc29187bde8084f1aeaf38bd0223",
-  "factory": "0xe8ffe0ed6714efc45e5987bf05585e1bc2d88f81",
+  "implementation": "0x8095ce1a02b7b6cc913b706bb0bd7c21c29274fd",
+  "factory": "0x7f25b10a43e475620b52727506bf0aceb0076ca0",
   "logW": 4,
   "len2": 3
  },
@@ -13,7 +13,7 @@
   "logW": 8,
   "len2": 3
  },
- "paymaster": "0x40446c9915b889b82c06f9ad6a6c4aae63b98335",
+ "paymaster": "0xfe02203607bec1ca841a7d7d14587790d5830b6b",
  "announcer": "0xefd71128f0f04dcf991e0b30249078162cac8154",
  "registry": "0x1b05f67c871e00fb52a40d2293d3d77133d4623f"
 }

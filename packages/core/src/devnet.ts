@@ -30,8 +30,18 @@ export class RpcError extends Error {
 
 let nextId = 1;
 
+let rpcFetch: typeof fetch = (...args) => fetch(...args);
+
+/**
+ * Sends every chain read and write through `fn`. This one setting is what lets a browser put all of its traffic through
+ * an anon-rpc worker, so a read cannot quietly go around it.
+ */
+export function setRpcFetch(fn: typeof fetch) {
+  rpcFetch = fn;
+}
+
 export async function rpc<T = unknown>(url: string, method: string, params: unknown[] = []): Promise<T> {
-  const response = await fetch(url, {
+  const response = await rpcFetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: nextId++, method, params }),

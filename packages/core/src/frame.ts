@@ -11,6 +11,7 @@ import {
   type Address,
   type Hex,
   concat,
+  decodeErrorResult,
   encodeAbiParameters,
   encodeFunctionData,
   hashMessage,
@@ -189,6 +190,20 @@ export function withMasterSignature(tx: FrameTx, blob: Hex): FrameTx {
   return { ...tx, signatures: tx.signatures.map((s, i) => (i === 0 ? { ...s, signature: blob } : s)) };
 }
 
+/**
+ * A node reports a VERIFY revert as hex. This gives back the account's own error name, or the node's message when the
+ * refusal came from somewhere else.
+ */
+export function refusalName(message: string): string {
+  const data = /reverted with data (0x[0-9a-fA-F]+)/.exec(message)?.[1] as Hex | undefined;
+  if (!data) return message;
+  try {
+    return decodeErrorResult({ abi: accountAbi, data }).errorName;
+  } catch {
+    return message;
+  }
+}
+
 export interface SimulationResult {
   canonicalMempoolValid: boolean;
   canonicalMempoolViolation: string | null;
@@ -206,8 +221,20 @@ export interface SimulationResult {
 export const simulate = (tx: FrameTx, block: string = "latest") =>
   rpc<SimulationResult>(DEVNET.execution, "ethrex_simulateFrameTransaction", [encodeTx(tx), block, { trace: false }]);
 
-/** Into the alt mempool. */
-export const sendAlt = (tx: FrameTx, url: string = DEVNET.mempool) => rpc<Hex>(url, "eth_sendFrameTransaction", [toWire(tx)]);
+/**
+ * Into the alt mempool. The miner's sidecar comes first, because the gateway has been seen to hold transactions it never
+ * forwarded, but an escape should not depend on one host. The gateway is tried only when the miner cannot be reached: a
+ * node's refusal is an answer, and it is not retried elsewhere.
+ */
+export async function sendAlt(tx: FrameTx): Promise<Hex> {
+  const wire = toWire(tx);
+  try {
+    return await rpc<Hex>(DEVNET.mempool, "eth_sendFrameTransaction", [wire]);
+  } catch (error) {
+    if (error instanceof RpcError && error.code !== 502 && error.code !== 503 && error.code !== 504) throw error;
+    return rpc<Hex>(DEVNET.gateway, "eth_sendFrameTransaction", [wire]);
+  }
+}
 
 /** Into ethrex's own mempool, the canonical one. */
 export const sendCanonical = (tx: FrameTx) => rpc<Hex>(DEVNET.execution, "eth_sendRawTransaction", [encodeTx(tx)]);

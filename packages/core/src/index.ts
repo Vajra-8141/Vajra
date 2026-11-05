@@ -5,3 +5,4 @@ export * from "./wots.ts";
 export * from "./chain.ts";
 export * from "./account.ts";
 export * from "./stealth.ts";
+export * from "./exposure.ts";

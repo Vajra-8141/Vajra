@@ -4,7 +4,7 @@
  * claim. Every mined transaction is recorded in docs/evidence/ so the evidence outlives the explorer's in-memory history.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
-import { type Address, type Hex, bytesToHex, decodeErrorResult, hexToBytes, keccak256, parseEther, toHex } from "viem";
+import { type Address, type Hex, bytesToHex, encodeFunctionData, hexToBytes, keccak256, parseEther, toHex } from "viem";
 import { generatePrivateKey, privateKeyToAccount, sign } from "viem/accounts";
 import {
   DEVNET,
@@ -31,6 +31,7 @@ import {
   ops,
   publicClient,
   queuedEvents,
+  refusalName,
   sendAlt,
   sigHash,
   signDaily,
@@ -66,17 +67,6 @@ async function mined(step: string, tx: FrameTx) {
   evidence.push({ step, hash, block: Number(receipt.blockNumber), verifyGas, totalGas: Number(BigInt(receipt.gasUsed)), attempts });
   check(framesSucceeded(receipt), `${step}: ${hash} block ${Number(receipt.blockNumber)}, VERIFY ${verifyGas} gas`);
   return { hash, receipt };
-}
-
-/** What a refusal actually says, as the account's own error name rather than a hex blob. */
-function refusalName(message: string): string {
-  const data = /reverted with data (0x[0-9a-fA-F]+)/.exec(message)?.[1] as Hex | undefined;
-  if (!data) return message;
-  try {
-    return decodeErrorResult({ abi: accountAbi, data }).errorName;
-  } catch {
-    return message;
-  }
 }
 
 /** The attack has to die at the door, and for exactly the claimed reason. */
@@ -185,6 +175,25 @@ await refused(
   const tx = dailyTx({ account, dailyKey: daily, nonce, calls: [ops.spend(ETH, thief, 1n)] });
   const expensive = { ...tx, fees: { ...tx.fees, maxFeePerGas: 1_000_000_000_000n, maxPriorityFeePerGas: 1_000_000_000_000n } };
   await refused("daily key burns the balance through fees", await signDailyTx(expensive, dailyPrivate), "DailyTxCostExceeded");
+}
+
+{
+  // Approving payment in a frame of its own, so that no frame carries the combined scope.
+  const nonce = BigInt(await publicClient.getTransactionCount({ address: account }));
+  const tx = dailyTx({ account, dailyKey: daily, nonce, calls: [ops.spend(ETH, thief, 1n)] });
+  const verify = (scope: number, flags: number) => ({
+    ...tx.frames[0]!,
+    flags,
+    // Small enough that the mempool's cap lets this through to the account's own check.
+    limits: { execution: 45_000n, state: 0n },
+    data: encodeFunctionData({ abi: accountAbi, functionName: "validateDaily", args: [scope] }),
+  });
+  const split = {
+    ...tx,
+    fees: { ...tx.fees, maxFeePerGas: 1_000_000_000_000n, maxPriorityFeePerGas: 1_000_000_000_000n },
+    frames: [verify(2, 2), verify(1, 1), tx.frames[1]!],
+  };
+  await refused("daily key splits approval across two frames to dodge the fee cap", await signDailyTx(split, dailyPrivate), "DailyTxCostExceeded");
 }
 
 console.log("\n5. an outsider with no key at all");

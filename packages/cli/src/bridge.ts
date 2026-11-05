@@ -7,7 +7,7 @@
  * stand-in signs what it is asked, which is why it only listens on loopback and only answers one origin.
  */
 import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
-import { RpcError } from "@vajra/core";
+import { RpcError, refusalName } from "@vajra/core";
 import { createWallet, runMasterOp, walletStatus } from "./wallet.ts";
 
 const PORT = Number(process.env.VAJRA_BRIDGE_PORT ?? 8787);
@@ -33,7 +33,7 @@ function send(res: ServerResponse, status: number, value: unknown) {
 
 function refusal(error: unknown) {
   const e = error as Error;
-  return { error: e.name === "Error" ? "Refused" : e.name, message: error instanceof RpcError ? error.message : e.message };
+  return { error: e.name === "Error" ? "Refused" : e.name, message: error instanceof RpcError ? refusalName(error.message) : e.message };
 }
 
 export function startBridge() {

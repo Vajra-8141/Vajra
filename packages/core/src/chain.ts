@@ -1,5 +1,5 @@
 /** Ordinary transactions: deployments, and anything that is not a frame transaction. */
-import { type Address, type Chain, type Hex, createPublicClient, createWalletClient, defineChain, http, parseEther } from "viem";
+import { type Address, type Chain, type Hex, createPublicClient, createWalletClient, custom, defineChain, http, parseEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { DEVNET, rpc, sleep } from "./devnet.ts";
 
@@ -10,7 +10,10 @@ export const chain: Chain = defineChain({
   rpcUrls: { default: { http: [DEVNET.execution] } },
 });
 
-export const publicClient = createPublicClient({ chain, transport: http(DEVNET.execution) });
+export const publicClient = createPublicClient({
+  chain,
+  transport: custom({ request: ({ method, params }) => rpc(DEVNET.execution, method, (params ?? []) as unknown[]) }),
+});
 
 /** The base fee sits at 7 wei; this clears it by a wide margin without paying gwei for a multi-million-gas deploy. */
 export const LEGACY_GAS_PRICE = 2_000_000n;

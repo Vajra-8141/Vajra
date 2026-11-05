@@ -12,3 +12,7 @@ broadcast/
 *.key
 # internal battle plan, kept out of the public repo
 03-VAJRA-SPEC.md
+# copied from docs/evidence at build time
+apps/dashboard/public/evidence/
+apps/dashboard/next-env.d.ts
+apps/dashboard/tsconfig.tsbuildinfo
