@@ -71,9 +71,18 @@ class FakeHal : public Hal {
     ++confirms;
     lastTitle = title;
     lastDetail = detail;
+    fit(title);
+    fit(detail);
     return approve;
   }
-  void show(const char*, const char*) override {}
+  void show(const char* title, const char* detail) override {
+    fit(title);
+    fit(detail);
+  }
+  void fit(const char* text) {
+    if (strlen(text) > SCREEN_COLUMNS) longest = text;
+  }
+  std::string longest;
   const char* kind() const override { return "test"; }
 };
 
@@ -197,7 +206,7 @@ static void testByteIdenticalToTheChainsImplementation() {
 
   reply = rig.sign(V_TX_VETO_LEAF1);
   CHECK(reply == std::string("OK SIG ") + V_BLOB_VETO_LEAF1, "the next leaf matches too");
-  CHECK(rig.hal.lastTitle == "VETO" && rig.hal.lastDetail == "queued item 7", "the screen named the item");
+  CHECK(rig.hal.lastTitle == "VETO" && rig.hal.lastDetail == "item 7", "the screen named the item");
 }
 
 static void testTheScreenShowsWhatIsSigned() {
@@ -210,7 +219,7 @@ static void testTheScreenShowsWhatIsSigned() {
       {V_TX_ESCAPE_EXTRA_LEAF1, "ESCAPE", "to 0x2222..2222"},
       {V_TX_DAILY_KEY_LEAF1, "NEW DAILY KEY", "0x2222..2222"},
       {V_TX_RULE_LEAF1, "CHANGE LIMIT", "ETH rule"},
-      {V_TX_ROTATE_LEAF1, "ROTATE KEYS", "install a new tree"},
+      {V_TX_ROTATE_LEAF1, "ROTATE KEYS", "new key tree"},
   };
   for (const Case& c : cases) {
     Rig rig;
@@ -327,6 +336,24 @@ static void testTheReservedLeaf() {
   CHECK(rig.device.handle("INFO").find("next=0") != std::string::npos, "without moving the ordinary leaves");
 }
 
+/** Everything the device can say has to fit the smallest screen: anything cut off is hidden from the owner. */
+static void testEverythingFitsTheScreen() {
+  const char* txs[] = {V_TX_FREEZE, V_TX_VETO_LEAF1, V_TX_ESCAPE_LEAF1, V_TX_DAILY_KEY_LEAF1, V_TX_RULE_LEAF1, V_TX_ROTATE_LEAF1, V_TX_UNFREEZE_LEAF0,
+                       V_TX_WRONG_ACCOUNT, V_TX_WRONG_CHAIN, V_TX_UNKNOWN_OP, V_TX_EXTERNAL_TARGET, V_TX_HIGH_FEE, V_TX_NEXT_SEQUENCE,
+                       V_TX_FOREIGN_TREE, V_TX_LEAF2, V_TX_FREEZE_ROTATION_LEAF, V_TX_ROTATE_WRONG_ROOT_LEAF1, "zz"};
+  for (const char* tx : txs) {
+    Rig rig;
+    rig.sign(V_TX_FREEZE);
+    rig.sign(tx);
+    CHECK(rig.hal.longest.empty(), rig.hal.longest.c_str());
+  }
+  Rig rig;
+  rig.device.handle("NEXTROOT");
+  rig.device.handle(std::string("ROTATED ") + V_NEXT_ROOT);
+  rig.device.handle("WIPE");
+  CHECK(rig.hal.longest.empty(), rig.hal.longest.c_str());
+}
+
 static void testUnknownCommand() {
   Rig rig;
   CHECK(rig.device.handle("DUMP SEED") == "ERR UnknownCommand", "there is no command that exports the seed");
@@ -347,6 +374,7 @@ int main() {
   testPairing();
   testRotation();
   testTheReservedLeaf();
+  testEverythingFitsTheScreen();
   testUnknownCommand();
   printf("%d checks, %d failures\n", checks, failures);
   return failures ? 1 : 0;

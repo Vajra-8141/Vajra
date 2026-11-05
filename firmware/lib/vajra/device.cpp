@@ -92,7 +92,7 @@ bool isZero(const uint8_t* data, size_t length) {
 bool wordIsAddress(const uint8_t* word) { return isZero(word, 12); }
 
 std::string decimalWord(const uint8_t* word) {
-  if (!isZero(word, 24)) return "a very large id";
+  if (!isZero(word, 24)) return "huge id";
   uint64_t value = 0;
   for (int i = 24; i < 32; ++i) value = (value << 8) | word[i];
   char text[24];
@@ -116,27 +116,27 @@ bool decodeOperation(const Bytes& data, Operation& op) {
 
   if (isSelector(data, "freeze()") && size == 0) {
     op.title = "FREEZE";
-    op.detail = "stop the daily key";
+    op.detail = "stop daily key";
     return true;
   }
   if (isSelector(data, "unfreeze()") && size == 0) {
     op.title = "UNFREEZE";
-    op.detail = "allow the daily key";
+    op.detail = "allow daily key";
     return true;
   }
   if (isSelector(data, "veto(uint256)") && size == 32) {
     op.title = "VETO";
-    op.detail = "queued item " + decimalWord(args);
+    op.detail = "item " + decimalWord(args);
     return true;
   }
   if (isSelector(data, "setHarbor(bytes32)") && size == 32) {
     op.title = "CHANGE HARBOR";
-    op.detail = "new sealed harbor";
+    op.detail = "new harbor";
     return true;
   }
   if (isSelector(data, "rotateRoot(bytes32)") && size == 32) {
     op.title = "ROTATE KEYS";
-    op.detail = "install a new tree";
+    op.detail = "new key tree";
     op.rotation = true;
     op.newRoot = args;
     return true;
@@ -148,7 +148,7 @@ bool decodeOperation(const Bytes& data, Operation& op) {
   }
   if (isSelector(data, "setRule(address,uint128,uint128)") && size == 96 && wordIsAddress(args)) {
     op.title = "CHANGE LIMIT";
-    op.detail = isZero(args + 12, 20) ? "ETH rule" : "token " + shortHex(args + 12, 20);
+    op.detail = isZero(args + 12, 20) ? "ETH rule" : "tok " + shortHex(args + 12, 20);
     return true;
   }
   if (isSelector(data, "escape(address,bytes32,address[])") && size >= 128 && wordIsAddress(args)) {
@@ -333,7 +333,7 @@ std::string Device::sign(const std::string& hex) {
   bool revealed = (state_.revealedMask >> leaf) & 1;
   if (revealed && memcmp(state_.revealed[leaf], digest, 32) != 0) {
     char text[32];
-    snprintf(text, sizeof(text), "leaf %d already revealed", leaf);
+    snprintf(text, sizeof(text), "leaf %d revealed", leaf);
     return refuse("LeafAlreadyRevealed", text);
   }
 
@@ -372,7 +372,7 @@ std::string Device::sign(const std::string& hex) {
 std::string Device::nextRoot() {
   static uint8_t nextLeaves[TREE_LEAVES][32];
   uint8_t root[32];
-  hal_.show("VAJRA", "deriving next tree");
+  hal_.show("VAJRA", "next tree...");
   deriveTree(state_.tree + 1, nextLeaves, root);
   idle();
   return "OK ROOT " + toHex(root, 32);
@@ -422,6 +422,7 @@ std::string Device::handle(const std::string& line) {
   if (command == "NEXTROOT") return nextRoot();
   if (command == "ROTATED") return rotated(rest);
   if (command == "WIPE") return wipe();
+  if (command == "DIAG") return "OK DIAG " + hal_.diagnostics();
   if (command == "SHOW") {
     hal_.show("host says", rest.c_str());
     return "OK SHOWN";

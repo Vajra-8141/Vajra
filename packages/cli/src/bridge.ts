@@ -51,10 +51,10 @@ async function pushQueueToScreen() {
   const now = BigInt(Math.floor(Date.now() / 1000));
   const pending = view.items.filter((item) => item.state === 1);
   const first = pending[0];
-  if (!first) return void (await device.show(view.frozen ? "account frozen" : "nothing queued"));
+  if (!first) return void (await device.show(view.frozen ? "frozen" : "nothing queued"));
   const left = first.executeAfter > now ? `${(first.executeAfter - now) / 60n}m` : "now";
   const asset = first.asset === ETH ? "ETH" : "token";
-  await device.show(`${pending.length} queued: ${formatEther(first.amount)} ${asset} in ${left}`);
+  await device.show(`${formatEther(first.amount)} ${asset} ${left}`);
 }
 
 export function startBridge() {

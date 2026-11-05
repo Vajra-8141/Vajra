@@ -16,6 +16,9 @@
  */
 namespace vajra {
 
+/** The narrowest screen supported, a 16x2 LCD. Text past this is cut off, and on a signer that means hidden. */
+constexpr size_t SCREEN_COLUMNS = 16;
+
 struct State {
   uint32_t magic;
   uint8_t master[32];
@@ -37,12 +40,14 @@ class Hal {
   /** Has to be durable when it returns: the signature is released right after. */
   virtual void save(const State& state) = 0;
   virtual void random(uint8_t* out, size_t length) = 0;
-  /** Shows the operation and waits for the owner. False on timeout. */
+  /** Shows the operation and waits for the owner. False on timeout. Neither string may pass `SCREEN_COLUMNS`. */
   virtual bool confirm(const char* title, const char* detail) = 0;
   virtual void show(const char* title, const char* detail) = 0;
   virtual const char* kind() const = 0;
   /** Without a screen the owner cannot see what they are approving, so `confirm` has to fail. */
   virtual bool hasScreen() const { return true; }
+  /** Whatever helps debug the hardware. Never anything secret. */
+  virtual std::string diagnostics() { return "none"; }
   /** The leaf public keys are public, and slow to derive, so a device may keep them. */
   virtual bool loadLeaves(uint32_t tree, uint8_t leaves[TREE_LEAVES][32]) { return false; }
   virtual void saveLeaves(uint32_t tree, const uint8_t leaves[TREE_LEAVES][32]) {}

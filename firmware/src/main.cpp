@@ -3,11 +3,14 @@
 // The radio is never started: nothing in this firmware touches WiFi or Bluetooth, so the only way in is the serial line,
 // and that line can only ask. Every signature needs a press of the BOOT button, with the operation on the screen.
 //
+// The screen is whichever answers on the I2C bus: a 16x2 character LCD on a PCF8574 backpack, or an SSD1306 OLED.
+//
 // What this does not do: the seed sits in NVS, which is readable by anyone who holds the board. Production means flash
 // encryption and secure boot, or a secure element, and a PIN.
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Arduino.h>
+#include <LiquidCrystal_I2C.h>
 #include <Preferences.h>
 #include <Wire.h>
 #include <bootloader_random.h>
@@ -24,37 +27,68 @@ constexpr int SDA_PIN = 21;
 constexpr int SCL_PIN = 22;
 constexpr int SCREEN_WIDTH = 128;
 constexpr int SCREEN_HEIGHT = 64;
-constexpr uint8_t SCREEN_ADDRESSES[] = {0x3c, 0x3d};
+constexpr uint8_t OLED_ADDRESSES[] = {0x3c, 0x3d};
+constexpr uint8_t LCD_ADDRESSES[] = {0x27, 0x3f};
+constexpr uint8_t LCD_COLUMNS = 16;
+constexpr uint8_t LCD_ROWS = 2;
+constexpr uint32_t HINT_PERIOD_MS = 1500;
 constexpr uint32_t CONFIRM_TIMEOUT_MS = 60000;
 constexpr uint32_t DEBOUNCE_MS = 30;
 constexpr size_t MAX_LINE = 8192;
 
-Adafruit_SSD1306 screen(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+LiquidCrystal_I2C* lcd = nullptr;
 bool screenReady = false;
+
+void renderOled(const char* title, const char* detail, const char* footer) {
+  oled.clearDisplay();
+  oled.setTextColor(SSD1306_WHITE);
+  oled.setCursor(0, 0);
+  oled.setTextSize(strlen(title) <= 10 ? 2 : 1);
+  oled.println(title);
+  oled.setTextSize(1);
+  oled.setCursor(0, 24);
+  oled.println(detail);
+  oled.setCursor(0, 56);
+  oled.print(footer);
+  oled.display();
+}
+
+/** Each row is padded to full width, so a shorter line never leaves the end of a longer one behind. */
+void lcdRow(uint8_t row, const char* text) {
+  char line[LCD_COLUMNS + 1];
+  snprintf(line, sizeof(line), "%-16.16s", text);
+  lcd->setCursor(0, row);
+  lcd->print(line);
+}
 
 void render(const char* title, const char* detail, const char* footer) {
   if (!screenReady) return;
-  screen.clearDisplay();
-  screen.setTextColor(SSD1306_WHITE);
-  screen.setCursor(0, 0);
-  screen.setTextSize(strlen(title) <= 10 ? 2 : 1);
-  screen.println(title);
-  screen.setTextSize(1);
-  screen.setCursor(0, 24);
-  screen.println(detail);
-  screen.setCursor(0, 56);
-  screen.print(footer);
-  screen.display();
+  if (lcd == nullptr) return renderOled(title, detail, footer);
+  lcdRow(0, title);
+  lcdRow(1, detail);
+}
+
+bool answers(uint8_t address) {
+  Wire.beginTransmission(address);
+  return Wire.endTransmission() == 0;
 }
 
 /**
- * Asks the bus whether a display is really there. The library's `begin` cannot be used for this: it only allocates a buffer
- * and succeeds with nothing connected, and a device that believes it has a screen would sign what nobody can see.
+ * Asks the bus whether a display is really there. A library's own `begin` cannot be trusted for this: Adafruit's only
+ * allocates a buffer and succeeds with nothing connected, and a device that believes it has a screen would sign what nobody
+ * can see.
  */
 bool startScreen() {
-  for (uint8_t address : SCREEN_ADDRESSES) {
-    Wire.beginTransmission(address);
-    if (Wire.endTransmission() == 0) return screen.begin(SSD1306_SWITCHCAPVCC, address);
+  for (uint8_t address : LCD_ADDRESSES) {
+    if (!answers(address)) continue;
+    lcd = new LiquidCrystal_I2C(address, LCD_COLUMNS, LCD_ROWS);
+    lcd->init();
+    lcd->backlight();
+    return true;
+  }
+  for (uint8_t address : OLED_ADDRESSES) {
+    if (answers(address)) return oled.begin(SSD1306_SWITCHCAPVCC, address);
   }
   return false;
 }
@@ -72,7 +106,7 @@ class Esp32Hal : public vajra::Hal {
   void save(const vajra::State& state) override {
     // The device is about to release a signature. If the record of that cannot be written, stopping is the only safe move.
     if (prefs_.putBytes("state", &state, sizeof(state)) != sizeof(state)) {
-      render("HALTED", "cannot record state", "");
+      render("HALTED", "cannot save", "");
       while (true) delay(1000);
     }
   }
@@ -91,10 +125,18 @@ class Esp32Hal : public vajra::Hal {
     // A press has to begin after the operation is on screen. A button already held down does not count.
     while (buttonDown()) delay(5);
     uint32_t started = millis();
+    bool hint = false;
+    uint32_t flipped = started;
     while (millis() - started < CONFIRM_TIMEOUT_MS) {
       if (buttonDown()) {
         delay(DEBOUNCE_MS);
         if (buttonDown()) return true;
+      }
+      // Two rows leave no room for the prompt, so it takes turns with the detail. The title never moves.
+      if (lcd != nullptr && millis() - flipped >= HINT_PERIOD_MS) {
+        hint = !hint;
+        flipped = millis();
+        lcdRow(1, hint ? "BOOT = approve" : detail);
       }
       delay(5);
     }
@@ -106,6 +148,21 @@ class Esp32Hal : public vajra::Hal {
   const char* kind() const override { return "esp32"; }
 
   bool hasScreen() const override { return screenReady; }
+
+  /** Every address that answers on the I2C bus, which is what identifies the attached display. */
+  std::string diagnostics() override {
+    std::string found = "i2c=";
+    char text[8];
+    int count = 0;
+    for (uint8_t address = 0x08; address < 0x78; ++address) {
+      Wire.beginTransmission(address);
+      if (Wire.endTransmission() != 0) continue;
+      snprintf(text, sizeof(text), "%s0x%02x", count++ ? "," : "", address);
+      found += text;
+    }
+    if (count == 0) found += "none";
+    return found;
+  }
 
   bool loadLeaves(uint32_t tree, uint8_t leaves[vajra::TREE_LEAVES][32]) override {
     constexpr size_t size = vajra::TREE_LEAVES * 32;

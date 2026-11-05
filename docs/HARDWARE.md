@@ -44,7 +44,7 @@ screen as coming from the host, because it is only a convenience.
 
 | Check | Result |
 |---|---|
-| Device logic against the TypeScript implementation | Byte-identical signatures, 108 checks: `make -C firmware test` |
+| Device logic against the TypeScript implementation | Byte-identical signatures, 133 checks: `make -C firmware test` |
 | Negative controls | Removing the write-ahead, the reuse check, the button or the account check each fails the tests |
 | Signatures accepted by the deployed account | 7 mined transactions through the native build: `docs/evidence/device-emulator-latest.json` |
 | A compromised host, on the live devnet | Six attacks refused before reaching the button, no leaf burned |
@@ -54,13 +54,15 @@ screen as coming from the host, because it is only a convenience.
 | Hardware RNG seed, NVS persistence across resets and reflashes | **Works**: the root survived both |
 | Boot time on the chip | 10 seconds deriving a tree, 0.4 seconds from the cache |
 | Screen detection | **Works**: reports `screen=no` with no display attached |
-| **OLED output, BOOT button, signing from the board** | **Unverified** |
+| Display on the bus | **Works**: a 16x2 LCD at `0x27` |
+| **Text readable on the LCD, BOOT button, signing from the board** | **Unverified** |
 
 ## Setting it up
 
-Wiring, for a 4-pin SSD1306 I2C OLED, with the USB cable unplugged:
+Wiring, with the USB cable unplugged. The firmware finds either display on its own: a 16x2 character LCD on a PCF8574 I2C
+backpack (address `0x27` or `0x3f`), or an SSD1306 OLED (`0x3c` or `0x3d`).
 
-| OLED | ESP32 |
+| Display | ESP32 |
 |---|---|
 | GND | GND |
 | VCC | 3V3 |
@@ -69,8 +71,17 @@ Wiring, for a 4-pin SSD1306 I2C OLED, with the USB cable unplugged:
 
 Go by the labels on the display: modules differ on whether GND or VCC comes first. BOOT is the board's own button on GPIO 0.
 
+No external resistors are needed: an LCD backpack carries its own I2C pull-ups. If an LCD's backlight is on but the text is
+invisible, turn the blue trimmer on the backpack, which sets the contrast. Many LCDs need 5V for readable text; if the trimmer
+is not enough, move VCC to the 5V pin. That also pulls SDA and SCL up to 5V, and the ESP32's pins are rated for 3.3V, so it
+usually works but is out of spec. A level shifter is the proper fix.
+
+`vajra device` shows whether a screen was found, and `DIAG` over the serial line lists every address on the bus.
+
 Without a display the device reports `screen=no` and refuses to approve anything, because nobody could see what they were
-signing. It probes the I2C bus for this: the display library's `begin` succeeds with nothing connected.
+signing. It probes the I2C bus for this: the OLED library's `begin` succeeds with nothing connected. Every message fits 16
+columns, enforced by a test, because text cut off on a signer is text hidden from its owner. On the LCD, the prompt takes
+turns with the detail on the second row.
 
 Serial access on Arch needs the `uucp` group, then a fresh login:
 
@@ -107,6 +118,7 @@ One command per line, at 115200 baud. One line back: `OK ...` or `ERR <Refusal>`
 | `ROTATED <root>` | `OK ROTATED` | yes |
 | `SHOW <text>` | `OK SHOWN` | no |
 | `WIPE` | `OK WIPED` | yes |
+| `DIAG` | `OK DIAG i2c=<addresses>` | no |
 
 Refusals: `NotPaired` `Malformed` `WrongChain` `WrongAccount` `BadShape` `FeeTooHigh` `UnknownOperation` `LeafAlreadySpent`
 `LeafAlreadyRevealed` `LeafOutOfOrder` `TreeExhausted` `ChainStateUnknown` `RotationRootUnknown` `Declined`.
@@ -119,4 +131,5 @@ Refusals: `NotPaired` `Malformed` `WrongChain` `WrongAccount` `BadShape` `FeeToo
 - **There is no backup.** The seed never leaves the device, so losing it loses the master key. The account stays usable under
   the daily key's rules, but nothing can veto or escape. STARK recovery is the designed answer, and it is not built.
 - **The screen shows an abbreviated address,** the first and last two bytes. Comparing the full address needs a better display.
+  This is the real cost of a 16x2 LCD: an attacker could grind an address that matches those four bytes.
 - **A single button can only approve.** Declining means waiting 60 seconds.
