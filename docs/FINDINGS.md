@@ -20,8 +20,9 @@ Reproduce: `node packages/cli/src/main.ts budget`. The sender is `0xe5d1aB06F0E4
 `0x6ca716c391b55ab5018e168f80a09b62b0bc0d06c4d490a1d2113b2e6f5304c9`.
 
 **Consequence:** the first example in the track's own brief, a PQ wallet needing more than 100k of verification, cannot
-currently be admitted by anyone. Block execution has no such cap, so this looks like a missing feature in the sidecar
-rather than a protocol limit: `ethrex_simulateFrameTransaction` runs a 364,040-gas VERIFY frame to success.
+currently be admitted through the sidecar by anyone. This looks like a feature the sidecar has not implemented yet rather
+than a protocol limit: ethrex's source treats `max_verify_gas` as mempool policy, and `ethrex_simulateFrameTransaction`
+runs a 364,040-gas VERIFY frame to success. A VERIFY frame that large has not been tested in a mined block.
 
 ## 2. Every precompile is refused during validation
 

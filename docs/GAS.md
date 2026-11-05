@@ -18,15 +18,16 @@ cost more than its fewer hashes save, so it was not deployed.
 
 ## Where the w=16 gas goes
 
-| Part | Gas |
-|---|---|
-| Hash chains, Merkle path and leaf hash | about 33,000 to 41,000 |
-| First use of a keyed nonce, charged inside VERIFY | 20,000 |
-| Frame opcodes, reached through helper contracts at 3,000 per cold account | about 16,000 |
-| Clone delegatecall, storage reads, digest | about 10,000 |
+From the fit above and the client's constants, not from a per-opcode trace:
 
-Keyed-nonce first use is the largest fixed cost, and a one-time key pays it every time. Using a single nonce key with the
-leaf as its sequence would save 20,000 gas, at the cost of being unable to skip a leaf that was revealed but never mined.
+| Part | Gas | Source |
+|---|---|---|
+| Hash chain steps | 27,000 to 35,000 | fit: 60.6 per hash, 450 to 585 hashes |
+| First use of a keyed nonce, charged inside VERIFY | 20,000 | `KEYED_NONCE_FIRST_USE_GAS` |
+| Everything else: frame opcodes through helper contracts, clone delegatecall, storage reads, Merkle path, leaf hash | about 39,000 | the fit's fixed term, less the 20,000 |
+
+Keyed-nonce first use is the largest single fixed cost, and a one-time key pays it every time. Using one nonce key with the
+leaf as its sequence would save it, at the cost of being unable to skip a leaf that was revealed but never mined.
 
 ## Other paths
 
