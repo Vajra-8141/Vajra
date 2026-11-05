@@ -1,10 +1,12 @@
 // Drives the dashboard in a real browser against the live devnet. The wallet is a stand-in that makes real signatures
 // with the local daily key; everything else, including the route reads take, is the real thing.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { chromium } from "playwright-core";
 import { privateKeyToAccount } from "viem/accounts";
 
 const ROUTE = process.env.ROUTE ?? "nym";
+/** With a real signer a person presses its button: each operation then waits for a file named after it in this directory. */
+const GATE = process.env.GATE;
 const SHOTS = process.env.SHOTS ?? "/tmp";
 const key = readFileSync(new URL("../../../.vajra/daily.key", import.meta.url), "utf8").trim();
 const daily = privateKeyToAccount(key);
@@ -74,6 +76,20 @@ const spend = async (to, amount) => {
 };
 const idle = () => waitFor(async () => (await page.getByRole("button", { name: /Sign and send|Sending/ }).textContent()) === "Sign and send", "the spend to finish");
 
+/** Asks for a master operation. A prompt nobody pressed comes back as Declined, which costs nothing, so it is asked again. */
+const approve = async (op, button, done) => {
+  if (GATE) {
+    console.log(`ready: ${op}`);
+    while (!existsSync(`${GATE}/${op}`)) await page.waitForTimeout(250);
+  }
+  for (let prompt = 0; prompt < 5; prompt++) {
+    await button().click();
+    await waitFor(async () => (await done()) || (await banner("error")).includes("Declined"), op);
+    if (await done()) return;
+    console.log(`no press for ${op}, asking again`);
+  }
+};
+
 const payee = privateKeyToAccount(`0x${"7".repeat(63)}${Date.now() % 10}`).address;
 await timed("spend, sign to mined", async () => {
   await spend(payee, "0.00005");
@@ -90,20 +106,17 @@ check((await banner("ok")).includes("queued"), `an oversized spend was queued: $
 await waitFor(async () => (await page.getByRole("button", { name: "Veto" }).count()) > 0, "the queue to update", 30_000);
 await shot("3-queued");
 
-await page.getByRole("button", { name: "Veto" }).first().click();
-await waitFor(async () => (await banner("ok")).includes("Veto") || (await banner("error")) !== "", "the veto");
+await approve("veto", () => page.getByRole("button", { name: "Veto" }).first(), async () => (await banner("ok")).includes("Veto"));
 check((await banner("ok")).includes("on chain"), `the master key vetoed it: ${await banner("ok")}${await banner("error")}`);
 
-await page.getByRole("button", { name: "Freeze" }).click();
-await waitFor(async () => (await banner("frozen")).includes("Frozen"), "the freeze");
+await approve("freeze", () => page.getByRole("button", { name: "Freeze" }), async () => (await banner("frozen")).includes("Frozen"));
 check((await banner("frozen")).includes("Frozen"), "the freeze shows");
 await spend(payee, "0.00001");
 await waitFor(async () => (await banner("error")).length > 0, "the refusal", 60_000);
 check((await banner("error")).includes("AccountFrozen"), `a spend while frozen was refused: ${(await banner("error")).slice(0, 80)}`);
 await shot("4-frozen");
 
-await page.getByRole("button", { name: "Unfreeze" }).click();
-await waitFor(async () => (await banner("frozen")) === "", "the unfreeze");
+await approve("unfreeze", () => page.getByRole("button", { name: "Unfreeze" }), async () => (await banner("frozen")) === "");
 check((await banner("frozen")) === "", "the account unfroze");
 
 await page.goto("http://localhost:3000/proof");

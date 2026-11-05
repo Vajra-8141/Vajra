@@ -51,7 +51,7 @@ Status follows the ledger in the spec: a module is BUILT only if it runs on the 
 | Stock wallets as the daily key | BUILT | personal_sign path mined; exercised with a scripted wallet, not the MetaMask extension |
 | ERC-8441 stealth, co-signed spend, paymaster | BUILT | `vajra stealth`, passes the ERC's conformance vectors |
 | Dashboard, exposure scanner | BUILT | every flow driven in a real browser over the Nym mixnet, with a scripted wallet |
-| Master key on hardware | BUILT | 7 transactions signed by a real ESP32 and mined, with a person pressing BOOT, through the CLI; not yet through the dashboard. **Not safe from a computer it is plugged into**: see [`docs/HARDWARE.md`](docs/HARDWARE.md) |
+| Master key on hardware | BUILT | a real ESP32 signed through the CLI (7 mined) and the dashboard (3 mined), with a person pressing BOOT. **Not safe from a computer it is plugged into**: see [`docs/HARDWARE.md`](docs/HARDWARE.md) |
 | Nominee | NOT STARTED | |
 | STARK recovery | DESIGNED | spec §9; **no proof exists** |
 | Shielded notes | DESIGNED | spec §10; **no hidden balances exist** |

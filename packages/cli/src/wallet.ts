@@ -24,6 +24,7 @@ import {
   framesSucceeded,
   harborCommitment,
   ops,
+  predictAccount,
   prepareMasterTx,
   signMasterTx,
   submit,
@@ -63,7 +64,8 @@ export interface Wallet {
   harborSalt: Hex;
 }
 
-const walletPath = keyPath("wallet.json");
+// A device account and a software account are different accounts, and neither may displace the other.
+const walletPath = keyPath(useDevice() ? "wallet.device.json" : "wallet.json");
 const signerPath = keyPath("signer.json");
 const nextSignerPath = keyPath("signer.next.json");
 
@@ -96,24 +98,22 @@ export async function createWallet(o: CreateOptions): Promise<Wallet> {
   const harborSalt = bytesToHex(randomBytes(32));
   const { w16, genesis } = deployments();
   const funder = loadOrCreateKey(keyPath("deployer.key"));
-  const account = await createAccount(
-    funder,
-    w16.factory,
-    {
-      dailyKey: o.dailyKey,
-      wotsRoot: root,
-      epochSalt: genesis,
-      harborCommitment: harborCommitment(o.harbor, harborSalt),
-      queueDelay: BigInt(o.queueDelay),
-      coolingPeriod: BigInt(o.coolingPeriod),
-      maxDailyTxCost: parseEther("0.01"),
-      assets: [ETH],
-      dailyLimits: [parseEther(o.dailyLimit)],
-      coolingAllowances: [parseEther(o.coolingAllowance)],
-    },
-    parseEther(o.fund),
-  );
+  const config = {
+    dailyKey: o.dailyKey,
+    wotsRoot: root,
+    epochSalt: genesis,
+    harborCommitment: harborCommitment(o.harbor, harborSalt),
+    queueDelay: BigInt(o.queueDelay),
+    coolingPeriod: BigInt(o.coolingPeriod),
+    maxDailyTxCost: parseEther("0.01"),
+    assets: [ETH],
+    dailyLimits: [parseEther(o.dailyLimit)],
+    coolingAllowances: [parseEther(o.coolingAllowance)],
+  };
+  const account = await predictAccount(w16.factory, config);
+  // Pairing comes first, so a missed press cannot leave a funded account that no signer answers for.
   if (device) await device.pair(account, DEVNET.chainId, genesis);
+  await createAccount(funder, w16.factory, config, parseEther(o.fund));
   const wallet: Wallet = { account, harbor: o.harbor, harborSalt };
   writeFileSync(walletPath, JSON.stringify(wallet, null, 1), { mode: 0o600 });
   return wallet;

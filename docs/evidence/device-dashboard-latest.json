@@ -1,0 +1,32 @@
+{
+ "chainId": 1337,
+ "signer": "esp32",
+ "reads": "nym",
+ "wallet": "scripted stand-in, not the MetaMask extension",
+ "at": "2026-11-05T21:34:20Z",
+ "account": "0x4E0663ec61E7Ac880b62b479825032CE189C7e5c",
+ "checks": {
+  "passed": 12,
+  "failed": 0
+ },
+ "transactions": [
+  {
+   "op": "veto",
+   "hash": "0x75184837f7c91f3803737afc6896bdcf721d0c5aebb311851b112cba038b87d8",
+   "leaf": 6,
+   "leavesLeft": 56
+  },
+  {
+   "op": "freeze",
+   "hash": "0x281a777b85f111fd0818911513a9fd79e9d3e23ceb80c68e57c7852f32ed4b6d",
+   "leaf": 7,
+   "leavesLeft": 55
+  },
+  {
+   "op": "unfreeze",
+   "hash": "0xca2169097a258951c34aa67a0a191a06a94fca292b73b69d04a2456c95a02ffa",
+   "leaf": 8,
+   "leavesLeft": 54
+  }
+ ]
+}

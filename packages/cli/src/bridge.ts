@@ -3,9 +3,9 @@
  *
  * The dashboard asks for an operation by name and gets a transaction hash back. It never sees the seed, and it cannot
  * submit a digest of its own choosing, so a compromised page can ask for a freeze but cannot get a signature over
- * something else. With the hardware signer, this process is not trusted either: the device shows the operation on its own
- * screen and waits for the button. The software signer signs what it is asked, which is why this only listens on loopback
- * and only answers one origin.
+ * something else. With the hardware signer, the device shows the operation on its own screen and waits for the button, which
+ * stops a compromised page. It does not stop a compromised copy of this process: see docs/HARDWARE.md. The software signer
+ * signs what it is asked, which is why this only listens on loopback and only answers one origin.
  */
 import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
 import { ETH, RpcError, readAccount, refusalName } from "@vajra/core";

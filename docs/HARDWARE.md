@@ -6,8 +6,9 @@ An ESP32 that holds the master key on its own device, and shows each operation o
 can press the button for it. Both are measured below, under [What a computer can do to this board](#what-a-computer-can-do-to-this-board).
 
 **Status: a real ESP32 has signed 7 transactions that were mined on the live devnet, with a person pressing BOOT for each one,
-including a veto, a rotation and an escape.** The evidence is in `docs/evidence/device-esp32-latest.json`. The bridge and the
-dashboard have not been run against the real board yet.
+including a veto, a rotation and an escape.** The evidence is in `docs/evidence/device-esp32-latest.json`. Through the bridge and
+the dashboard it has signed a veto, a freeze and an unfreeze, in `docs/evidence/device-dashboard-latest.json`. That run used a
+scripted wallet, not the MetaMask extension.
 
 ## Why it exists
 
@@ -64,6 +65,7 @@ screen as coming from the host, because it is only a convenience.
 | Display on the bus | **Works**: a 16x2 LCD at `0x27`, and its controller reads back the text written to it |
 | Text readable on the LCD | **Works**, once the contrast trimmer is set |
 | BOOT button, signing from the board | **Works**: 7 mined transactions, `docs/evidence/device-esp32-latest.json` |
+| The dashboard driving the board, reads over Nym | **Works**: 3 mined transactions, `docs/evidence/device-dashboard-latest.json` |
 | **A press proves a person was there** | **False on this board**: the computer can press it |
 | **The key stays on the device** | **False on this board**: the computer can read it |
 
