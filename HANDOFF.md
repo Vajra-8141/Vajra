@@ -45,7 +45,7 @@ on. The other 3 are optional or design-only in the spec. What remains is mostly 
 
 **Three things that will catch you out:**
 
-- The repo has **no remote**, and the keys are **not in git**. See [section 2](#2-getting-set-up).
+- The code is in a **private** GitHub repo, and the keys are **not in git**. See [section 2](#2-getting-set-up).
 - Do not repeat claims from the two spec files without checking [section 7](#7-what-we-may-and-may-not-say). Several were proved wrong by
   measurement, and the README is the current truth.
 - **Plugged into a compromised computer, the hardware signer gives up its key.** This is measured, it is a known limit, and it has to
@@ -57,13 +57,13 @@ on. The other 3 are optional or design-only in the spec. What remains is mostly 
 
 ### The code
 
-The repo exists only on the owner's machine. It has no remote, on purpose: the rule so far has been no GitHub repo, no push and no
-upstream PRs until the owner says so. A public repo is required to submit, so that has to change ([section 5](#5-what-is-next), task 4).
+The code is at `https://github.com/Vajra-8141/Vajra`, on `main`. The repo is private and the owner is the only member of the
+`Vajra-8141` organisation, so ask the owner to add you first. Then:
 
-Until then, ask the owner for a copy:
+    git clone https://github.com/Vajra-8141/Vajra.git vajra
 
-    git bundle create vajra.bundle --all      # owner, then send the file
-    git clone vajra.bundle vajra              # you
+It stays private until the owner decides otherwise, and nothing goes to upstream repos without the owner's say-so. A public repo is
+required to submit, so that has to change ([section 5](#5-what-is-next), task 4).
 
 ### What is not in git
 
@@ -287,12 +287,16 @@ after Mumbai, which only the team can commit to.
 - The spec wants the judging criteria addressed by name: creativity, usefulness, practicality, how well it works, relation to the alt
   mempool. The README does not name them.
 
-**4. Go public (owner).** History has been checked: no value from `.env` or `.vajra/` appears in any commit (14 values checked), and
-`03-VAJRA-SPEC.md`, `.env` and `.vajra/` were never committed.
+**4. Go public (owner).** History was rescanned before the first push, up to commit `453bfb2`: no private value from `.env` or `.vajra/`
+appears in any commit, and `03-VAJRA-SPEC.md`, `.env` and `.vajra/` were never committed. The only matches were public account and
+harbor addresses.
 
 Decide first what to do with `04-VAJRA-FULL-SPEC.md`. It is tracked, so it goes public, and parts are out of date: it plans w=256 and
 "~400k gas", and it carries old status tags. Add a note at the top pointing to the README, or remove it from the tree. Removing it
-leaves it in history.
+leaves it in history, and taking it out of history means a force-push that breaks every clone, so decide that before anyone clones.
+Then:
+
+    gh repo edit Vajra-8141/Vajra --visibility public --accept-visibility-change-consequences
 
 **5. Real board with Arkiv on (5 minutes, 2 presses).** This has never run together. With the board plugged in:
 
@@ -351,7 +355,7 @@ Please do not reopen these without talking to the owner.
 | The pitch is **"a thief can't block your exit"** | We expected PQ signatures to exceed the budget and measured otherwise. The real need for the alt mempool is the blocked escape |
 | **BOOT stays** as the confirm button | Owner's decision. A button on GPIO 4 plus burning `UART_DOWNLOAD_DIS` would close the host attack, and it was declined. Do not raise it again unless the owner does |
 | **Never burn an eFuse** without the owner's explicit say-so at that moment | It is permanent, and it would end USB flashing of the board |
-| Repo stays local until the owner says | Owner's decision, which submission will have to change |
+| Repo stays private until the owner says | Owner's decision, which submission will have to change |
 | Arkiv is a go | Core finished well before the Friday 10:00 go/no-go |
 | Stealth needs **two signatures** | The sender knows `ss`, so the spec's hash key alone would let a sender take the money back. See `docs/STEALTH.md` |
 | The sender deploys the stealth account | A deploy frame does not fit in the 100,000 cap alongside VERIFY and the paymaster |
