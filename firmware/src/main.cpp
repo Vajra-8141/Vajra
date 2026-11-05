@@ -69,6 +69,29 @@ void render(const char* title, const char* detail, const char* footer) {
   lcdRow(1, detail);
 }
 
+uint8_t lcdAddress = 0;
+
+/** One half-byte back from the LCD controller. On the PCF8574: P0 RS, P1 RW, P2 EN, P3 backlight, P4 to P7 data. */
+uint8_t lcdReadNibble(bool data) {
+  uint8_t base = 0xf0 | 0x08 | 0x02 | (data ? 0x01 : 0x00);
+  auto put = [](uint8_t value) {
+    Wire.beginTransmission(lcdAddress);
+    Wire.write(value);
+    Wire.endTransmission();
+  };
+  put(base);
+  put(base | 0x04);
+  Wire.requestFrom(lcdAddress, static_cast<uint8_t>(1));
+  uint8_t value = Wire.available() ? Wire.read() : 0;
+  put(base);
+  return value >> 4;
+}
+
+uint8_t lcdReadByte(bool data) {
+  uint8_t high = lcdReadNibble(data);
+  return (high << 4) | lcdReadNibble(data);
+}
+
 bool answers(uint8_t address) {
   Wire.beginTransmission(address);
   return Wire.endTransmission() == 0;
@@ -82,6 +105,7 @@ bool answers(uint8_t address) {
 bool startScreen() {
   for (uint8_t address : LCD_ADDRESSES) {
     if (!answers(address)) continue;
+    lcdAddress = address;
     lcd = new LiquidCrystal_I2C(address, LCD_COLUMNS, LCD_ROWS);
     lcd->init();
     lcd->backlight();
@@ -161,6 +185,17 @@ class Esp32Hal : public vajra::Hal {
       found += text;
     }
     if (count == 0) found += "none";
+    if (lcd != nullptr) {
+      // Reads the controller's own memory back: 'V' (0x56) here means our writes reached it and it understood them.
+      lcd->setCursor(0, 0);
+      char text2[48];
+      uint8_t first = lcdReadByte(true);
+      uint8_t second = lcdReadByte(true);
+      uint8_t status = lcdReadByte(false);
+      snprintf(text2, sizeof(text2), " lcd_chars=0x%02x,0x%02x lcd_status=0x%02x", first, second, status);
+      found += text2;
+      lcd->setCursor(0, 0);
+    }
     return found;
   }
 

@@ -54,7 +54,7 @@ screen as coming from the host, because it is only a convenience.
 | Hardware RNG seed, NVS persistence across resets and reflashes | **Works**: the root survived both |
 | Boot time on the chip | 10 seconds deriving a tree, 0.4 seconds from the cache |
 | Screen detection | **Works**: reports `screen=no` with no display attached |
-| Display on the bus | **Works**: a 16x2 LCD at `0x27` |
+| Display on the bus | **Works**: a 16x2 LCD at `0x27`, and its controller reads back the text written to it |
 | **Text readable on the LCD, BOOT button, signing from the board** | **Unverified** |
 
 ## Setting it up
@@ -76,7 +76,9 @@ invisible, turn the blue trimmer on the backpack, which sets the contrast. Many 
 is not enough, move VCC to the 5V pin. That also pulls SDA and SCL up to 5V, and the ESP32's pins are rated for 3.3V, so it
 usually works but is out of spec. A level shifter is the proper fix.
 
-`vajra device` shows whether a screen was found, and `DIAG` over the serial line lists every address on the bus.
+`vajra device` shows whether a screen was found. `DIAG` over the serial line lists every address on the bus, and on an LCD
+reads the controller's memory back: `lcd_chars=0x56,0x41` is the `V` and `A` of `VAJRA`, which proves the text arrived even if
+the glass is not showing it. Solid blocks with that reading are a contrast problem, not a firmware one.
 
 Without a display the device reports `screen=no` and refuses to approve anything, because nobody could see what they were
 signing. It probes the I2C bus for this: the OLED library's `begin` succeeds with nothing connected. Every message fits 16
@@ -118,7 +120,7 @@ One command per line, at 115200 baud. One line back: `OK ...` or `ERR <Refusal>`
 | `ROTATED <root>` | `OK ROTATED` | yes |
 | `SHOW <text>` | `OK SHOWN` | no |
 | `WIPE` | `OK WIPED` | yes |
-| `DIAG` | `OK DIAG i2c=<addresses>` | no |
+| `DIAG` | `OK DIAG i2c=<addresses> lcd_chars=<first two characters> lcd_status=<busy flag and address>` | no |
 
 Refusals: `NotPaired` `Malformed` `WrongChain` `WrongAccount` `BadShape` `FeeTooHigh` `UnknownOperation` `LeafAlreadySpent`
 `LeafAlreadyRevealed` `LeafOutOfOrder` `TreeExhausted` `ChainStateUnknown` `RotationRootUnknown` `Declined`.
