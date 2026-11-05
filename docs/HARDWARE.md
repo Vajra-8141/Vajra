@@ -1,6 +1,9 @@
 # The hardware signer
 
-An ESP32 that holds the master key, reachable only over a USB cable, that signs nothing without a press of its button.
+An ESP32 that holds the master key on its own device, and shows each operation on its screen before signing it.
+
+**Do not plug it into a computer you do not trust.** Any program on that computer can copy the master key in half a second, and
+can press the button for it. Both are measured below, under [What a computer can do to this board](#what-a-computer-can-do-to-this-board).
 
 **Status: the firmware runs on a real ESP32, shows its state on the LCD, and talks to the client over USB. It has not yet
 signed a transaction from the board.** Its logic has signed on the devnet through a native build.
@@ -9,20 +12,24 @@ Everything below marked unverified is waiting on that.
 ## Why it exists
 
 The two keys only outrank each other if one attacker cannot get both. With the software signer, the master seed is a file on
-the same machine as the wallet, so malware there gets both. The hardware moves the master key to a separate device with its
-own screen, which also means the computer does not have to be trusted.
+the same machine as the wallet, so malware there gets both. The hardware moves the master key off the computer, onto a device
+with its own screen that is only connected when it is needed. That narrows the risk to the time it is plugged in. It does not
+remove it: on this board, the computer has to be trusted while it is connected.
 
 | Attack | Software signer | Hardware signer |
 |---|---|---|
 | Phished seed phrase | Protected | Protected |
-| Malware on the computer | Both keys lost | Master key safe |
-| Compromised dashboard or bridge | Can request any master operation | Owner reads the operation on the device |
+| Malware on the computer, signer unplugged | Both keys lost | Master key safe |
+| Malware on the computer, signer plugged in | Both keys lost | **Both keys lost** |
+| Compromised dashboard | Can request any master operation | Owner reads the operation on the device |
+| Compromised bridge | Can request any master operation | **Key lost**: the bridge runs on the computer |
 | One-time key reused after restoring a backup | Possible | Less likely: one device holds the only counter |
 | Physical theft of the signer | Not applicable | **Key lost**: see the limits below |
 
 ## What the device checks
 
-The host is not trusted. It sends the whole unsigned transaction, and the device:
+The protocol does not trust the host. These checks hold against a host that only speaks it; one that goes around it is covered
+[below](#what-a-computer-can-do-to-this-board). The host sends the whole unsigned transaction, and the device:
 
 1. parses it with a strict RLP reader, since a parser that disagreed with the node's would let the screen lie
 2. checks the chain and the paired account
@@ -47,7 +54,7 @@ screen as coming from the host, because it is only a convenience.
 | Device logic against the TypeScript implementation | Byte-identical signatures: `make -C firmware test` |
 | Negative controls | Removing the write-ahead, the reuse check, the button or the account check each fails the tests |
 | Signatures accepted by the deployed account | 7 mined transactions through the native build: `docs/evidence/device-emulator-latest.json` |
-| A compromised host, on the live devnet | Six attacks refused before reaching the button, no leaf burned |
+| A compromised host speaking the protocol, on the live devnet | Six attacks refused before reaching the button, no leaf burned |
 | The serial client | Exercised through a pseudo-terminal |
 | ESP32 cross-compile | Succeeds: 401 KB flash, 38 KB RAM |
 | Flashing and running on a real ESP32 | **Works**: ESP32-D0WD-V3 |
@@ -57,6 +64,8 @@ screen as coming from the host, because it is only a convenience.
 | Display on the bus | **Works**: a 16x2 LCD at `0x27`, and its controller reads back the text written to it |
 | Text readable on the LCD | **Works**, once the contrast trimmer is set |
 | **BOOT button, signing from the board** | **Unverified** |
+| **A press proves a person was there** | **False on this board**: the computer can press it |
+| **The key stays on the device** | **False on this board**: the computer can read it |
 
 ## Setting it up
 
@@ -138,11 +147,33 @@ Why the loop is not woken is not known, so the client wakes it every 10 ms. With
 Refusals: `NotPaired` `Malformed` `WrongChain` `WrongAccount` `BadShape` `FeeTooHigh` `UnknownOperation` `LeafAlreadySpent`
 `LeafAlreadyRevealed` `LeafOutOfOrder` `TreeExhausted` `ChainStateUnknown` `RotationRootUnknown` `Declined` `NothingSigned`.
 
+## What a computer can do to this board
+
+Like most ESP32 development boards, this one wires the USB chip's DTR and RTS lines to GPIO0 and EN, so that flashing needs no
+buttons. GPIO0 is also the BOOT button. Measured on the real board, with nobody touching it:
+
+| What the computer did | What happened |
+|---|---|
+| Sent `PAIR`, then pulsed DTR with RTS released, at 0.5, 3 and 1.5 seconds | `OK PAIRED` 0.17 seconds after each pulse, and silence until then |
+| Ran the stock tool: `esptool read-flash 0x9000 0x5000` | 20,480 bytes in 0.5 seconds, no press. The key tree rebuilt from that dump matches the board's root |
+
+So a press proves nothing against a program on the computer, and that program does not need a signature at all: it can take the
+key. It can also reflash the board. Until this is closed, plug the signer in only to use it, only into a computer you trust, and
+unplug it afterwards.
+
+Closing it takes two changes together, and neither is done:
+
+1. A confirm button on a pin the USB chip cannot reach, because GPIO0 cannot be told apart from a real press.
+2. Burning the `UART_DOWNLOAD_DIS` eFuse, which this chip has, so the ROM bootloader cannot read or write the flash. This is
+   permanent: the board could never be reflashed over USB again, and the firmware has no other update path.
+
+Either one alone leaves the key exposed. Both together still leave the flash chip readable by someone holding the board.
+
 ## What this does not protect
 
-- **The ESP32 is not a secure element.** The seed sits in NVS, readable by whoever holds the board. There is no PIN. Production
-  needs flash encryption and secure boot at least, and really a WOTS app on Ledger-class hardware. A phone would also do: what
-  the design needs is a separate device with a screen.
+- **The ESP32 is not a secure element.** The seed sits in plain text in NVS, readable over USB as above and by whoever holds the
+  board. There is no PIN. Production needs flash encryption and secure boot at least, and really a WOTS app on Ledger-class
+  hardware. A phone would also do: what the design needs is a separate device with a screen.
 - **There is no backup.** The seed never leaves the device, so losing it loses the master key. The account stays usable under
   the daily key's rules, but nothing can veto or escape. STARK recovery is the designed answer, and it is not built.
 - **The screen shows an abbreviated address,** the first and last two bytes. Comparing the full address needs a better display.

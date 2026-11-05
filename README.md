@@ -142,8 +142,9 @@ reaches a master function never becomes valid.
    [`docs/STEALTH.md`](docs/STEALTH.md).
 3. **By default the master key is a software signer, on the same machine as the wallet.** Its seed sits in a file, so a
    phished seed phrase cannot reach it, but malware on that machine gets both keys and the rulebook protects nothing. The two
-   keys only outrank each other if they live apart, which is what the hardware signer is for. The ESP32 itself is a prototype:
-   its flash is readable by whoever holds it, and it has no PIN.
+   keys only outrank each other if they live apart, which is what the hardware signer is for, but on this board that only holds
+   while it is unplugged. Any program on a computer it is plugged into can copy the key in half a second and press its button,
+   both measured in [`docs/HARDWARE.md`](docs/HARDWARE.md). It is a prototype, not a secure element, and it has no PIN.
 4. **The rulebook does not bound gas across transactions.** A thief can burn the account's ETH through many transactions,
    each under the per-transaction cost cap. That leaves through fees, not the daily limit.
 5. **A 64-leaf tree is a demo lifetime.** Rotation works. Backing up one-time key state across devices is the known unsolved

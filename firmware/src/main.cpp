@@ -1,11 +1,13 @@
 // The VAJRA signer. The master key lives here, behind one USB cable and one button.
 //
-// The radio is never started: nothing in this firmware touches WiFi or Bluetooth, so the only way in is the serial line,
-// and that line can only ask. Every signature needs a press of the BOOT button, with the operation on the screen.
+// The radio is never started: nothing in this firmware touches WiFi or Bluetooth, so the only way in is the USB cable.
+// Every signature waits for the BOOT button with the operation on the screen. That stops a host that only speaks this
+// protocol. It does not stop one that drives the USB chip's DTR line, which presses BOOT, or that reads the flash: see
+// docs/HARDWARE.md.
 //
 // The screen is whichever answers on the I2C bus: a 16x2 character LCD on a PCF8574 backpack, or an SSD1306 OLED.
 //
-// What this does not do: the seed sits in NVS, which is readable by anyone who holds the board. Production means flash
+// What this does not do: the seed sits in NVS, which is readable over USB and by anyone who holds the board. Production means flash
 // encryption and secure boot, or a secure element, and a PIN.
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>

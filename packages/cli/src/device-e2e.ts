@@ -20,6 +20,7 @@ import {
   harborCommitment,
   masterTx,
   ops,
+  predictAccount,
   prepareMasterTx,
   publicClient,
   queuedEvents,
@@ -32,6 +33,8 @@ import {
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 import { Device, DeviceRefused } from "./device.ts";
+
+const PROMPTS = 10;
 
 let failures = 0;
 const check = (ok: boolean, what: string) => {
@@ -52,26 +55,37 @@ const harbor = privateKeyToAccount(generatePrivateKey()).address;
 const outsider = privateKeyToAccount(generatePrivateKey()).address;
 const salt = keccak256(toHex(`device ${Date.now()}`));
 
-console.log("creating an account whose master key the signer holds");
-const account = await createAccount(
-  key,
-  w16.factory,
-  {
-    dailyKey: daily,
-    wotsRoot: first.root,
-    epochSalt: genesis,
-    harborCommitment: harborCommitment(harbor, salt),
-    queueDelay: 3600n,
-    coolingPeriod: 0n,
-    maxDailyTxCost: parseEther("0.01"),
-    assets: [ETH],
-    dailyLimits: [parseEther("0.0001")],
-    coolingAllowances: [parseEther("0.0001")],
-  },
-  parseEther("0.015"),
-);
+const config = {
+  dailyKey: daily,
+  wotsRoot: first.root,
+  epochSalt: genesis,
+  harborCommitment: harborCommitment(harbor, salt),
+  queueDelay: 3600n,
+  coolingPeriod: 0n,
+  maxDailyTxCost: parseEther("0.01"),
+  assets: [ETH],
+  dailyLimits: [parseEther("0.0001")],
+  coolingAllowances: [parseEther("0.0001")],
+};
+
+/** A person has to reach the board, so a prompt that timed out is asked again. A declined prompt burns no leaf. */
+async function pressed<T>(ask: () => Promise<T>): Promise<T> {
+  for (let prompt = 1; ; prompt++) {
+    try {
+      return await ask();
+    } catch (error) {
+      if (!(error instanceof DeviceRefused) || error.message !== "Declined" || prompt === PROMPTS) throw error;
+      console.log("  no press in 60 seconds, asking again");
+    }
+  }
+}
+
+// Pairing comes first, so nothing is spent until someone is at the board.
+const account = await predictAccount(w16.factory, config);
 console.log(`press BOOT to pair ${account}`);
-await device.pair(account, DEVNET.chainId, genesis);
+await pressed(() => device.pair(account, DEVNET.chainId, genesis));
+console.log("creating an account whose master key the signer holds");
+await createAccount(key, w16.factory, config, parseEther("0.015"));
 
 const evidence: { step: string; hash: Hex; block: number; verifyGas: number; leaf: number }[] = [];
 
@@ -79,7 +93,7 @@ async function master(step: string, call: Call) {
   const info = await device.info();
   const { tx, digest } = prepareMasterTx({ root: info.root, leaf: info.next, params: WOTS_W16, account, epochSalt: genesis, calls: [call], maxHashes: 660 });
   console.log(`  press BOOT: ${step}`);
-  const blob = await device.sign(encodeTx(tx));
+  const blob = await pressed(() => device.sign(encodeTx(tx)));
   check(verifyMasterSignature(WOTS_W16, hexToBytes(digest), hexToBytes(blob), hexToBytes(info.root)), "the signature verifies here, before anything is broadcast");
   const { hash, receipt } = await submit(withMasterSignature(tx, blob), { log: (l) => console.log(`    ${l}`) });
   const verifyGas = Number(BigInt(receipt.frameReceipts[0]!.gasUsed));
@@ -131,7 +145,7 @@ console.log("\n4. a rotation, and the old tree's end");
   const next = await device.nextRoot();
   await master("rotate to the device's next tree", ops.rotateRoot(next));
   console.log("  press BOOT: switch to the new tree");
-  await device.rotated(next);
+  await pressed(() => device.rotated(next));
   const info = await device.info();
   check(info.root === next && info.next === 0 && info.tree === first.tree + 1, `the signer moved to tree ${info.tree}`);
   check((await accountState(account)).wotsRoot === next, "and the chain agrees");

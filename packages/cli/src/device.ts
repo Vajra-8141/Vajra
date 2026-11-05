@@ -1,7 +1,7 @@
 /**
  * The client for the hardware signer, over a USB serial line.
  *
- * One command per line, and one line back: `OK ...` or `ERR <Refusal>`. The device does not trust this side. This side only
+ * One command per line, and one line back: `OK ...` or `ERR <Refusal>`. The device checks what it is sent. This side only
  * checks that what the device said arrived whole; whether a signature is any good is for the caller and the account.
  *
  * `VAJRA_DEVICE=emulator:<path>` runs the same logic as a local process for testing. It reports `kind=emulator`, has none of

@@ -40,7 +40,7 @@ const SUBMIT_TIMEOUT_MS = 420_000;
 
 const SIGNER_TEXT: Record<BridgeStatus["signer"], string> = {
   software: "Held by a software signer on this machine, which malware here could reach.",
-  esp32: "Held on your USB signer. Read each operation on its screen and press BOOT to approve.",
+  esp32: "Held on your USB signer. Read each operation on its screen and press BOOT to approve. While it is plugged in, malware on this machine could copy it, so unplug it when you are done.",
   emulator: "Held by a device emulator: a test harness, not hardware.",
 };
 

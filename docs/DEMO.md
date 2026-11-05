@@ -48,6 +48,8 @@ faucet has been dry. Failing that, the proof page and `docs/evidence/` are the f
 - **"The blocked escape lasts as long as a thief transaction is pending."** On this idle devnet that is one slot, so the thief
   has to keep sending, at the victim's expense.
 - **"The master key here is software."** Unless the hardware is on the table.
+- **"Plugged into a compromised computer, this board gives up its key."** Any program there can copy it over USB in half a
+  second and press BOOT for it. The signer keeps the key off the machine the rest of the time. It is a prototype.
 - **"Balances are public, and sending shows your IP to the mempool."** Reads go over the mixnet. Hidden balances and STARK
   recovery are designed. No proof exists.
 
