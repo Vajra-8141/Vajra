@@ -5,6 +5,9 @@ switch (command) {
   case "deploy":
     await deploy();
     break;
+  case "e2e":
+    await import("./e2e.ts");
+    break;
   case "measure":
     await import("./measure.ts");
     break;

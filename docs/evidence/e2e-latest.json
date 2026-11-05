@@ -1,0 +1,138 @@
+{
+ "chainId": 1337,
+ "at": "2026-11-05T17:53:16.946Z",
+ "account": "0xeC4857Fd7058AB5150D71FaB67B4f5582E7c14eE",
+ "implementation": "0x55c624aad41e850ce57ce67ca8975acc056d66fd",
+ "transactions": [
+  {
+   "step": "daily spend inside the cooling allowance",
+   "hash": "0xf0720c9b69ff8287e64115642065604f813c314307fbb760a2d0b43bdf35da90",
+   "block": 405133,
+   "verifyGas": 30707,
+   "totalGas": 597258,
+   "attempts": 1
+  },
+  {
+   "step": "spend above the cooling allowance",
+   "hash": "0x8d5ed57d753f15a4ab9130dfb88a080262033e142ba9311ce97eb9ea6c9a3bbb",
+   "block": 405135,
+   "verifyGas": 30707,
+   "totalGas": 616199,
+   "attempts": 1
+  },
+  {
+   "step": "spend above the daily limit",
+   "hash": "0xef8a36d4d4dd0c1532e2ad3a0e49e98dda62fbb9dfd93928fab602a038d70e44",
+   "block": 405153,
+   "verifyGas": 30707,
+   "totalGas": 407797,
+   "attempts": 2
+  },
+  {
+   "step": "master veto",
+   "hash": "0x57fc879a01b32b0d542366ea3e4e1e2101f1bd0d1bf588c5a68d39dbe3941d81",
+   "block": 405158,
+   "verifyGas": 87586,
+   "totalGas": 169466,
+   "attempts": 1
+  },
+  {
+   "step": "master freeze",
+   "hash": "0xd8615e0fddc9298b7fdb933dea2405b955b04dbb2a0eb356486401fef10acd20",
+   "block": 405163,
+   "verifyGas": 89524,
+   "totalGas": 167418,
+   "attempts": 1
+  },
+  {
+   "step": "master unfreeze",
+   "hash": "0xd5c6f867f66922116d9b41ba9958e3f8c691e3ec59488deb6c9213e9b98170fd",
+   "block": 405168,
+   "verifyGas": 96457,
+   "totalGas": 167418,
+   "attempts": 1
+  },
+  {
+   "step": "queue a large spend",
+   "hash": "0x32ea4dfecf7a2f16a67c7c464ce9c7603e71ae3540743d076d6f70400068f457",
+   "block": 405195,
+   "verifyGas": 30707,
+   "totalGas": 407797,
+   "attempts": 2
+  },
+  {
+   "step": "master escape",
+   "hash": "0x71512f5d4febc41c127da8fcd83e53b2e9583cf7df55efe77397842a981e9e56",
+   "block": 405208,
+   "verifyGas": 94546,
+   "totalGas": 365111,
+   "attempts": 1
+  }
+ ],
+ "refusals": [
+  {
+   "attack": "daily key calls escape",
+   "refusal": "EscapeKeyOutranks"
+  },
+  {
+   "attack": "daily key changes the harbor",
+   "refusal": "HarborImmutable"
+  },
+  {
+   "attack": "daily key rotates the master tree",
+   "refusal": "EscapeKeyOutranks"
+  },
+  {
+   "attack": "daily key raises its own limit",
+   "refusal": "EscapeKeyOutranks"
+  },
+  {
+   "attack": "daily key replaces itself",
+   "refusal": "EscapeKeyOutranks"
+  },
+  {
+   "attack": "daily key vetoes",
+   "refusal": "EscapeKeyOutranks"
+  },
+  {
+   "attack": "daily key adds a second SENDER frame straight to the thief",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "daily key attaches value to its call to the account",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "daily key burns the balance through fees",
+   "refusal": "DailyTxCostExceeded"
+  },
+  {
+   "attack": "a stranger signs as the daily key",
+   "refusal": "NotDailyKey"
+  },
+  {
+   "attack": "an old signature over an unrelated message",
+   "refusal": "SignatureNotBoundToTransaction"
+  },
+  {
+   "attack": "layer 2: the mined veto, replayed byte for byte",
+   "refusal": "Invalid Transaction: Nonce mismatch: expected 1, got 0"
+  },
+  {
+   "attack": "layer 2: a valid new signature from a spent leaf, at sequence 0",
+   "refusal": "Invalid Transaction: Nonce mismatch: expected 1, got 0"
+  },
+  {
+   "attack": "layer 3: the same at the leaf's next sequence, which the protocol alone would allow",
+   "refusal": "LeafAlreadySpent"
+  },
+  {
+   "attack": "a daily spend while frozen",
+   "refusal": "AccountFrozen"
+  },
+  {
+   "attack": "the stolen key after the escape",
+   "refusal": "AccountFrozen"
+  }
+ ]
+}

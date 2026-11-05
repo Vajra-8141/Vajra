@@ -86,15 +86,20 @@ export async function accountState(address: Address) {
 
 // Gas for each operation's SENDER frame. A new storage slot costs 97,920 state gas on this fork, so `state` has to
 // cover every slot the call can create. Unused gas is refunded; these only have to be high enough.
+//
+// `execution` looks too high for a reason. A CALL carrying value to an address with no account checks for 183,600 of
+// *execution* gas that it never spends: ethrex computes a state-gas spill against a reservoir that is always empty in
+// a frame, even though the state gas itself comes from the frame's separate pool. Any call that might pay a fresh
+// address needs that much headroom left at the moment of the CALL.
 const encode = (functionName: string, args: unknown[]) => encodeFunctionData({ abi: accountAbi, functionName, args });
 
 export const ops = {
   spend: (asset: Address, recipient: Address, amount: bigint): Call => ({
     data: encode("spend", [asset, recipient, amount]),
-    execution: 250_000n,
+    execution: 500_000n,
     state: 700_000n,
   }),
-  executeQueued: (id: bigint): Call => ({ data: encode("executeQueued", [id]), execution: 150_000n, state: 300_000n }),
+  executeQueued: (id: bigint): Call => ({ data: encode("executeQueued", [id]), execution: 400_000n, state: 300_000n }),
   veto: (id: bigint): Call => ({ data: encode("veto", [id]), execution: 80_000n, state: 100_000n }),
   freeze: (): Call => ({ data: encode("freeze", []), execution: 60_000n, state: 100_000n }),
   unfreeze: (): Call => ({ data: encode("unfreeze", []), execution: 60_000n, state: 100_000n }),
