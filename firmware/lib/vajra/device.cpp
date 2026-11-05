@@ -231,7 +231,12 @@ void Device::boot() {
     hal_.save(state_);
   }
   hal_.show("VAJRA", "loading keys");
-  deriveTree(state_.tree, leaves_, root_);
+  if (hal_.loadLeaves(state_.tree, leaves_)) {
+    treeRoot(leaves_, root_);
+  } else {
+    deriveTree(state_.tree, leaves_, root_);
+    hal_.saveLeaves(state_.tree, leaves_);
+  }
   idle();
 }
 
@@ -246,6 +251,7 @@ std::string Device::info() {
   snprintf(text, sizeof(text), " tree=%lu next=%lu left=%d chain=%llu", static_cast<unsigned long>(state_.tree),
            static_cast<unsigned long>(state_.nextLeaf), left < 0 ? 0 : left, static_cast<unsigned long long>(state_.chainId));
   std::string out = "OK INFO kind=" + std::string(hal_.kind()) + " version=" + std::to_string(PROTOCOL_VERSION);
+  out += std::string(" screen=") + (hal_.hasScreen() ? "yes" : "no");
   out += " root=" + toHex(root_, 32) + text;
   out += " account=" + (state_.paired ? toHex(state_.account, 20) : std::string("none"));
   out += " epoch=" + (state_.paired ? toHex(state_.epochSalt, 32) : std::string("none"));
@@ -390,6 +396,7 @@ std::string Device::rotated(const std::string& hex) {
   hal_.save(state_);
   memcpy(leaves_, nextLeaves, sizeof(leaves_));
   memcpy(root_, root, 32);
+  hal_.saveLeaves(state_.tree, leaves_);
   idle();
   return "OK ROTATED";
 }

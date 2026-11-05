@@ -41,6 +41,11 @@ class Hal {
   virtual bool confirm(const char* title, const char* detail) = 0;
   virtual void show(const char* title, const char* detail) = 0;
   virtual const char* kind() const = 0;
+  /** Without a screen the owner cannot see what they are approving, so `confirm` has to fail. */
+  virtual bool hasScreen() const { return true; }
+  /** The leaf public keys are public, and slow to derive, so a device may keep them. */
+  virtual bool loadLeaves(uint32_t tree, uint8_t leaves[TREE_LEAVES][32]) { return false; }
+  virtual void saveLeaves(uint32_t tree, const uint8_t leaves[TREE_LEAVES][32]) {}
 };
 
 class Device {

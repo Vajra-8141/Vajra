@@ -107,6 +107,49 @@ static void testKeccak() {
   CHECK(memcmp(out, whole, 32) == 0, "keccak across the rate boundary");
 }
 
+static void testWordHash() {
+  uint8_t word[32];
+  for (int i = 0; i < 32; ++i) word[i] = static_cast<uint8_t>(i * 7 + 1);
+  uint8_t general[32];
+  uint8_t fast[32];
+  keccak256(word, 32, general);
+  keccak256Word(word, fast);
+  CHECK(memcmp(general, fast, 32) == 0, "the chain step equals keccak of 32 bytes");
+  keccak256Word(word, word);
+  CHECK(memcmp(general, word, 32) == 0, "and works in place");
+}
+
+static void testCachedLeaves() {
+  class CachingHal : public FakeHal {
+   public:
+    uint8_t cached[TREE_LEAVES][32];
+    uint32_t cachedTree = 0;
+    bool hasCache = false;
+    int derivations = 0;
+    bool loadLeaves(uint32_t tree, uint8_t leaves[TREE_LEAVES][32]) override {
+      if (!hasCache || tree != cachedTree) return false;
+      memcpy(leaves, cached, sizeof(cached));
+      return true;
+    }
+    void saveLeaves(uint32_t tree, const uint8_t leaves[TREE_LEAVES][32]) override {
+      memcpy(cached, leaves, sizeof(cached));
+      cachedTree = tree;
+      hasCache = true;
+      ++derivations;
+    }
+  };
+  CachingHal hal;
+  static Device first(hal);
+  first.boot();
+  CHECK(hal.derivations == 1, "the first boot derives the tree");
+  static Device second(hal);
+  second.boot();
+  CHECK(hal.derivations == 1, "a later boot reads it back");
+  CHECK(second.handle("INFO").find(std::string("root=") + V_ROOT) != std::string::npos, "and gets the same root");
+  second.handle(std::string("PAIR ") + V_ACCOUNT + " 1337 " + V_EPOCH);
+  CHECK(second.handle(std::string("SIGN ") + V_TX_FREEZE) == std::string("OK SIG ") + V_BLOB_FREEZE, "and the same signature");
+}
+
 static void testParser() {
   std::vector<uint8_t> raw = bytes(V_TX_FREEZE);
   TxView tx;
@@ -291,6 +334,8 @@ static void testUnknownCommand() {
 
 int main() {
   testKeccak();
+  testWordHash();
+  testCachedLeaves();
   testParser();
   testByteIdenticalToTheChainsImplementation();
   testTheScreenShowsWhatIsSigned();

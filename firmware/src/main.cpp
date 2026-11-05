@@ -93,6 +93,18 @@ class Esp32Hal : public vajra::Hal {
 
   const char* kind() const override { return "esp32"; }
 
+  bool hasScreen() const override { return screenReady; }
+
+  bool loadLeaves(uint32_t tree, uint8_t leaves[vajra::TREE_LEAVES][32]) override {
+    constexpr size_t size = vajra::TREE_LEAVES * 32;
+    return prefs_.getUInt("leavesTree", UINT32_MAX) == tree && prefs_.getBytesLength("leaves") == size && prefs_.getBytes("leaves", leaves, size) == size;
+  }
+
+  void saveLeaves(uint32_t tree, const uint8_t leaves[vajra::TREE_LEAVES][32]) override {
+    prefs_.putBytes("leaves", leaves, vajra::TREE_LEAVES * 32);
+    prefs_.putUInt("leavesTree", tree);
+  }
+
  private:
   Preferences prefs_;
 };

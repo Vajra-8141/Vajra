@@ -19,4 +19,7 @@ class Keccak256 {
 
 void keccak256(const uint8_t* data, size_t length, uint8_t out[32]);
 
+/** The hash of exactly 32 bytes, which is one step of a hash chain. `out` may be `in`. */
+void keccak256Word(const uint8_t in[32], uint8_t out[32]);
+
 }  // namespace vajra

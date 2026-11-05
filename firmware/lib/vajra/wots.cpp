@@ -23,7 +23,7 @@ void chainSeed(const uint8_t seed[32], uint32_t leaf, uint32_t chain, uint8_t ou
 }
 
 void advance(uint8_t value[32], int steps) {
-  for (int i = 0; i < steps; ++i) keccak256(value, 32, value);
+  for (int i = 0; i < steps; ++i) keccak256Word(value, value);
 }
 
 /** Message digits, most significant first, then the checksum's. */
