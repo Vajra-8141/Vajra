@@ -139,8 +139,10 @@ reaches a master function never becomes valid.
    LMS, XMSS or SPHINCS+, which are heavier.
 2. **Stealth spending has a remaining case.** A sender who also owns a quantum computer can spend what it sent. See
    [`docs/STEALTH.md`](docs/STEALTH.md).
-3. **The master key is a software signer.** Its seed sits in a file. The bridge signs what the dashboard asks for and shows no
-   confirmation, which a device would.
+3. **The master key is a software signer, on the same machine as the wallet.** Its seed sits in a file, so a phished seed
+   phrase cannot reach it, but malware on that machine gets both keys and the rulebook protects nothing. The two keys only
+   outrank each other if they live apart. The bridge also signs what the dashboard asks for and shows no confirmation, which
+   a device would.
 4. **The rulebook does not bound gas across transactions.** A thief can burn the account's ETH through many transactions,
    each under the per-transaction cost cap. That leaves through fees, not the daily limit.
 5. **A 64-leaf tree is a demo lifetime.** Rotation works. Backing up one-time key state across devices is the known unsolved
