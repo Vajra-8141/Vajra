@@ -1,56 +1,56 @@
 {
  "chainId": 1337,
  "signer": "emulator",
- "at": "2026-11-05T19:50:25.777Z",
- "account": "0xeCbFa1B751896748179f7E547cA851D0F6AaE87c",
+ "at": "2026-11-05T20:52:05.612Z",
+ "account": "0x2A45Dd0B06216A80c2AB4A0757b5442f51AC46BC",
  "transactions": [
   {
    "step": "freeze",
-   "hash": "0x5df0d40d3e9c50fdcea4fe0bc847bdce0dcc53d74609cf2de89f0079f6639e52",
-   "block": 406363,
-   "verifyGas": 94398,
+   "hash": "0xbb59b6f10b39362ebfd34f612301abaaf37fea86d72043c1d75ad55f695b9171",
+   "block": 406977,
+   "verifyGas": 87309,
    "leaf": 0
   },
   {
    "step": "unfreeze",
-   "hash": "0x32db567812bc78d642c958a73bfdb863c7315a6192e8817efdea2a896990b351",
-   "block": 406365,
-   "verifyGas": 90039,
+   "hash": "0x904fda3e2b65aebb17e58db5ac02ce4308546b9b182c4ddbf0acb56b8233085a",
+   "block": 406980,
+   "verifyGas": 89784,
    "leaf": 1
   },
   {
    "step": "veto item 0",
-   "hash": "0xd0d6e9a8a252501ed866251bc9ec36443bd3e6dfc19676fb4d90613e07769c97",
-   "block": 406370,
-   "verifyGas": 90888,
+   "hash": "0x2634a695acd07c7856ecb34243fd07b0eb0d3cf5118dee354dd64b876c4a87b7",
+   "block": 406985,
+   "verifyGas": 90039,
    "leaf": 2
   },
   {
    "step": "rotate to the device's next tree",
-   "hash": "0x09d3572435f4b1e89e29e926c4a46ee1a426d76d0d43f95023cf6775a6ed32a0",
-   "block": 406373,
-   "verifyGas": 92571,
+   "hash": "0x2e514ac9aa008c1c3d5d273a717b98c1d02fb04f4e63271495a64ee18ee86b7e",
+   "block": 406987,
+   "verifyGas": 87576,
    "leaf": 3
   },
   {
    "step": "the new tree signs",
-   "hash": "0x6a899f85b66a51a0d075f4ade5f6ead9cf8eeabb5f8f43158fc8b415e49701f0",
-   "block": 406375,
-   "verifyGas": 93747,
+   "hash": "0x7cb4dcc7ec8ee8ffe25ef364cc926e8ec4ad49dd90ecd8ed540b9af12d145e5b",
+   "block": 406989,
+   "verifyGas": 88356,
    "leaf": 0
   },
   {
    "step": "and unfreezes",
-   "hash": "0x45f418690fb58317cac785ef583ccf4c3e480f96cc580e58763f7c1638bcf8ea",
-   "block": 406378,
-   "verifyGas": 90039,
+   "hash": "0xc82f9f2ede4f56b3252ce583177174786f8e67510f813a8c989dae8942e7cd4f",
+   "block": 406994,
+   "verifyGas": 93534,
    "leaf": 1
   },
   {
-   "step": "escape to 0x2EC2278EA5166e01a854fc90ecB8E1CBAb10Dc05",
-   "hash": "0xa0cf79289b0fe1646c7dc03403ba514f500a945cc532bee1c23a72ee98f92bc5",
-   "block": 406380,
-   "verifyGas": 89841,
+   "step": "escape to 0xd43a3fb1bE7256152A2300b836447309A5A4f10F",
+   "hash": "0x433c59a283e9f3ec9bc78676b5f44680116a0988c67e0d375551c890c20168e1",
+   "block": 406997,
+   "verifyGas": 85398,
    "leaf": 2
   }
  ]

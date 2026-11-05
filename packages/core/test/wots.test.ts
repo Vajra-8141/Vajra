@@ -15,6 +15,7 @@ import {
   merkleRoot,
   minChecksumDigits,
   verifyHashCount,
+  verifyMasterSignature,
   wotsRecoverLeaf,
   wotsSign,
   type WotsParams,
@@ -120,6 +121,31 @@ describe("key tree", () => {
   it("a path presented at the wrong index does not reach the root", () => {
     const key = leafPublicKey(WOTS_W16, seed, 5);
     expect(eq(merkleRoot(key, 4, tree.path(5)), tree.root)).toBe(false);
+  });
+});
+
+describe("verifyMasterSignature", () => {
+  const tree = KeyTree.fromSeed(WOTS_W16, seed);
+  const blob = encodeMasterSignature(9, wotsSign(WOTS_W16, seed, 9, digest), tree.path(9));
+
+  it("accepts a good signature", () => {
+    expect(verifyMasterSignature(WOTS_W16, digest, blob, tree.root)).toBe(true);
+  });
+
+  it("refuses one damaged in a single bit, anywhere", () => {
+    for (const at of [0, 1, 500, blob.length - 1]) {
+      const damaged = blob.slice();
+      damaged[at]! ^= 1;
+      expect(verifyMasterSignature(WOTS_W16, digest, damaged, tree.root)).toBe(false);
+    }
+  });
+
+  it("refuses one cut short", () => {
+    expect(verifyMasterSignature(WOTS_W16, digest, blob.slice(0, 2000), tree.root)).toBe(false);
+  });
+
+  it("refuses another digest", () => {
+    expect(verifyMasterSignature(WOTS_W16, keccak(digest), blob, tree.root)).toBe(false);
   });
 });
 

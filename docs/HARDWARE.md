@@ -44,7 +44,7 @@ screen as coming from the host, because it is only a convenience.
 
 | Check | Result |
 |---|---|
-| Device logic against the TypeScript implementation | Byte-identical signatures, 133 checks: `make -C firmware test` |
+| Device logic against the TypeScript implementation | Byte-identical signatures: `make -C firmware test` |
 | Negative controls | Removing the write-ahead, the reuse check, the button or the account check each fails the tests |
 | Signatures accepted by the deployed account | 7 mined transactions through the native build: `docs/evidence/device-emulator-latest.json` |
 | A compromised host, on the live devnet | Six attacks refused before reaching the button, no leaf burned |
@@ -66,16 +66,16 @@ backpack (address `0x27` or `0x3f`), or an SSD1306 OLED (`0x3c` or `0x3d`).
 | Display | ESP32 |
 |---|---|
 | GND | GND |
-| VCC | 3V3 |
+| VCC | VIN (5V) for an LCD; 3V3 for an OLED |
 | SCL | GPIO 22 |
 | SDA | GPIO 21 |
 
 Go by the labels on the display: modules differ on whether GND or VCC comes first. BOOT is the board's own button on GPIO 0.
 
 No external resistors are needed: an LCD backpack carries its own I2C pull-ups. If an LCD's backlight is on but the text is
-invisible, turn the blue trimmer on the backpack, which sets the contrast. Many LCDs need 5V for readable text; if the trimmer
-is not enough, move VCC to the 5V pin. That also pulls SDA and SCL up to 5V, and the ESP32's pins are rated for 3.3V, so it
-usually works but is out of spec. A level shifter is the proper fix.
+invisible, turn the blue trimmer on the backpack, which sets the contrast. The LCD this was built with only became readable on
+VIN. That also pulls SDA and SCL up to 5V, and the ESP32's pins are rated for 3.3V, so it works but is out of spec. A level
+shifter is the proper fix.
 
 `vajra device` shows whether a screen was found. `DIAG` over the serial line lists every address on the bus, and on an LCD
 reads the controller's memory back: `lcd_chars=0x56,0x41` is the `V` and `A` of `VAJRA`, which proves the text arrived even if
@@ -116,15 +116,27 @@ One command per line, at 115200 baud. One line back: `OK ...` or `ERR <Refusal>`
 |---|---|---|
 | `INFO` | `OK INFO kind= version= root= tree= next= left= chain= account= epoch=` | no |
 | `PAIR <account> <chainId> <epochSalt>` | `OK PAIRED` | yes |
-| `SIGN <raw unsigned tx>` | `OK SIG <leaf ‖ signature ‖ path>` | yes, unless repeating the same digest |
+| `SIGN <raw unsigned tx>` | `OK SIGNED <leaf> <size> <keccak of the signature>` | yes, unless repeating the same digest |
+| `PART <offset>` | `OK PART <offset> <hex>`, up to 128 bytes of the signature | no |
 | `NEXTROOT` | `OK ROOT <root>` | no |
 | `ROTATED <root>` | `OK ROTATED` | yes |
 | `SHOW <text>` | `OK SHOWN` | no |
 | `WIPE` | `OK WIPED` | yes |
 | `DIAG` | `OK DIAG i2c=<addresses> lcd_chars=<first two characters> lcd_status=<busy flag and address>` | no |
 
+The signature crosses the line in 128-byte pieces, is checked against its hash, and is verified against the root before anything
+is broadcast. A piece can be asked for again, and repeating `SIGN` for the same digest costs no press and reveals nothing new.
+
+It used to be one 4,681-character line, and the first signature from a real board arrived damaged: 4,064 good bytes, 32 NUL
+bytes, then only the last 73. Two things combined. On Node 26 with serialport 13, after the first read, data on the port does not
+wake the event loop, so nothing was reading while the reply arrived. And an unread port holds only about 4 KB. Not reading during
+a 4,949-byte burst reproduces the same 4,064 good bytes and the same 32 NUL bytes, three times out of three.
+
+Why the loop is not woken is not known, so the client wakes it every 10 ms. With that, 25 transfers on one open port took exactly
+25 `SIGN` and 475 `PART` commands, with no retries.
+
 Refusals: `NotPaired` `Malformed` `WrongChain` `WrongAccount` `BadShape` `FeeTooHigh` `UnknownOperation` `LeafAlreadySpent`
-`LeafAlreadyRevealed` `LeafOutOfOrder` `TreeExhausted` `ChainStateUnknown` `RotationRootUnknown` `Declined`.
+`LeafAlreadyRevealed` `LeafOutOfOrder` `TreeExhausted` `ChainStateUnknown` `RotationRootUnknown` `Declined` `NothingSigned`.
 
 ## What this does not protect
 

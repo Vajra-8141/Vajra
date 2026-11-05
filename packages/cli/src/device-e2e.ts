@@ -6,7 +6,7 @@
  * the protocol, and proves nothing about the hardware; the output says which it was.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
-import { type Address, type Hex, keccak256, parseEther, toHex } from "viem";
+import { type Address, type Hex, hexToBytes, keccak256, parseEther, toHex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   DEVNET,
@@ -26,6 +26,7 @@ import {
   signDaily,
   submit,
   type Call,
+  verifyMasterSignature,
   withMasterSignature,
 } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
@@ -76,9 +77,10 @@ const evidence: { step: string; hash: Hex; block: number; verifyGas: number; lea
 
 async function master(step: string, call: Call) {
   const info = await device.info();
-  const { tx } = prepareMasterTx({ root: info.root, leaf: info.next, params: WOTS_W16, account, epochSalt: genesis, calls: [call], maxHashes: 660 });
+  const { tx, digest } = prepareMasterTx({ root: info.root, leaf: info.next, params: WOTS_W16, account, epochSalt: genesis, calls: [call], maxHashes: 660 });
   console.log(`  press BOOT: ${step}`);
   const blob = await device.sign(encodeTx(tx));
+  check(verifyMasterSignature(WOTS_W16, hexToBytes(digest), hexToBytes(blob), hexToBytes(info.root)), "the signature verifies here, before anything is broadcast");
   const { hash, receipt } = await submit(withMasterSignature(tx, blob), { log: (l) => console.log(`    ${l}`) });
   const verifyGas = Number(BigInt(receipt.frameReceipts[0]!.gasUsed));
   check(framesSucceeded(receipt), `${step}: ${hash} block ${Number(receipt.blockNumber)}, VERIFY ${verifyGas} gas, leaf ${info.next}`);

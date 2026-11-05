@@ -178,6 +178,17 @@ export function encodeMasterSignature(leaf: number, sig: Bytes, path: Bytes[]): 
   return out;
 }
 
+/** True exactly when a blob is a valid signature over `digest` under `root`: what the account will check, done first. */
+export function verifyMasterSignature(p: WotsParams, digest: Bytes, blob: Bytes, root: Bytes): boolean {
+  try {
+    const { leaf, sig, path } = decodeMasterSignature(p, blob);
+    const recovered = merkleRoot(wotsRecoverLeaf(p, digest, sig), leaf, path);
+    return recovered.length === root.length && recovered.every((byte, i) => byte === root[i]);
+  } catch {
+    return false;
+  }
+}
+
 export function decodeMasterSignature(p: WotsParams, blob: Bytes): { leaf: number; sig: Bytes; path: Bytes[] } {
   const sigLength = p.chains * 32;
   if (blob.length !== 1 + sigLength + TREE_DEPTH * 32) throw new Error("malformed master signature");

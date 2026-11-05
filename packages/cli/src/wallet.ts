@@ -7,7 +7,7 @@
  */
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { type Address, type Hex, bytesToHex, parseEther } from "viem";
+import { type Address, type Hex, bytesToHex, hexToBytes, parseEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   ChainStateUnknown,
@@ -27,6 +27,7 @@ import {
   prepareMasterTx,
   signMasterTx,
   submit,
+  verifyMasterSignature,
   withMasterSignature,
   type Call,
 } from "@vajra/core";
@@ -166,7 +167,7 @@ async function runOnDevice(request: MasterOp, log: (line: string) => void): Prom
   const rotating = request.op === "rotate";
   const next = rotating ? await device.nextRoot() : null;
   const leaf = info.left === 0 ? ROTATION_LEAF : info.next;
-  const { tx, hashes } = prepareMasterTx({
+  const { tx, hashes, digest } = prepareMasterTx({
     root: info.root,
     leaf,
     params: WOTS_W16,
@@ -177,6 +178,8 @@ async function runOnDevice(request: MasterOp, log: (line: string) => void): Prom
   });
   log(`confirm on the signer: ${request.op}`);
   const blob = await device.sign(encodeTx(tx));
+  // The leaf is already spent by now. This is about the error: here it names the signer, and a mempool would only say "bad signature".
+  if (!verifyMasterSignature(WOTS_W16, hexToBytes(digest), hexToBytes(blob), hexToBytes(info.root))) throw new Error("the signer returned a signature that does not verify");
   const { hash, receipt } = await submit(withMasterSignature(tx, blob), { log });
   if (!framesSucceeded(receipt)) throw new Error(`${hash} was mined but a frame failed`);
   if (rotating) {

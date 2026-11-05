@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <string>
+#include <vector>
 
 #include "wots.h"
 
@@ -67,6 +68,7 @@ class Device {
   std::string info();
   std::string pair(const std::string& args);
   std::string sign(const std::string& hex);
+  std::string part(const std::string& offset);
   std::string nextRoot();
   std::string rotated(const std::string& hex);
   std::string wipe();
@@ -80,6 +82,8 @@ class Device {
   State state_;
   uint8_t leaves_[TREE_LEAVES][32];
   uint8_t root_[32];
+  /** The last signature, handed over in pieces. It reveals nothing the host cannot already ask for again. */
+  std::vector<uint8_t> signature_;
 };
 
 }  // namespace vajra

@@ -1,8 +1,8 @@
 /**
  * The client for the hardware signer, over a USB serial line.
  *
- * One command per line, and one line back: `OK ...` or `ERR <Refusal>`. The device does not trust this side, and this side
- * adds nothing to what it says: a signature is whatever comes back, and the account is what checks it.
+ * One command per line, and one line back: `OK ...` or `ERR <Refusal>`. The device does not trust this side. This side only
+ * checks that what the device said arrived whole; whether a signature is any good is for the caller and the account.
  *
  * `VAJRA_DEVICE=emulator:<path>` runs the same logic as a local process for testing. It reports `kind=emulator`, has none of
  * the hardware's properties, and must never hold anything that matters.
@@ -12,7 +12,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { ReadlineParser } from "@serialport/parser-readline";
 import { SerialPort } from "serialport";
-import type { Address, Hex } from "viem";
+import { type Address, type Hex, keccak256 } from "viem";
 
 const BAUD = 115_200;
 /** Long enough for the owner to read the screen and press the button. The device itself gives up at 60 seconds. */
@@ -20,6 +20,10 @@ const CONFIRM_TIMEOUT_MS = 75_000;
 const COMMAND_TIMEOUT_MS = 20_000;
 /** Opening the port can reset the board, and a boot derives the whole key tree before it answers. */
 const BOOT_TIMEOUT_MS = 30_000;
+const PART_TIMEOUT_MS = 2_000;
+const TRANSFER_ATTEMPTS = 4;
+/** See `serialTransport`. At 115,200 baud this is about 115 bytes between wakes, far inside any buffer on the way. */
+const READ_WAKE_MS = 10;
 
 export class DeviceRefused extends Error {
   constructor(reason: string) {
@@ -39,7 +43,7 @@ export interface DeviceInfo {
   epoch: Hex | null;
 }
 
-interface Transport {
+export interface Transport {
   send(line: string): void;
   onLine(handler: (line: string) => void): void;
   close(): Promise<void>;
@@ -68,10 +72,18 @@ async function serialTransport(path: string): Promise<Transport> {
   const port = new SerialPort({ path, baudRate: BAUD, autoOpen: false });
   await new Promise<void>((resolve, reject) => port.open((error) => (error ? reject(error) : resolve())));
   const parser = port.pipe(new ReadlineParser({ delimiter: "\n" }));
+  // Measured on Node 26 with serialport 13: after the first read, data arriving on the port does not wake the event loop, so a
+  // reply sits unread until some timer happens to fire. Why is not known. Waking the loop ourselves took INFO from no answer
+  // in 3 seconds to 32 ms.
+  const wake = setInterval(() => {}, READ_WAKE_MS).unref();
   return {
     send: (line) => void port.write(`${line}\n`),
     onLine: (handler) => void parser.on("data", (line: string) => handler(line.trim())),
-    close: () => new Promise((resolve) => port.close(() => resolve())),
+    close: () =>
+      new Promise((resolve) => {
+        clearInterval(wake);
+        port.close(() => resolve());
+      }),
   };
 }
 
@@ -97,7 +109,7 @@ export class Device {
   /** True while a command is with the device, so a status push never waits behind a button press. */
   busy = false;
 
-  private constructor(transport: Transport) {
+  constructor(transport: Transport) {
     this.transport = transport;
     // Anything else on the line is boot chatter, which a reset prints at another baud rate.
     transport.onLine((line) => {
@@ -153,10 +165,41 @@ export class Device {
   /** Binds the signer to one account. Needs the button. */
   pair = (account: Address, chainId: number, epochSalt: Hex) => this.command(`PAIR ${account.slice(2)} ${chainId} ${epochSalt.slice(2)}`, CONFIRM_TIMEOUT_MS);
 
-  /** Hands over the raw unsigned transaction. The device hashes it, shows it, and waits for the button. */
+  /**
+   * Hands over the raw unsigned transaction. The device hashes it, shows it, and waits for the button, then answers with
+   * only a hash. The signature comes across in short pieces, because it is 4,700 characters and an unread port holds about 4 KB:
+   * see docs/HARDWARE.md. Repeating SIGN is the recovery for everything that can go wrong in between, a garbled answer or a board that
+   * restarted: the same digest gets the same signature with no button press, so it reveals nothing new and spends no leaf.
+   */
   async sign(raw: Hex): Promise<Hex> {
-    const reply = await this.command(`SIGN ${raw.slice(2)}`, CONFIRM_TIMEOUT_MS);
-    return `0x${reply.slice("OK SIG ".length)}`;
+    for (let attempt = 0; attempt < TRANSFER_ATTEMPTS; attempt++) {
+      const reply = await this.command(`SIGN ${raw.slice(2)}`, CONFIRM_TIMEOUT_MS);
+      const header = /^OK SIGNED \d+ (\d+) ([0-9a-f]{64})$/.exec(reply);
+      if (!header) continue;
+      const blob = await this.collect(Number(header[1]));
+      if (blob && keccak256(blob).slice(2) === header[2]) return blob;
+    }
+    throw new Error("the signature would not cross the line intact");
+  }
+
+  private async collect(size: number): Promise<Hex | null> {
+    let hex = "";
+    while (hex.length / 2 < size) {
+      const part = await this.part(hex.length / 2);
+      if (!part) return null;
+      hex += part;
+    }
+    return `0x${hex}`;
+  }
+
+  private async part(offset: number): Promise<string | null> {
+    for (let attempt = 0; attempt < TRANSFER_ATTEMPTS; attempt++) {
+      const reply = await this.command(`PART ${offset}`, PART_TIMEOUT_MS).catch(() => null);
+      // The offset is checked because a reply that arrived late answers the wrong question.
+      const match = reply && /^OK PART (\d+) ([0-9a-f]+)$/.exec(reply);
+      if (match && Number(match[1]) === offset) return match[2]!;
+    }
+    return null;
   }
 
   async nextRoot(): Promise<Hex> {

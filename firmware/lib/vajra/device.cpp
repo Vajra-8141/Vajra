@@ -14,6 +14,8 @@ namespace {
 constexpr uint32_t STATE_MAGIC = 0x56414a31;  // "VAJ1"
 constexpr int PROTOCOL_VERSION = 1;
 constexpr size_t MAX_TX_BYTES = 2048;
+/** A signature is 4,674 hex characters. It goes out in pieces, so a line error costs one short retry, not the signature. */
+constexpr size_t PART_BYTES = 128;
 
 constexpr uint64_t FRAME_VERIFY = 1;
 constexpr uint64_t FRAME_SENDER = 2;
@@ -359,14 +361,29 @@ std::string Device::sign(const std::string& hex) {
 
   uint8_t seed[32];
   treeSeed(state_.tree, seed);
-  std::vector<uint8_t> blob(BLOB_BYTES);
-  blob[0] = static_cast<uint8_t>(leaf);
-  wotsSign(seed, leaf, digest, blob.data() + 1);
+  signature_.assign(BLOB_BYTES, 0);
+  signature_[0] = static_cast<uint8_t>(leaf);
+  wotsSign(seed, leaf, digest, signature_.data() + 1);
   uint8_t path[TREE_DEPTH][32];
   treePath(leaves_, leaf, path);
-  memcpy(blob.data() + 1 + SIGNATURE_BYTES, path, sizeof(path));
+  memcpy(signature_.data() + 1 + SIGNATURE_BYTES, path, sizeof(path));
+  uint8_t hash[32];
+  keccak256(signature_.data(), signature_.size(), hash);
   idle();
-  return "OK SIG " + toHex(blob.data(), blob.size());
+  return "OK SIGNED " + std::to_string(leaf) + " " + std::to_string(signature_.size()) + " " + toHex(hash, 32);
+}
+
+std::string Device::part(const std::string& offsetText) {
+  if (signature_.empty()) return "ERR NothingSigned";
+  if (offsetText.empty() || offsetText.size() > 6) return "ERR Malformed";
+  size_t offset = 0;
+  for (char c : offsetText) {
+    if (c < '0' || c > '9') return "ERR Malformed";
+    offset = offset * 10 + (c - '0');
+  }
+  if (offset >= signature_.size()) return "ERR Malformed";
+  size_t length = signature_.size() - offset < PART_BYTES ? signature_.size() - offset : PART_BYTES;
+  return "OK PART " + std::to_string(offset) + " " + toHex(signature_.data() + offset, length);
 }
 
 std::string Device::nextRoot() {
@@ -407,6 +424,7 @@ std::string Device::wipe() {
     return "ERR Declined";
   }
   memset(&state_, 0, sizeof(state_));
+  signature_.clear();
   hal_.save(state_);
   boot();
   return "OK WIPED";
@@ -419,6 +437,7 @@ std::string Device::handle(const std::string& line) {
   if (command == "INFO") return info();
   if (command == "PAIR") return pair(rest);
   if (command == "SIGN") return sign(rest);
+  if (command == "PART") return part(rest);
   if (command == "NEXTROOT") return nextRoot();
   if (command == "ROTATED") return rotated(rest);
   if (command == "WIPE") return wipe();

@@ -94,7 +94,23 @@ struct Rig {
     if (paired) device.handle(std::string("PAIR ") + V_ACCOUNT + " 1337 " + V_EPOCH);
     hal.confirms = 0;
   }
-  std::string sign(const char* tx) { return device.handle(std::string("SIGN ") + tx); }
+  /** Signs, then collects the signature the way the client does. */
+  std::string sign(const char* tx) { return collect(device.handle(std::string("SIGN ") + tx), device); }
+
+  static std::string collect(const std::string& reply, Device& device) {
+    if (reply.rfind("OK SIGNED ", 0) != 0) return reply;
+    size_t size = std::stoul(reply.substr(reply.find(' ', 10) + 1));
+    std::string hex;
+    while (hex.size() / 2 < size) {
+      std::string part = device.handle("PART " + std::to_string(hex.size() / 2));
+      hex += part.substr(part.rfind(' ') + 1);
+    }
+    uint8_t hash[32];
+    std::vector<uint8_t> blob = bytes(hex);
+    keccak256(blob.data(), blob.size(), hash);
+    if (reply.substr(reply.rfind(' ') + 1) != hexOf(hash, 32)) return "HASH MISMATCH";
+    return "OK SIG " + hex;
+  }
 };
 
 static bool signedOk(const std::string& reply) { return reply.rfind("OK SIG ", 0) == 0; }
@@ -156,7 +172,7 @@ static void testCachedLeaves() {
   CHECK(hal.derivations == 1, "a later boot reads it back");
   CHECK(second.handle("INFO").find(std::string("root=") + V_ROOT) != std::string::npos, "and gets the same root");
   second.handle(std::string("PAIR ") + V_ACCOUNT + " 1337 " + V_EPOCH);
-  CHECK(second.handle(std::string("SIGN ") + V_TX_FREEZE) == std::string("OK SIG ") + V_BLOB_FREEZE, "and the same signature");
+  CHECK(Rig::collect(second.handle(std::string("SIGN ") + V_TX_FREEZE), second) == std::string("OK SIG ") + V_BLOB_FREEZE, "and the same signature");
 }
 
 static void testParser() {
@@ -298,7 +314,7 @@ static void testSurvivesARestart() {
     static Device first(hal);
     first.boot();
     first.handle(std::string("PAIR ") + V_ACCOUNT + " 1337 " + V_EPOCH);
-    CHECK(signedOk(first.handle(std::string("SIGN ") + V_TX_FREEZE)), "signs before the restart");
+    CHECK(signedOk(Rig::collect(first.handle(std::string("SIGN ") + V_TX_FREEZE), first)), "signs before the restart");
   }
   static Device second(hal);
   second.boot();
@@ -354,6 +370,25 @@ static void testEverythingFitsTheScreen() {
   CHECK(rig.hal.longest.empty(), rig.hal.longest.c_str());
 }
 
+static void testSignatureTransfer() {
+  Rig rig;
+  CHECK(rig.device.handle("PART 0") == "ERR NothingSigned", "nothing to hand over before a signature");
+  rig.sign(V_TX_FREEZE);
+  std::string part = rig.device.handle("PART 0");
+  CHECK(part.rfind("OK PART 0 ", 0) == 0, "hands over a piece");
+  CHECK(part.size() < 300, "short enough that a line error costs little");
+  CHECK(rig.device.handle("PART 0") == part, "and can be asked for again, which is what a retry is");
+  CHECK(rig.device.handle("PART 2337") == "ERR Malformed", "past the end");
+  CHECK(rig.device.handle("PART x") == "ERR Malformed", "not a number");
+  CHECK(rig.device.handle("PART") == "ERR Malformed", "no offset");
+  rig.hal.approve = false;
+  CHECK(rig.sign(V_TX_VETO_LEAF1) == "ERR Declined", "a declined signature");
+  CHECK(rig.device.handle("PART 0") == part, "leaves only the earlier one, which reveals nothing new");
+  rig.hal.approve = true;
+  rig.device.handle("WIPE");
+  CHECK(rig.device.handle("PART 0") == "ERR NothingSigned", "a wipe takes the last signature with it");
+}
+
 static void testUnknownCommand() {
   Rig rig;
   CHECK(rig.device.handle("DUMP SEED") == "ERR UnknownCommand", "there is no command that exports the seed");
@@ -375,6 +410,7 @@ int main() {
   testRotation();
   testTheReservedLeaf();
   testEverythingFitsTheScreen();
+  testSignatureTransfer();
   testUnknownCommand();
   printf("%d checks, %d failures\n", checks, failures);
   return failures ? 1 : 0;
