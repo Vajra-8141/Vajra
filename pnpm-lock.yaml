@@ -8,6 +8,22 @@ importers:
 
   .: {}
 
+  packages/cli:
+    dependencies:
+      '@vajra/core':
+        specifier: workspace:*
+        version: link:../core
+      viem:
+        specifier: ^2.57.7
+        version: 2.57.16(typescript@5.9.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.5
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   packages/core:
     dependencies:
       '@forshtat/hegota-support':

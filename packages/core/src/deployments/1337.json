@@ -1,0 +1,16 @@
+{
+ "chainId": 1337,
+ "genesis": "0x196a1589ac71e2f305b1fbc7bfd23e55367f9fd6eb9da97e2f572c2791e17bbc",
+ "w16": {
+  "implementation": "0x55c624aad41e850ce57ce67ca8975acc056d66fd",
+  "factory": "0x068c8cfaa26a7231e4a85de516628d0d4dd7c474",
+  "logW": 4,
+  "len2": 3
+ },
+ "w256": {
+  "implementation": "0x447a5c5f8be74984fef71113fe945215d9bce928",
+  "factory": "0x87345490052dff33b97a08ce1288b02a7ebf2e6d",
+  "logW": 8,
+  "len2": 3
+ }
+}

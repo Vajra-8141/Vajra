@@ -1,0 +1,9 @@
+{
+  "name": "@vajra/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "typecheck": "tsc --noEmit", "vajra": "node src/main.ts" },
+  "dependencies": { "@vajra/core": "workspace:*", "viem": "^2.57.7" },
+  "devDependencies": { "@types/node": "^22.10.0", "typescript": "^5.7.2" }
+}
