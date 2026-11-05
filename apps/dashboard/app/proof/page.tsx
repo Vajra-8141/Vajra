@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DEVNET, receiptOf } from "@vajra/core";
+import { DEVNET, rpcBatch } from "@vajra/core";
 import { useReads } from "../../lib/reads";
 
 interface Evidence {
@@ -42,12 +42,11 @@ export default function ProofPage() {
   useEffect(() => {
     if (status !== "ready") return;
     const hashes = [...(e2e?.transactions.map((t) => t.hash) ?? []), ...(stealth ? [stealth.spendTx] : [])];
-    for (const hash of hashes) {
-      receiptOf(hash).then(
-        (receipt) => setLive((l) => ({ ...l, [hash]: receipt ? "mined" : "gone" })),
-        () => setLive((l) => ({ ...l, [hash]: "unknown" })),
-      );
-    }
+    if (hashes.length === 0) return;
+    rpcBatch<unknown>(DEVNET.execution, hashes.map((hash) => ({ method: "eth_getTransactionReceipt", params: [hash] }))).then(
+      (receipts) => setLive(Object.fromEntries(hashes.map((hash, i) => [hash, receipts[i] ? "mined" : "gone"]))),
+      () => setLive(Object.fromEntries(hashes.map((hash) => [hash, "unknown"]))),
+    );
   }, [status, e2e, stealth]);
 
   const Live = ({ hash }: { hash: string }) => {

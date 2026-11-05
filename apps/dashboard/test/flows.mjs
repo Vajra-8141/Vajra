@@ -40,8 +40,10 @@ page.on("pageerror", (e) => pageErrors.push(String(e).slice(0, 200)));
 
 const shot = (name) => page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true });
 const banner = async (cls) => (await page.locator(`.banner.${cls}`).first().textContent({ timeout: 1000 }).catch(() => null)) ?? "";
+// A mixnet route is much slower than a direct one, and that is expected.
+const PATIENCE = ROUTE === "nym" || ROUTE === "tor" ? 3 : 1;
 const waitFor = async (fn, what, ms = 150_000) => {
-  const end = Date.now() + ms;
+  const end = Date.now() + ms * PATIENCE;
   while (Date.now() < end) {
     if (await fn()) return true;
     await page.waitForTimeout(1000);
@@ -59,6 +61,11 @@ await shot("1-account");
 await page.getByRole("button", { name: /Connect wallet/ }).click();
 await page.waitForTimeout(800);
 check(await page.getByRole("button", { name: /Sign and send/ }).isVisible(), "the wallet connected");
+const timed = async (label, work) => {
+  const at = Date.now();
+  await work();
+  console.log(`     ${label}: ${((Date.now() - at) / 1000).toFixed(0)}s`);
+};
 
 const spend = async (to, amount) => {
   await page.getByPlaceholder("0x…").fill(to);
@@ -68,9 +75,11 @@ const spend = async (to, amount) => {
 const idle = () => waitFor(async () => (await page.getByRole("button", { name: /Sign and send|Sending/ }).textContent()) === "Sign and send", "the spend to finish");
 
 const payee = privateKeyToAccount(`0x${"7".repeat(63)}${Date.now() % 10}`).address;
-await spend(payee, "0.00005");
-await page.waitForTimeout(500);
-await idle();
+await timed("spend, sign to mined", async () => {
+  await spend(payee, "0.00005");
+  await page.waitForTimeout(500);
+  await idle();
+});
 check((await banner("ok")).includes("Sent"), `a spend inside the rules went out: ${await banner("ok")}${await banner("error")}`);
 await shot("2-spent");
 
@@ -107,7 +116,7 @@ await waitFor(async () => (await page.locator(".reads .dot").getAttribute("class
 await page.fill("textarea", "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045\n0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2\n0x000000000000000000000000000000000000dEaD");
 await page.click("button.primary");
 await waitFor(async () => (await page.locator("tbody tr").count()) === 3, "the batch", 90_000);
-check((await page.locator("tbody tr").count()) === 3, `the batch scan finished: ${await page.locator("section.card h2").nth(1).textContent().catch(() => "")}`);
+check((await page.locator("tbody tr").count()) === 3, `the batch scan finished: ${await page.locator("section.card h2").last().textContent().catch(() => "")}`);
 await shot("6-scanner");
 
 await page.setViewportSize({ width: 400, height: 820 });

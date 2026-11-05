@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { keccak256, toHex } from "viem";
-import { DEVNET, setRpcFetch } from "../src/devnet.ts";
+import { DEVNET, rpc, rpcBatch, setRpcFetch, withTimeout } from "../src/devnet.ts";
 import { MAX_VERIFY_GAS, STEALTH_LIMITS, dailyTx, leafNonceKey, masterTx, refusalName, sendAlt, sigHash, stealthTx, walletMessage, withMasterSignature } from "../src/frame.ts";
 
 const account = "0x1111111111111111111111111111111111111111" as const;
@@ -113,5 +113,101 @@ describe("sendAlt", () => {
     });
     await expect(sendAlt(tx)).rejects.toThrow("reverted");
     expect(urls).toEqual([DEVNET.mempool]);
+  });
+});
+
+describe("rpcBatch", () => {
+  const calls = [
+    { method: "a", params: [] },
+    { method: "b", params: [] },
+  ];
+  const echo = (shape: (ids: number[]) => unknown) =>
+    setRpcFetch(async (_, init) => respond(200, shape((JSON.parse(init!.body as string) as { id: number }[]).map((c) => c.id))));
+
+  it("puts results back in call order, whatever order the node answered in", async () => {
+    echo(([a, b]) => [
+      { id: b, result: "second" },
+      { id: a, result: "first" },
+    ]);
+    await expect(rpcBatch("https://example.invalid", calls)).resolves.toEqual(["first", "second"]);
+  });
+
+  it("makes one request for the whole batch", async () => {
+    let requests = 0;
+    setRpcFetch(async (_, init) => {
+      requests++;
+      return respond(200, (JSON.parse(init!.body as string) as { id: number }[]).map((c) => ({ id: c.id, result: 1 })));
+    });
+    await rpcBatch("https://example.invalid", calls);
+    expect(requests).toBe(1);
+  });
+
+  it("fails when any call fails, rather than returning a partial answer", async () => {
+    echo(([a, b]) => [
+      { id: a, result: "ok" },
+      { id: b, error: { code: 3, message: "reverted" } },
+    ]);
+    await expect(rpcBatch("https://example.invalid", calls)).rejects.toThrow("reverted");
+  });
+
+  it("fails when the node leaves a call out", async () => {
+    echo(([a]) => [{ id: a, result: "ok" }]);
+    await expect(rpcBatch("https://example.invalid", calls)).rejects.toThrow("left this call out");
+  });
+
+  it("fails when the node does not answer as a batch", async () => {
+    echo(() => ({ error: "no batches here" }));
+    await expect(rpcBatch("https://example.invalid", calls)).rejects.toThrow("did not answer");
+  });
+
+  it("sends nothing for an empty batch", async () => {
+    setRpcFetch(() => Promise.reject(new Error("should not be called")));
+    await expect(rpcBatch("https://example.invalid", [])).resolves.toEqual([]);
+  });
+});
+
+describe("withTimeout", () => {
+  it("turns a read that never returns into a failure", async () => {
+    await expect(withTimeout(new Promise(() => {}), 10, "the read")).rejects.toThrow("the read timed out");
+  });
+
+  it("leaves a read that returns alone", async () => {
+    await expect(withTimeout(Promise.resolve(1), 1000, "the read")).resolves.toBe(1);
+  });
+});
+
+describe("routing by destination", () => {
+  const route = () => {
+    const seen: string[] = [];
+    const tag = (name: string): typeof fetch => async () => {
+      seen.push(name);
+      return respond(200, { result: "0x1" });
+    };
+    setRpcFetch(tag("private"), { sidecar: tag("direct") });
+    return seen;
+  };
+
+  it("keeps chain reads on the private route", async () => {
+    const seen = route();
+    await rpc(DEVNET.execution, "eth_blockNumber");
+    expect(seen).toEqual(["private"]);
+  });
+
+  it("sends mempool calls by the sidecar path", async () => {
+    const seen = route();
+    await rpc(DEVNET.mempool, "skandha_frameTransactionStatus", ["0x01"]);
+    await rpc(DEVNET.gateway, "skandha_frameTransactionStatus", ["0x01"]);
+    expect(seen).toEqual(["direct", "direct"]);
+  });
+
+  it("uses one path for everything when no sidecar path is given", async () => {
+    const seen: string[] = [];
+    setRpcFetch(async () => {
+      seen.push("only");
+      return respond(200, { result: "0x1" });
+    });
+    await rpc(DEVNET.execution, "a");
+    await rpc(DEVNET.mempool, "b");
+    expect(seen).toEqual(["only", "only"]);
   });
 });

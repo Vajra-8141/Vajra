@@ -48,7 +48,8 @@ faucet has been dry. Failing that, the proof page and `docs/evidence/` are the f
 - **"The blocked escape lasts as long as a thief transaction is pending."** On this idle devnet that is one slot, so the thief
   has to keep sending, at the victim's expense.
 - **"The master key here is software."** Unless the hardware is on the table.
-- **"Balances are public."** Hidden balances and STARK recovery are designed. No proof exists.
+- **"Balances are public, and sending shows your IP to the mempool."** Reads go over the mixnet. Hidden balances and STARK
+  recovery are designed. No proof exists.
 
 ## Questions to expect
 

@@ -20,10 +20,12 @@ interface Network {
   specifier?: `0x${string}`;
   config?: unknown;
   private: boolean;
+  /** Mempool calls cannot use this route, so they go direct. The dashboard says so before anything is signed. */
+  directToMempool?: boolean;
 }
 
 export const NETWORKS: Record<NetworkId, Network> = {
-  nym: { label: "Nym mixnet", specifier: "0x3aCD9742C68F6d993066Ae25533e09b9e1f60eD0", private: true },
+  nym: { label: "Nym mixnet", specifier: "0x3aCD9742C68F6d993066Ae25533e09b9e1f60eD0", private: true, directToMempool: true },
   tor: {
     label: "Tor",
     specifier: "0x700dA3193D35fA54Cd3fBf29B66f2a2A0385659e",
@@ -96,7 +98,7 @@ export function ReadsProvider({ children }: { children: ReactNode }) {
     started.ready.then(
       () => {
         if (!live) return;
-        setRpcFetch(started.fetch as typeof fetch);
+        setRpcFetch(started.fetch as typeof fetch, chosen.directToMempool ? { sidecar: (...args) => fetch(...args) } : {});
         setStatus("ready");
       },
       (reason: Error) => {

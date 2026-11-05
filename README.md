@@ -50,14 +50,14 @@ Status follows the ledger in the spec: a module is BUILT only if it runs on the 
 | Key rotation | BUILT | `vajra e2e` |
 | Stock wallets as the daily key | BUILT | personal_sign path mined; exercised with a scripted wallet, not the MetaMask extension |
 | ERC-8441 stealth, co-signed spend, paymaster | BUILT | `vajra stealth`, passes the ERC's conformance vectors |
-| Dashboard, exposure scanner | BUILT | driven in a real browser; reads over the Nym mixnet |
+| Dashboard, exposure scanner | BUILT | every flow driven in a real browser over the Nym mixnet, with a scripted wallet |
 | Master key on hardware | NOT STARTED | the signer is software on this machine, behind the interface a device will use |
 | Nominee | NOT STARTED | |
 | STARK recovery | DESIGNED | spec §9; **no proof exists** |
 | Shielded notes | DESIGNED | spec §10; **no hidden balances exist** |
 
-**The privacy boundary:** reads are private and the harbor is sealed until used. Balances, rules and the queue are public
-on chain. Hidden balances are not built.
+**The privacy boundary:** dashboard reads are private and the harbor is sealed until used. Balances, rules and the queue are
+public on chain, and sending a transaction shows your IP to the mempool. Hidden balances are not built.
 
 ## Tested attacks
 
@@ -126,9 +126,10 @@ reaches a master function never becomes valid.
 - **Censorship resistance:** the escape reaches the chain even while a thief holds the public mempool slot, and it needs
   nothing from us. Any ERC-8421 node can carry it.
 - **Open source:** every line is here. Contracts, client, tests.
-- **Privacy:** dashboard reads and writes go through [anon-rpc](https://github.com/ethereum/anon-rpc), over the Nym mixnet by
-  default. If the route fails, the dashboard stops rather than falling back to a direct connection. The CLI and the bridge,
-  which carries master-key operations, connect directly, because anon-rpc is browser-only today. No analytics, no trackers.
+- **Privacy:** dashboard reads go through [anon-rpc](https://github.com/ethereum/anon-rpc), over the Nym mixnet by default. If
+  the route fails, the dashboard stops rather than falling back to a direct connection. Transactions do not use it: the sidecar
+  refuses requests that arrive through the Nym worker, so they go straight to the mempool, and the page says so before you
+  sign. The CLI and the bridge connect directly, because anon-rpc is browser-only today. No analytics, no trackers.
 - **Security:** a hash-based master key that the daily key cannot override, with the priority enforced in validation.
 
 ## What this does not prove

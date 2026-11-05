@@ -3,42 +3,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type Address, formatEther, isAddress, parseEther } from "viem";
 import {
+  type AccountView,
   DEVNET,
   ETH,
   ROTATION_LEAF,
-  accountAbi,
-  accountState,
   dailyTx,
   framesSucceeded,
   ops,
   publicClient,
   queuedEvents,
+  readAccount,
   refusalName,
   submit,
   walletMessage,
+  withTimeout,
   withWalletSignature,
 } from "@vajra/core";
 import { type BridgeStatus, bridgeStatus, createOnBridge, master } from "../lib/bridge";
 import { NETWORKS, useReads } from "../lib/reads";
 import { connectWallet, hasWallet, personalSign } from "../lib/wallet";
-
-interface Item {
-  id: bigint;
-  recipient: Address;
-  amount: bigint;
-  executeAfter: bigint;
-  state: number;
-}
-
-interface Chain {
-  dailyKey: Address;
-  frozen: boolean;
-  balance: bigint;
-  limit: bigint;
-  allowance: bigint;
-  spent: bigint;
-  items: Item[];
-}
 
 const REFUSALS: Record<string, string> = {
   AccountFrozen: "The account is frozen. Only the master key can unfreeze it.",
@@ -48,6 +31,12 @@ const REFUSALS: Record<string, string> = {
   ChainStateUnknown: "The chain's key tree does not match this signer, so it will not sign.",
   TreeExhausted: "No one-time keys left. Rotate to a new tree.",
 };
+
+/** A mixnet round trip can take many seconds. Past this, a read has failed and the page should say so. */
+const READ_TIMEOUT_MS = 60_000;
+const POLL_PAUSE_MS = 8_000;
+/** How long `submit` keeps watching for a receipt, which over a mixnet is several slow round trips per check. */
+const SUBMIT_TIMEOUT_MS = 420_000;
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 const eth = (wei: bigint) => `${Number(formatEther(wei)).toLocaleString(undefined, { maximumFractionDigits: 6 })} ETH`;
@@ -61,19 +50,6 @@ function countdown(seconds: number) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   return h ? `${h}h ${m}m` : m ? `${m}m ${seconds % 60}s` : `${seconds}s`;
-}
-
-async function readChain(account: Address): Promise<Chain> {
-  const [state, balance, rule] = await Promise.all([
-    accountState(account),
-    publicClient.getBalance({ address: account }),
-    publicClient.readContract({ address: account, abi: accountAbi, functionName: "rule", args: [ETH] }) as Promise<readonly [boolean, bigint, bigint, bigint]>,
-  ]);
-  const ids = Array.from({ length: Number(state.nextItem) }, (_, i) => BigInt(i)).slice(-12);
-  const items = await Promise.all(
-    ids.map(async (id) => ({ id, ...((await publicClient.readContract({ address: account, abi: accountAbi, functionName: "queuedItem", args: [id] })) as Omit<Item, "id">) })),
-  );
-  return { dailyKey: state.dailyKey, frozen: state.frozen, balance, limit: rule[1], allowance: rule[2], spent: rule[3], items };
 }
 
 function CreateAccount({ daily, onCreated }: { daily: Address | null; onCreated: () => void }) {
@@ -136,7 +112,10 @@ export default function AccountPage() {
   const { status, network } = useReads();
   const [bridge, setBridge] = useState<BridgeStatus | null | "down">(null);
   const [wallet, setWallet] = useState<Address | null>(null);
-  const [chain, setChain] = useState<Chain | "unknown" | null>(null);
+  const [chain, setChain] = useState<AccountView | null>(null);
+  const [readAt, setReadAt] = useState<number | null>(null);
+  const [readFailed, setReadFailed] = useState(false);
+  const reading = useRef(false);
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
   const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
@@ -151,9 +130,18 @@ export default function AccountPage() {
   const account = bridge && bridge !== "down" ? bridge.account : null;
 
   const refreshBridge = useCallback(() => bridgeStatus().then(setBridge, () => setBridge("down")), []);
+  // One read at a time. On a slow route, starting another before the last has finished only lengthens the queue.
   const refreshChain = useCallback(async () => {
-    if (!account) return;
-    await readChain(account).then(setChain, () => setChain("unknown"));
+    if (!account || reading.current) return;
+    reading.current = true;
+    try {
+      setChain(await withTimeout(readAccount(account), READ_TIMEOUT_MS, "the read"));
+      setReadAt(Date.now());
+      setReadFailed(false);
+    } catch {
+      setReadFailed(true);
+    }
+    reading.current = false;
   }, [account]);
 
   useEffect(() => {
@@ -162,9 +150,17 @@ export default function AccountPage() {
 
   useEffect(() => {
     if (status !== "ready" || !account) return;
-    refreshChain();
-    const timer = setInterval(refreshChain, 8000);
-    return () => clearInterval(timer);
+    let live = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      await refreshChain();
+      if (live) timer = setTimeout(poll, POLL_PAUSE_MS);
+    };
+    poll();
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
   }, [status, account, refreshChain]);
 
   useEffect(() => {
@@ -182,7 +178,8 @@ export default function AccountPage() {
     setNotice(null);
     try {
       await work();
-      await Promise.all([refreshBridge(), refreshChain()]);
+      refreshBridge();
+      refreshChain();
     } catch (e) {
       setProblem(explain(e));
       say(`refused: ${refusalName((e as Error).message)}`);
@@ -205,7 +202,7 @@ export default function AccountPage() {
       const unsigned = dailyTx({ account: account!, dailyKey: wallet!, nonce, calls: [ops.spend(ETH, to as Address, parseEther(amount))] });
       say("asking your wallet to sign");
       const signature = await personalSign(walletMessage(unsigned), wallet!);
-      const { hash, receipt } = await submit(withWalletSignature(unsigned, signature), { log: say });
+      const { hash, receipt } = await submit(withWalletSignature(unsigned, signature), { log: say, timeoutMs: SUBMIT_TIMEOUT_MS });
       if (!framesSucceeded(receipt)) throw new Error(`${hash} was mined but the spend failed`);
       const [queued] = queuedEvents(receipt.frameReceipts[1]!.logs as { topics: `0x${string}`[]; data: `0x${string}` }[]);
       say(`mined ${short(hash)} in block ${Number(receipt.blockNumber)}`);
@@ -222,7 +219,7 @@ export default function AccountPage() {
       const nonce = BigInt(await publicClient.getTransactionCount({ address: account! }));
       const unsigned = dailyTx({ account: account!, dailyKey: wallet!, nonce, calls: [ops.executeQueued(id)] });
       const signature = await personalSign(walletMessage(unsigned), wallet!);
-      const { hash, receipt } = await submit(withWalletSignature(unsigned, signature), { log: say });
+      const { hash, receipt } = await submit(withWalletSignature(unsigned, signature), { log: say, timeoutMs: SUBMIT_TIMEOUT_MS });
       if (!framesSucceeded(receipt)) throw new Error(`${hash} was mined but the item did not run`);
       say(`mined ${short(hash)} in block ${Number(receipt.blockNumber)}`);
       setNotice(`Item ${id} ran.`);
@@ -255,7 +252,8 @@ export default function AccountPage() {
       </div>
     );
 
-  const known = chain && chain !== "unknown" ? chain : null;
+  const known = chain;
+  const age = readAt ? Math.max(0, now - Math.floor(readAt / 1000)) : null;
   const pending = known?.items.filter((i) => i.state === 1) ?? [];
   const usedShare = known && known.limit > 0n ? Number((known.spent * 100n) / known.limit) : 0;
   const isDailyKey = wallet && known && wallet.toLowerCase() === known.dailyKey.toLowerCase();
@@ -272,7 +270,7 @@ export default function AccountPage() {
         <div className="stack">
           <section className="card" aria-labelledby="balance">
             <h2 id="balance">Balance</h2>
-            <div className="big">{known ? eth(known.balance) : chain === "unknown" ? "Unknown" : "…"}</div>
+            <div className="big">{known ? eth(known.balance) : readFailed ? "Unknown" : "…"}</div>
             <div className="sub mono break">{account}</div>
             {known && (
               <>
@@ -284,7 +282,8 @@ export default function AccountPage() {
                 </div>
               </>
             )}
-            {chain === "unknown" && <div className="sub">The read failed, so nothing is claimed about this account right now.</div>}
+            {!known && readFailed && <div className="sub">The read failed, so nothing is claimed about this account right now.</div>}
+            {known && readFailed && <div className="sub">The latest read failed. These figures are from {age} seconds ago.</div>}
           </section>
 
           <section className="card" aria-labelledby="spend">
@@ -303,6 +302,11 @@ export default function AccountPage() {
               {busy === "spend" ? "Sending…" : "Sign and send"}
             </button>
             <p className="sub">Anything over the rules is not refused. It joins the public queue below, where it waits and can be cancelled.</p>
+            {NETWORKS[network].directToMempool && (
+              <p className="sub">
+                Sending does not use {NETWORKS[network].label}: the transaction goes straight to the mempool, which sees your IP. Your reads stay on the mixnet.
+              </p>
+            )}
           </section>
 
           <section className="card" aria-labelledby="queue">
@@ -392,7 +396,7 @@ export default function AccountPage() {
       </div>
 
       <p className="note">
-        What is private here: {NETWORKS[network].private ? "your reads, and " : ""}your harbor until you escape. What is not: balances, rules and the queue are public on chain, and master-key operations leave from this machine directly. Hidden balances are not built. Devnet only, chain {DEVNET.chainId}.
+        What is private here: {NETWORKS[network].private ? "your reads, and " : ""}your harbor until you escape. What is not: balances, rules and the queue are public on chain, and transactions leave from this machine directly. Hidden balances are not built. Devnet only, chain {DEVNET.chainId}.
       </p>
     </>
   );

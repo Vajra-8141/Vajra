@@ -1,7 +1,7 @@
 /** Reading a VajraAccount, and the master- and daily-key operations a client can ask of it. */
-import { type Address, type Hex, concat, decodeEventLog, encodeFunctionData, keccak256, zeroAddress, zeroHash } from "viem";
+import { type Address, type Hex, concat, decodeEventLog, decodeFunctionResult, encodeFunctionData, keccak256, zeroAddress, zeroHash } from "viem";
 import { publicClient, waitForSuccess, walletFor, LEGACY_GAS_PRICE } from "./chain.ts";
-import { DEVNET } from "./devnet.ts";
+import { DEVNET, rpcBatch } from "./devnet.ts";
 import {
   type Call,
   type Fees,
@@ -112,6 +112,58 @@ export async function accountState(address: Address) {
     read<Hex>("harborCommitment"),
   ]);
   return { dailyKey, wotsRoot, epochSalt, frozen, nextItem, harbor };
+}
+
+export interface QueuedView {
+  id: bigint;
+  recipient: Address;
+  asset: Address;
+  amount: bigint;
+  executeAfter: bigint;
+  state: number;
+}
+
+export interface AccountView {
+  dailyKey: Address;
+  frozen: boolean;
+  balance: bigint;
+  limit: bigint;
+  allowance: bigint;
+  spent: bigint;
+  items: QueuedView[];
+}
+
+const QUEUE_WINDOW = 12n;
+
+/** Everything a page shows about an account, in at most two requests, the second only when items are queued. */
+export async function readAccount(address: Address): Promise<AccountView> {
+  const call = (functionName: string, args: unknown[] = []) => ({
+    method: "eth_call",
+    params: [{ to: address, data: encodeFunctionData({ abi: accountAbi, functionName, args }) }, "latest"],
+  });
+  const decode = <T>(functionName: string, data: Hex | undefined) => decodeFunctionResult({ abi: accountAbi, functionName, data: data! }) as T;
+
+  const [dailyKey, frozen, nextItem, rule, balance] = await rpcBatch<Hex>(DEVNET.execution, [
+    call("dailyKey"),
+    call("frozen"),
+    call("nextItem"),
+    call("rule", [ETH]),
+    { method: "eth_getBalance", params: [address, "latest"] },
+  ]);
+  const next = decode<bigint>("nextItem", nextItem);
+  const start = next > QUEUE_WINDOW ? next - QUEUE_WINDOW : 0n;
+  const ids = Array.from({ length: Number(next - start) }, (_, i) => start + BigInt(i));
+  const items = await rpcBatch<Hex>(DEVNET.execution, ids.map((id) => call("queuedItem", [id])));
+  const [, limit, allowance, spent] = decode<readonly [boolean, bigint, bigint, bigint]>("rule", rule);
+  return {
+    dailyKey: decode<Address>("dailyKey", dailyKey),
+    frozen: decode<boolean>("frozen", frozen),
+    balance: BigInt(balance!),
+    limit,
+    allowance,
+    spent,
+    items: items.map((data, i) => ({ id: ids[i]!, ...decode<Omit<QueuedView, "id">>("queuedItem", data) })),
+  };
 }
 
 // Gas for each operation's SENDER frame. A new storage slot costs 97,920 state gas on this fork, so `state` has to

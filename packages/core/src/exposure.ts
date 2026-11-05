@@ -6,7 +6,7 @@
  * The verdicts are deliberately not a boolean: a read that failed is `unknown`, never `not exposed`.
  */
 import type { Address, Hex } from "viem";
-import { rpc } from "./devnet.ts";
+import { rpcBatch } from "./devnet.ts";
 
 export type Exposure = "exposed" | "delegated" | "no-key-on-chain" | "contract" | "unknown";
 
@@ -29,12 +29,12 @@ export function classifyExposure(a: { address: Address; nonce: bigint; code: Hex
 
 export async function scanAddress(rpcUrl: string, address: Address): Promise<ExposureReport> {
   try {
-    const [nonce, code, balance] = await Promise.all([
-      rpc<Hex>(rpcUrl, "eth_getTransactionCount", [address, "latest"]),
-      rpc<Hex>(rpcUrl, "eth_getCode", [address, "latest"]),
-      rpc<Hex>(rpcUrl, "eth_getBalance", [address, "latest"]),
+    const [nonce, code, balance] = await rpcBatch<Hex>(rpcUrl, [
+      { method: "eth_getTransactionCount", params: [address, "latest"] },
+      { method: "eth_getCode", params: [address, "latest"] },
+      { method: "eth_getBalance", params: [address, "latest"] },
     ]);
-    return classifyExposure({ address, nonce: BigInt(nonce), code, balance: BigInt(balance) });
+    return classifyExposure({ address, nonce: BigInt(nonce!), code: code!, balance: BigInt(balance!) });
   } catch {
     return { address, verdict: "unknown", nonce: null, balance: null };
   }

@@ -68,6 +68,11 @@ bounded by its balance. With no pending transaction, the canonical mempool admit
 - **The faucet was empty** at 23:00 IST on 2026-11-05, having worked an hour earlier.
 - **anon-rpc routes differ in a browser.** The Nym worker was ready in 16 seconds and served real lookups, so it is the
   dashboard's default. The Tor worker's demonstration gateway had not come up after 75 seconds.
+- **The Nym worker cannot reach the sidecar.** Over Nym, `/rpc` answers `HTTP 415`, the same as a request with no usable
+  content type (`application/json` and `text/plain` pass; a missing header and `application/octet-stream` do not). The same
+  request passes over the passthrough worker, and ethrex accepts it over Nym. The harness hands the worker headers as a list
+  of pairs, as the spec says, and the worker gives that list to `mixFetch`; where exactly the header is lost was not traced
+  further. So reads use the mixnet and transactions go direct, and the dashboard says so before anything is signed.
 - **A stealth spend is also valid on the canonical mempool**, per `ethrex_simulateFrameTransaction`, even with a
   non-canonical paymaster. So stealth does not depend on the alt mempool, and finding 3 does not apply to it: a stealth
   account has no daily key for a thief to race with.
