@@ -2,8 +2,9 @@
 
 An ESP32 that holds the master key, reachable only over a USB cable, that signs nothing without a press of its button.
 
-**Status: the firmware compiles for the ESP32, and its logic has signed real transactions on the devnet through a native
-build. It has not yet run on a board.** Everything below marked unverified is waiting on that.
+**Status: the firmware runs on a real ESP32 and talks to the client over USB. It has not yet signed a transaction from the
+board: that needs the display wired and the button pressed.** Its logic has signed on the devnet through a native build.
+Everything below marked unverified is waiting on that.
 
 ## Why it exists
 
@@ -49,13 +50,27 @@ screen as coming from the host, because it is only a convenience.
 | A compromised host, on the live devnet | Six attacks refused before reaching the button, no leaf burned |
 | The serial client | Exercised through a pseudo-terminal |
 | ESP32 cross-compile | Succeeds: 401 KB flash, 38 KB RAM |
-| **Flashing and running on a board** | **Unverified** |
-| **OLED, BOOT button, NVS persistence, hardware RNG** | **Unverified** |
-| **Time to derive keys at boot** | **Unverified**, and the client waits 30 seconds |
+| Flashing and running on a real ESP32 | **Works**: ESP32-D0WD-V3 |
+| Hardware RNG seed, NVS persistence across resets and reflashes | **Works**: the root survived both |
+| Boot time on the chip | 10 seconds deriving a tree, 0.4 seconds from the cache |
+| Screen detection | **Works**: reports `screen=no` with no display attached |
+| **OLED output, BOOT button, signing from the board** | **Unverified** |
 
 ## Setting it up
 
-Wiring: OLED SDA to GPIO 21, SCL to GPIO 22. BOOT is GPIO 0.
+Wiring, for a 4-pin SSD1306 I2C OLED, with the USB cable unplugged:
+
+| OLED | ESP32 |
+|---|---|
+| GND | GND |
+| VCC | 3V3 |
+| SCL | GPIO 22 |
+| SDA | GPIO 21 |
+
+Go by the labels on the display: modules differ on whether GND or VCC comes first. BOOT is the board's own button on GPIO 0.
+
+Without a display the device reports `screen=no` and refuses to approve anything, because nobody could see what they were
+signing. It probes the I2C bus for this: the display library's `begin` succeeds with nothing connected.
 
 Serial access on Arch needs the `uucp` group, then a fresh login:
 

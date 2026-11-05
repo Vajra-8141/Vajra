@@ -24,7 +24,7 @@ constexpr int SDA_PIN = 21;
 constexpr int SCL_PIN = 22;
 constexpr int SCREEN_WIDTH = 128;
 constexpr int SCREEN_HEIGHT = 64;
-constexpr uint8_t SCREEN_ADDRESS = 0x3c;
+constexpr uint8_t SCREEN_ADDRESSES[] = {0x3c, 0x3d};
 constexpr uint32_t CONFIRM_TIMEOUT_MS = 60000;
 constexpr uint32_t DEBOUNCE_MS = 30;
 constexpr size_t MAX_LINE = 8192;
@@ -45,6 +45,18 @@ void render(const char* title, const char* detail, const char* footer) {
   screen.setCursor(0, 56);
   screen.print(footer);
   screen.display();
+}
+
+/**
+ * Asks the bus whether a display is really there. The library's `begin` cannot be used for this: it only allocates a buffer
+ * and succeeds with nothing connected, and a device that believes it has a screen would sign what nobody can see.
+ */
+bool startScreen() {
+  for (uint8_t address : SCREEN_ADDRESSES) {
+    Wire.beginTransmission(address);
+    if (Wire.endTransmission() == 0) return screen.begin(SSD1306_SWITCHCAPVCC, address);
+  }
+  return false;
 }
 
 bool buttonDown() { return digitalRead(BUTTON_PIN) == LOW; }
@@ -121,7 +133,7 @@ void setup() {
   Serial.setRxBufferSize(4096);
   Serial.begin(115200);
   Wire.begin(SDA_PIN, SCL_PIN);
-  screenReady = screen.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
+  screenReady = startScreen();
   hal.begin();
   device.boot();
   line.reserve(MAX_LINE);
