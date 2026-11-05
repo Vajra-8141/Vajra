@@ -27,7 +27,14 @@ library Wots {
                 checksum := add(checksum, sub(top, digit))
                 let slot := add(sig, shl(5, i))
                 mstore(0, mload(slot))
-                for { let s := digit } lt(s, top) { s := add(s, 1) } { mstore(0, keccak256(0, 32)) }
+                let steps := sub(top, digit)
+                for {} gt(steps, 3) { steps := sub(steps, 4) } {
+                    mstore(0, keccak256(0, 32))
+                    mstore(0, keccak256(0, 32))
+                    mstore(0, keccak256(0, 32))
+                    mstore(0, keccak256(0, 32))
+                }
+                for {} steps { steps := sub(steps, 1) } { mstore(0, keccak256(0, 32)) }
                 mstore(slot, mload(0))
             }
 
@@ -36,7 +43,14 @@ library Wots {
                 let digit := and(shr(mul(sub(sub(len2, i), 1), logW), checksum), top)
                 let slot := add(sig, shl(5, add(len1, i)))
                 mstore(0, mload(slot))
-                for { let s := digit } lt(s, top) { s := add(s, 1) } { mstore(0, keccak256(0, 32)) }
+                let steps := sub(top, digit)
+                for {} gt(steps, 3) { steps := sub(steps, 4) } {
+                    mstore(0, keccak256(0, 32))
+                    mstore(0, keccak256(0, 32))
+                    mstore(0, keccak256(0, 32))
+                    mstore(0, keccak256(0, 32))
+                }
+                for {} steps { steps := sub(steps, 1) } { mstore(0, keccak256(0, 32)) }
                 mstore(slot, mload(0))
             }
 
