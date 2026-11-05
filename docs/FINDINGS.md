@@ -22,7 +22,7 @@ Reproduce: `node packages/cli/src/main.ts budget`. The sender is `0xe5d1aB06F0E4
 **Consequence:** the first example in the track's own brief, a PQ wallet needing more than 100k of verification, cannot
 currently be admitted through the sidecar by anyone. This looks like a feature the sidecar has not implemented yet rather
 than a protocol limit: ethrex's source treats `max_verify_gas` as mempool policy, and `ethrex_simulateFrameTransaction`
-runs a 364,040-gas VERIFY frame to success. A VERIFY frame that large has not been tested in a mined block.
+runs a 378,879-gas VERIFY frame to success. A VERIFY frame that large has not been tested in a mined block.
 
 ## 2. Every precompile is refused during validation
 
@@ -42,8 +42,9 @@ keeps the two domains independent. With a thief's valid daily-key transaction pe
     canonical: A frame transaction in the other nonce-key domain is already pending for this sender
     alt:       admitted and mined, all frames succeeded
 
-Run twice, both mined: `0x40bd1052ce52bfa7e7f9ae2fb990907b4f6f1e70f6893065ebc189ff1d4a980f`,
-`0xf3c7e7b6fde6c2d34dfe0c457cffa5fd0a4753329b15d40e42380ef37bea06a8`. Reproduce: `node packages/cli/src/main.ts pin`.
+Run three times, all mined, the last on the current deployment: `0x40bd1052ce52bfa7e7f9ae2fb990907b4f6f1e70f6893065ebc189ff1d4a980f`,
+`0xf3c7e7b6fde6c2d34dfe0c457cffa5fd0a4753329b15d40e42380ef37bea06a8`,
+`0x0c858f5d37628812d70fc46ae1cf8ec36132492dd1e786134d68eb09c18495f2`. Reproduce: `node packages/cli/src/main.ts pin`.
 
 What this does and does not show. It holds for as long as a thief's transaction is pending. On this idle devnet that is
 one slot, so holding the block open means sending a new transaction every slot, paid for by the victim's account and

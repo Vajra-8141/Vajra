@@ -6,12 +6,12 @@ real signature verified by the deployed account. Reproduce with `node packages/c
 
 | Winternitz parameter | Signature | Hashes to verify | VERIFY gas (min / median / max) | Whole tx (median) | vs the 100,000 cap | Live alt mempool |
 |---|---|---|---|---|---|---|
-| **w=16** (67 chains) | 2,144 B | 450 to 585 | 86,336 / **89,960** / 94,403 | 167,418 | fits | **admitted and mined** |
-| w=256 (35 chains) | 1,120 B | 4,080 to 5,355 | 289,712 / **319,781** / 364,040 | 368,453 | 3.2x over | refused |
+| **w=16** (67 chains) | 2,144 B | 435 to 570 | 85,482 / **90,009** / 93,519 | 167,418 | fits | **admitted and mined** |
+| w=256 (35 chains) | 1,120 B | 4,080 to 5,610 | 289,677 / **334,362** / 378,879 | 383,090 | 3.3x over | refused |
 
-Fitted cost: `59,030 + 60.6 x hashes` for w=16 and `51,976 + 58.3 x hashes` for w=256. The prediction lands within about
-80 gas, which matters because a signature cannot be tried against a node first: that would reveal the one-time key. The
-client reads the hash count off the digest before anything is signed, and draws a new digest if it would not fit.
+Fitted cost: `59,289 + 60.2 x hashes` for w=16 and `51,834 + 58.3 x hashes` for w=256. The fit matters because a signature
+cannot be tried against a node first: that would reveal the one-time key. The client reads the hash count off the digest
+before anything is signed, and draws a new digest if it would not fit.
 
 w=4 (133 chains, 4,256 B) was measured in Foundry only, at 46,317 gas for the verifier alone. Its extra signature bytes
 cost more than its fewer hashes save, so it was not deployed.
@@ -22,7 +22,7 @@ From the fit above and the client's constants, not from a per-opcode trace:
 
 | Part | Gas | Source |
 |---|---|---|
-| Hash chain steps | 27,000 to 35,000 | fit: 60.6 per hash, 450 to 585 hashes |
+| Hash chain steps | 26,000 to 34,000 | fit: 60.2 per hash, 435 to 570 hashes |
 | First use of a keyed nonce, charged inside VERIFY | 20,000 | `KEYED_NONCE_FIRST_USE_GAS` |
 | Everything else: frame opcodes through helper contracts, clone delegatecall, storage reads, Merkle path, leaf hash | about 39,000 | the fit's fixed term, less the 20,000 |
 

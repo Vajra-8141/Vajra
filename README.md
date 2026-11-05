@@ -16,7 +16,7 @@ Everything below runs on the public devnet (chain 1337).
 
 **A thief with your daily key can block your escape on the public mempool.** The canonical mempool will not hold a keyed
 transaction next to a pending linear one from the same sender, and the thief can always keep one pending, because the
-thief has the key. The alternative mempool keeps the two independent. Run live, twice, with the thief's transaction
+thief has the key. The alternative mempool keeps the two independent. Run live three times, with the thief's transaction
 pending and the same signed escape offered to both:
 
     canonical:  A frame transaction in the other nonce-key domain is already pending for this sender
@@ -31,8 +31,8 @@ measured otherwise. At w=16 a full WOTS verification fits under the 100,000-gas 
 
 | Master key | Signature | VERIFY gas (median) | Live alt mempool |
 |---|---|---|---|
-| **WOTS w=16** | 2,144 B | **89,960** | **admitted and mined** |
-| WOTS w=256 | 1,120 B | 319,781 | refused |
+| **WOTS w=16** | 2,144 B | **90,009** | **admitted and mined** |
+| WOTS w=256 | 1,120 B | 334,362 | refused |
 
 w=256 is refused even with a stake, because the deployed sidecar has not implemented ERC-8421's 1,000,000-gas staked
 budget. [`docs/FINDINGS.md`](docs/FINDINGS.md) has the evidence, and [`docs/upstream/`](docs/upstream/) has a patch.

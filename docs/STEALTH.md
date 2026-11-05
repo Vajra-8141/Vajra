@@ -86,6 +86,6 @@ schemeId 3 announcements, and may deserve their own `schemeId`.
 
 ## Measured
 
-`docs/evidence/stealth-latest.json` holds the transaction. A live spend at 570 hashes used 79,274 gas in `validateMaster`,
+`docs/evidence/stealth-latest.json` holds the transaction. A live spend at 585 hashes used 80,123 gas in `validateMaster`,
 10,089 in the paymaster and 41,352 in the USDC transfer. Declared limits are 82,000 and 15,000, which with 2,900 of
 signature cost total exactly the 99,900 that fits under the cap. The client redraws any digest over 600 hashes.

@@ -53,8 +53,8 @@ faucet has been dry. Failing that, the proof page and `docs/evidence/` are the f
 
 ## Questions to expect
 
-**Why not w=256, as in your earlier plan?** It costs about 320,000 gas, and no mempool admits that today. It saves 1 KB of
-signature and costs 3.5 times the gas. If the sidecar gets per-entity budgets, it becomes possible, but w=16 is still the better
+**Why not w=256, as in your earlier plan?** It costs about 330,000 gas, and no mempool admits that today. It saves 1 KB of
+signature and costs 3.7 times the gas. If the sidecar gets per-entity budgets, it becomes possible, but w=16 is still the better
 choice on gas. `len2` and `logW` are constructor arguments, so it is a redeploy, not a rewrite.
 
 **The sender derives your stealth key, so can it not spend?** It knows the hash key, which is why that key alone is not enough.

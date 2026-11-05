@@ -91,7 +91,7 @@ export default function ProofPage() {
               <tr>
                 <td>WOTS, w=16</td>
                 <td className="num">2,144 B</td>
-                <td className="num">89,960</td>
+                <td className="num">90,009</td>
                 <td>
                   <span className="tag good">admitted and mined</span>
                 </td>
@@ -99,7 +99,7 @@ export default function ProofPage() {
               <tr>
                 <td>WOTS, w=256</td>
                 <td className="num">1,120 B</td>
-                <td className="num">319,781</td>
+                <td className="num">334,362</td>
                 <td>
                   <span className="tag bad">refused, over the 100,000 cap</span>
                 </td>
