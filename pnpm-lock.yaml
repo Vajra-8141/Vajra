@@ -10,6 +10,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@forshtat/hegota-support':
+        specifier: 0.0.1
+        version: 0.0.1(viem@2.57.16(typescript@5.9.3))
       '@vajra/core':
         specifier: workspace:*
         version: link:../core

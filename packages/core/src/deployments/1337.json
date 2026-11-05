@@ -8,8 +8,8 @@
   "len2": 3
  },
  "w256": {
-  "implementation": "0x447a5c5f8be74984fef71113fe945215d9bce928",
-  "factory": "0x87345490052dff33b97a08ce1288b02a7ebf2e6d",
+  "implementation": "0x30f47625a79f15a183c2770028342707c0be6f7e",
+  "factory": "0x3f078ca858c2c498e567483201fcf1f7b9b3fff2",
   "logW": 8,
   "len2": 3
  }

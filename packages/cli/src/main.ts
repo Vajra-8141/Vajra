@@ -8,6 +8,9 @@ switch (command) {
   case "e2e":
     await import("./e2e.ts");
     break;
+  case "budget":
+    await import("./budget.ts");
+    break;
   case "pin":
     await import("./pin.ts");
     break;
@@ -15,6 +18,6 @@ switch (command) {
     await import("./measure.ts");
     break;
   default:
-    console.error("usage: vajra deploy");
+    console.error("usage: vajra deploy|e2e|measure|pin|budget");
     process.exit(1);
 }

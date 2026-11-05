@@ -1,0 +1,85 @@
+# What the live devnet actually does
+
+Everything here was observed on the public devnet (chain 1337) on 2026-11-05, or read in the source it runs:
+`forshtat/mempool-workshop-sidecar` at `2e22ff0`, `forshtat/ethrex` branch `eip8141-tracer` at `9aa3645`.
+
+## 1. The alt mempool caps validation at 100,000 gas, staked or not
+
+ERC-8421 BUDGET-010 gives a staked entity 1,000,000 (the landing page says 2,500,000). The deployed sidecar has no such
+budget. `validateStructuralRules` applies one flat cap to the whole prefix, before stake is ever looked up:
+
+    packages/executor/src/services/UserOpValidation/utils/validationPrefix.ts:288
+    if (totalVerifyGas > MAX_VERIFY_GAS) { ...
+
+Observed on both the miner and the gateway, from a sender with a confirmed stake of 0.012 ETH (minStake is 0.01):
+
+    VERIFY limit 400000: validation prefix execution gas sum 400000 + signature-verification cost 2800 = 402800 exceeds MAX_VERIFY_GAS 100000
+    VERIFY limit 900000: validation prefix execution gas sum 900000 + signature-verification cost 2800 = 902800 exceeds MAX_VERIFY_GAS 100000
+
+Reproduce: `node packages/cli/src/main.ts budget`. The sender is `0xe5d1aB06F0E400F62a4c421c4089E25ddb0aBBFd`, staked in
+`0x6ca716c391b55ab5018e168f80a09b62b0bc0d06c4d490a1d2113b2e6f5304c9`.
+
+**Consequence:** the first example in the track's own brief, a PQ wallet needing more than 100k of verification, cannot
+currently be admitted by anyone. Block execution has no such cap, so this looks like a missing feature in the sidecar
+rather than a protocol limit: `ethrex_simulateFrameTransaction` runs a 364,040-gas VERIFY frame to success.
+
+## 2. Every precompile is refused during validation
+
+CALLING-040 allows precompiles `0x01` to `0x11`. The live node has `precompiles: []`, and the check at
+`validators/frameTx.ts:816` treats anything not in that list as undeployed:
+
+    payer accesses un-deployed contract address 0x0000000000000000000000000000000000000001 with opcode STATICCALL
+
+This blocks `ecrecover` in validation, a SHA-256 hash variant, and the pairing precompiles any Groth16 verifier needs, so
+it also blocks the planned v1 of STARK recovery and shielded spends. It is a config value: `SKANDHA_PRECOMPILES`.
+
+## 3. A thief holding the daily key can block the escape on the canonical mempool
+
+The canonical mempool refuses a keyed transaction while a linear one from the same sender is pending. The alt mempool
+keeps the two domains independent. With a thief's valid daily-key transaction pending, the same signed escape got:
+
+    canonical: A frame transaction in the other nonce-key domain is already pending for this sender
+    alt:       admitted and mined, all frames succeeded
+
+Run twice, both mined: `0x40bd1052ce52bfa7e7f9ae2fb990907b4f6f1e70f6893065ebc189ff1d4a980f`,
+`0xf3c7e7b6fde6c2d34dfe0c457cffa5fd0a4753329b15d40e42380ef37bea06a8`. Reproduce: `node packages/cli/src/main.ts pin`.
+
+What this does and does not show. It holds for as long as a thief's transaction is pending. On this idle devnet that is
+one slot, so holding the block open means sending a new transaction every slot, paid for by the victim's account and
+bounded by its balance. With no pending transaction, the canonical mempool admits the same w=16 escape.
+
+## 4. Smaller things that cost time
+
+- **A CALL paying a new address needs 183,600 spare execution gas in a frame.** `opcode_handlers/system.rs:153` computes
+  a state-gas spill against `state_gas_reservoir`, which is always 0 in a frame, and subtracts it from execution gas even
+  though the state gas is charged to the frame's own pool. The gas is not spent, only required. With too little, the frame
+  dies with out of gas while reporting no state use.
+- **Admitted does not mean mined.** About 5% of recent transactions end `relayed 4 times without being included in a
+  block`. Rebroadcasting the identical bytes works, and it is the only safe retry for a one-time key.
+- **The gateway does not reliably reach the miner.** A transaction sat in the gateway's mempool while the miner never saw
+  it. VAJRA submits to the miner's sidecar directly.
+- **An ECDSA entry with an explicit `msg` keeps its bytes in the signature hash**, so that hash cannot be what `msg` commits
+  to. A wallet path has to rebuild its digest from the transaction's fields instead.
+- **Keyed-nonce first use costs 20,000 gas inside the VERIFY frame.**
+- **State gas is 1,530 per byte of code**, so a 10 KB contract costs about 18.7M to deploy, over the 16.7M regular cap but
+  allowed, since state gas sits outside it.
+- **Cold account access is 3,000 on this fork**, not 2,600.
+- **The faucet was empty** at 23:00 IST on 2026-11-05, having worked an hour earlier.
+
+## 5. Where the specs had to change
+
+| Spec | What it says | What is true |
+|---|---|---|
+| 04 §1, 03 §1 | Master-key operations exceed the budget, so only the alt mempool routes them | True of w=256, which no mempool admits today. True of neither at w=16, which fits the cap. The alt mempool is still required, for finding 3 |
+| 03 §4, refusal 1 | Public mempool refuses, alt mempool admits, on gas | Both refuse over 100k today. The refusal that works live is finding 3 |
+| 04 §4 | Each rule is one validation check | TIMESTAMP is banned in every mempool and VERIFY is static, so the rulebook runs in the SENDER frame. VERIFY enforces who may act and the shape of the transaction |
+| 04 §3 | Nonce key = leaf index | Derived from root and leaf, or a rotated tree would collide with the keys the old tree used |
+| 04 §5 | 3 checksum chains at w=256 | 2 are enough: see GAS.md |
+| 03 §9 | No faucet, gateway is `altmempool.forshtat.com` | A faucet exists when funded; `altmempoolgateway.forshtat.com` also exists, and the miner's sidecar is the reliable one |
+
+## 6. Two traps the specs do not mention, both closed
+
+- `sender_approved` covers every SENDER frame, so a daily key could append `token.transfer(thief, everything)` and never
+  touch the rulebook. `validateDaily` walks every frame.
+- The protocol checks an ECDSA signature against whatever `msg` holds, so without a check, any signature the daily key
+  ever produced would authorize a transaction. `validateDaily` requires `msg` to be empty or the rebuilt digest.
