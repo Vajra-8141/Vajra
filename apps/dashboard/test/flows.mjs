@@ -2,6 +2,7 @@
 // with the local daily key; everything else, including the route reads take, is the real thing.
 import { existsSync, readFileSync } from "node:fs";
 import { chromium } from "playwright-core";
+import { parseEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 const ROUTE = process.env.ROUTE ?? "nym";
@@ -24,6 +25,13 @@ const check = (ok, what) => {
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? "/usr/bin/chromium", args: ["--no-sandbox"] });
 const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
 await context.exposeBinding("__personalSign", async (_, message) => daily.signMessage({ message: { raw: message } }));
+/** Every typed-data request, as the wallet got it: V2 accounts sign this, and a real wallet would show it. */
+const typedRequests = [];
+await context.exposeBinding("__signTypedData", async (_, json) => {
+  const typed = JSON.parse(json);
+  typedRequests.push(typed);
+  return daily.signTypedData(typed);
+});
 await context.addInitScript(
   ({ address, route }) => {
     if (window.top !== window) return;
@@ -34,6 +42,7 @@ await context.addInitScript(
       request: async ({ method, params }) => {
         if (method === "eth_requestAccounts") return [address];
         if (method === "personal_sign") return window.__personalSign(params[0]);
+        if (method === "eth_signTypedData_v4") return window.__signTypedData(params[1]);
         throw new Error(`unsupported ${method}`);
       },
     };
@@ -107,6 +116,16 @@ await timed("spend, sign to mined", async () => {
 check((await banner("ok")).includes("Sent"), `a spend inside the rules went out: ${await banner("ok")}${await banner("error")}`);
 await shot("2-spent");
 
+// The mirror's account is a V2 one, so the signature above was typed data. It was mined, so the account rebuilt this digest and held
+// the cost to it. A digest without verifyGas or maxCost, or a frame 0 not padded after signing, would have been refused.
+if (MIRROR) {
+  const signed = typedRequests.at(-1);
+  check(signed?.primaryType === "DailySpend", `the wallet was asked for typed data, not blind bytes: ${signed?.primaryType ?? "nothing"}`);
+  check(signed?.message.recipient.toLowerCase() === payee.toLowerCase() && BigInt(signed.message.amount) === parseEther("0.00005"), "and it could show the recipient and the amount");
+  check(BigInt(signed?.message.verifyGas ?? 0) > 0n && BigInt(signed?.message.maxCost ?? 0) > 0n, `and it signed the verify gas and the cost: ${signed?.message.verifyGas}, ${signed?.message.maxCost}`);
+  check(signed?.domain.name === "VAJRA" && signed?.domain.version === "2" && signed?.domain.chainId === 13370, "under the V2 domain, on the mirror's chain");
+}
+
 await spend(payee, "0.5");
 await page.waitForTimeout(500);
 await idle();
@@ -143,6 +162,22 @@ await shot("4-frozen");
 
 await approve("unfreeze", () => page.getByRole("button", { name: "Unfreeze" }), async () => (await banner("frozen")) === "");
 check((await banner("frozen")) === "", "the account unfroze");
+
+// The other shape a wallet can sign. The demo account's queue delay is two minutes, so this waits for the item to mature.
+if (MIRROR) {
+  await spend(payee, "0.3");
+  await page.waitForTimeout(500);
+  await idle();
+  check((await banner("ok")).includes("queued"), `a second oversized spend was queued: ${(await banner("ok")).slice(0, 70)}${await banner("error")}`);
+  const id = (await banner("ok")).match(/item (\d+)/)?.[1];
+  const execute = page.getByRole("button", { name: "Execute" }).first();
+  await waitFor(() => execute.isVisible(), "the item to mature", 180_000);
+  await execute.click();
+  await waitFor(async () => (await banner("ok")).includes(`Item ${id} ran`) || (await problem()) !== "", "the execute", 60_000);
+  check((await banner("ok")).includes(`Item ${id} ran`), `the wallet executed the matured item: ${await banner("ok")}${await problem()}`);
+  const signed = typedRequests.at(-1);
+  check(signed?.primaryType === "DailyExecute" && signed?.message.id === id, `and signed it as typed data: ${signed?.primaryType}, item ${signed?.message.id}`);
+}
 
 if (!MIRROR) {
 await page.goto(`${BASE}/proof`);
