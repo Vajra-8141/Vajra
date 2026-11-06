@@ -263,7 +263,7 @@ export function Pool() {
               <button
                 className="btn primary"
                 onClick={() =>
-                  void run({ title: "Shielding", run: (x) => engine.shield(x), result: (d) => ({ title: "Shielded", body: "Your note is in the pool. Every note is the same size, so they all look alike.", done: d }) })
+                  void run({ title: "Shielding", run: (x) => engine.shield(x), result: (d) => ({ title: "Shielded", body: "Your note is in the pool. Only this wallet can spend it, so download a new backup from Protection.", done: d }) })
                 }
               >
                 Shield a note

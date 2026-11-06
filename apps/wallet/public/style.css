@@ -253,6 +253,9 @@ input[type="range"]::-moz-range-thumb { width: 28px; height: 28px; border-radius
 .step-text strong { font-size: var(--t-h3); }
 .step-text small { color: var(--t60); }
 .is-done .step-text small { color: var(--t40); }
+.how { display: grid; gap: var(--s2); margin: 0; padding: 0; list-style: none; counter-reset: how; }
+.how li { counter-increment: how; display: grid; grid-template-columns: 22px 1fr; gap: var(--s2); color: var(--t60); }
+.how li::before { content: counter(how); font-variant-numeric: tabular-nums; color: var(--t40); }
 .step-body { display: grid; gap: var(--s3); padding: 0 0 var(--s5) 39px; animation: line var(--mid) var(--ease) both; }
 .emergency { display: grid; gap: var(--s3); padding-top: var(--s4); border-top: 1px solid var(--line); }
 

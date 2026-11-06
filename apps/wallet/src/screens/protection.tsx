@@ -9,20 +9,62 @@ interface Row {
   id: string;
   title: string;
   danger: string;
-  fix: string;
+  how: string[];
   done: boolean;
 }
 
 export function rows(s: Snapshot): Row[] {
   const did = (k: string) => s.history.some((h) => h.kind === k);
   return [
-    { id: "backup", title: "Backed up", danger: "If this device dies, your wallet could die with it.", fix: "An encrypted file you keep somewhere else brings it back.", done: s.backedUp },
-    { id: "alerts", title: "Get warned", danger: "A thief won't tell you they've started.", fix: "An alert reaches you the moment a payment starts waiting.", done: s.alerts.telegram || s.alerts.push },
-    { id: "drill", title: "Practice a theft", danger: "The worst time to learn this is during a real theft.", fix: "Rob yourself once, and stop it, so you know what it looks like.", done: did("cancelled") },
-    { id: "freeze", title: "Freeze and unfreeze", danger: "Sometimes something feels wrong, but you can't see what.", fix: "A freeze stops your wallet key completely until you lift it.", done: did("frozen") && did("unfreeze") && s.frozen === false },
-    { id: "exit", title: "Second way out", danger: "Your hash key could be lost just when you need to run.", fix: "A separate address with its own money can still move everything to your safe.", done: s.exit !== null },
-    { id: "paper", title: "Recovery paper", danger: "You could lose this device and your backup together.", fix: "A few words on paper take your account back on any new device.", done: s.recoverySet === true },
-    { id: "move", title: "Move the hash key to your phone", danger: "With both keys here, one stolen device holds both.", fix: "Keep the hash key on your phone, and a thief needs two devices.", done: !s.hashKeyHere },
+    {
+      id: "backup",
+      title: "Save a backup",
+      danger: "If this device breaks, your wallet could go with it.",
+      how: ["You save one locked file.", "Only your passphrase can open it.", "On a new device, tap Restore and pick that file."],
+      done: s.backedUp,
+    },
+    {
+      id: "alerts",
+      title: "Get warned",
+      danger: "A thief won't tell you they've started.",
+      how: ["Link Telegram, or turn on push alerts.", "If a big payment starts, you get a message within seconds.", "You then have until the countdown ends to stop it."],
+      done: s.alerts.telegram || s.alerts.push,
+    },
+    {
+      id: "drill",
+      title: "Practice a theft",
+      danger: "Your first time shouldn't be a real theft.",
+      how: ["The app plays the thief and tries to take more than your limit. This is a real attempt on the chain.", "The payment gets stuck in a public countdown.", "You tap Not me. Your hash key cancels it, and your money stays."],
+      done: did("cancelled"),
+    },
+    {
+      id: "freeze",
+      title: "Freeze and unfreeze",
+      danger: "Sometimes something feels wrong, but you can't see what.",
+      how: ["Tap Freeze. Your wallet key stops, so nothing can be sent.", "Your hash key keeps working.", "Tap Unfreeze when you feel safe."],
+      done: did("frozen") && did("unfreeze") && s.frozen === false,
+    },
+    {
+      id: "exit",
+      title: "Second way out",
+      danger: "You might need to run when your wallet is blocked, or your hash key is gone.",
+      how: ["The app makes a small helper account with its own key and its own money.", "The helper can only do one thing: move everything to your safe.", "If your wallet is blocked or you lose your phone, use it from the Escape screen."],
+      done: s.exit !== null,
+    },
+    {
+      id: "paper",
+      title: "Recovery paper",
+      danger: "You could lose your device and your backup together.",
+      how: ["The app shows a secret code once. Write it on paper.", "On a new device, type the code and your wallet address.", "It waits in public first, so you can cancel it if someone stole your paper."],
+      done: s.recoverySet === true,
+    },
+    {
+      id: "move",
+      title: "Move the hash key to your phone",
+      danger: "If both keys are on one device, one theft gets both.",
+      how: ["Scan a QR code with your phone, and type your passphrase there.", "This device keeps spending. Your phone becomes the guard.", "If a theft starts, your phone is where you tap Not me."],
+      done: !s.hashKeyHere,
+    },
   ];
 }
 export const nextStep = (s: Snapshot) => rows(s).find((r) => !r.done) ?? null;
@@ -46,6 +88,7 @@ function Checklist({ s }: { s: Snapshot }) {
       <header className="screen-head">
         <h1>Protection</h1>
       </header>
+      <p className="lead">Your wallet has two keys. The wallet key spends small amounts. The hash key can stop anything. These steps set up your safety, one at a time.</p>
       <div className="progress">
         <p>{count === all.length ? "Every step is done." : `${count} of ${all.length} done`}</p>
         <div className="meter" role="img" aria-label={`${count} of ${all.length} steps done`}>
@@ -67,7 +110,11 @@ function Checklist({ s }: { s: Snapshot }) {
               {isOpen && (
                 <div className="step-body">
                   <p>{r.danger}</p>
-                  <p className="t60">{r.fix}</p>
+                  <ol className="how">
+                    {r.how.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ol>
                   <RowAction id={r.id} s={s} done={r.done} />
                 </div>
               )}
@@ -78,7 +125,7 @@ function Checklist({ s }: { s: Snapshot }) {
       <div className="emergency">
         <div>
           <h2>Escape</h2>
-          <p className="t60 small">If you can see it's happening right now, move everything to your safe. This is the last resort, and it can't be undone.</p>
+          <p className="t60 small">For a real emergency. This moves all your money to your safe, and you can't undo it.</p>
         </div>
         <a className="btn" href="#/escape" data-testid="escape-link">
           {s.escaped ? "See what happened" : "Open Escape"}
@@ -124,8 +171,8 @@ function RowAction({ id, s, done }: { id: string; s: Snapshot; done: boolean }) 
         className="btn arc"
         onClick={() =>
           void hash(
-            { what: "Set up a second way out", detail: "A new address gets a little of your ETH, kept apart for one job: moving everything to your safe.", confirm: "Set it up" },
-            { title: "Setting up your second way out", run: (x) => engine.setupExit(x), result: (d) => ({ title: "Second way out is ready", body: "Lose the hash key, and your money can still reach your safe.", done: d, signed: true }) },
+            { what: "Set up a second way out", detail: "A small helper account is made, with its own money, for one job: moving everything to your safe.", confirm: "Set it up" },
+            { title: "Setting up your second way out", run: (x) => engine.setupExit(x), result: (d) => ({ title: "Second way out is ready", body: "If your wallet is blocked or your hash key is lost, this can still move everything to your safe. Download a new backup in step 1, so the helper's key is saved too.", done: d, signed: true }) },
           )
         }
       >
@@ -509,7 +556,7 @@ export function Escape() {
                     ).then(go2safe)
                   }
                 >
-                  Hash key lost? Use the second way out
+                  Wallet blocked or hash key lost? Use the second way out
                 </button>
               )}
             </>
