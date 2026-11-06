@@ -18,7 +18,15 @@ const PUBLIC = {
  * The mirror `stack/up.sh` boots: the same two upstream commits, with the sidecar patched. It has its own chain id, so that
  * nothing recorded against it can be read as a public devnet result.
  */
-const LANE = Number((globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.NEXT_PUBLIC_VAJRA_LANE ?? (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.VAJRA_LANE ?? 0) * 100;
+/** `process.env.NEXT_PUBLIC_…` has to be written out in full, or Next cannot put it in the bundle. */
+function readLane(): number {
+  try {
+    return Number(process.env.NEXT_PUBLIC_VAJRA_LANE || process.env.VAJRA_LANE || 0);
+  } catch {
+    return 0;
+  }
+}
+const LANE = readLane() * 100;
 const LOCAL: typeof PUBLIC = {
   chainId: 13370,
   execution: `http://127.0.0.1:${18545 + LANE}`,
