@@ -4,6 +4,8 @@ One command boots a full local copy of everything: ethrex, a block producer, the
 
 Needs Docker, Node 22.18 or newer, pnpm, make, and git.
 
+The contract tests also need Foundry and `git submodule update --init`. The browser tests look for `/usr/bin/chromium`: set `CHROMIUM=/usr/bin/brave-browser` if you use Brave, and `ROUTE=direct` for `apps/dashboard/test/flows.mjs` on the mirror.
+
     git clone https://github.com/Vajra-8141/Vajra.git && cd Vajra
     make judge
 
@@ -26,7 +28,7 @@ the sidecar `2e22ff0`. The differences, all of them:
 | USDC | the devnet's | a plain ERC-20 stand-in at the same address |
 | Account for proofs | `VajraAccountV2` | `VajraAccountV2` |
 
-Everything the README marks BUILT was recorded on the public devnet, in `docs/evidence/`, some of it before the reset of 2026-11-06. Recovery and one note through the pool also ran there on 6 November, once the alt mempool allowed precompiles: `recovery-public-latest.json`, `shield-public-latest.json`. The attack suites, paymasters and the full pool suite run here. Running a flow here does not touch those records: its result goes to `.vajra-local/evidence/`.
+Everything the README marks BUILT was recorded on the public devnet, in `docs/evidence/`, some of it before the reset of 2026-11-06. Recovery and one note through the pool also ran there on 6 November, once the alt mempool allowed precompiles: `recovery-public-latest.json`, `shield-public-latest.json`. The attack suites, paymasters and the full pool suite run here. `e2e` and `stealth` here do not touch those records: their results go to `.vajra-local/evidence/`. Other suites, such as `recover` and `shielded`, rewrite their file in `docs/evidence/`, labelled as mirror runs.
 
 On running locally, the EF's words: "a local sidecar is fine for judging". On the gas budgets: "no science behind any of the gas limits".
 
