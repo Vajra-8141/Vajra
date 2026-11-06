@@ -13,6 +13,11 @@ export interface BridgeStatus {
   registryWriter: `0x${string}` | null;
 }
 
+export interface Signed {
+  gas: number;
+  hash: `0x${string}`;
+}
+
 export interface MasterResult {
   hash: `0x${string}`;
   block: number;
@@ -30,5 +35,6 @@ async function call<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export const bridgeStatus = () => call<BridgeStatus>("/status");
+export const bridgeSigned = () => call<{ daily: Signed | null; master: Signed | null }>("/signed");
 export const master = (request: Record<string, string>) => call<MasterResult>("/master", request);
 export const createOnBridge = (options: Record<string, string | number>) => call<{ account: `0x${string}` }>("/create", options);

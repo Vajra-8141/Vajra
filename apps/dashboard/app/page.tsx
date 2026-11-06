@@ -20,7 +20,7 @@ import {
   withWalletSignature,
 } from "@vajra/core";
 import { OneTimeKeys } from "../components/leaves";
-import { type BridgeStatus, bridgeStatus, createOnBridge, master } from "../lib/bridge";
+import { type BridgeStatus, bridgeSigned, bridgeStatus, createOnBridge, master } from "../lib/bridge";
 import { NETWORKS, useReads } from "../lib/reads";
 import { connectWallet, hasWallet, personalSign } from "../lib/wallet";
 
@@ -36,6 +36,7 @@ const REFUSALS: Record<string, string> = {
 /** A mixnet round trip can take many seconds. Past this, a read has failed and the page should say so. */
 const READ_TIMEOUT_MS = 60_000;
 const POLL_PAUSE_MS = 8_000;
+const SIGNED_POLL_MS = 2_000;
 /** How long `submit` keeps watching for a receipt, which over a mixnet is several slow round trips per check. */
 const SUBMIT_TIMEOUT_MS = 420_000;
 
@@ -212,6 +213,7 @@ export default function AccountPage() {
   const [lastDaily, setLastDaily] = useState<{ gas: number; hash: string } | null>(null);
   const [lastMaster, setLastMaster] = useState<{ gas: number; hash: string } | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
+  const seenSigned = useRef<{ daily?: string; master?: string }>({});
 
   const say = useCallback((line: string) => setLog((l) => [...l.slice(-40), line]), []);
   const account = bridge && bridge !== "down" ? bridge.account : null;
@@ -249,6 +251,26 @@ export default function AccountPage() {
       clearTimeout(timer);
     };
   }, [status, account, refreshChain]);
+
+  // A phone tap and the thief's terminal sign in other processes. Only a new hash counts, so a spend made here is not overwritten.
+  useEffect(() => {
+    if (!account) return;
+    const timer = setInterval(async () => {
+      const signed = await bridgeSigned().catch(() => null);
+      if (signed?.daily && signed.daily.hash !== seenSigned.current.daily) {
+        seenSigned.current.daily = signed.daily.hash;
+        setLastDaily(signed.daily);
+      }
+      if (signed?.master && signed.master.hash !== seenSigned.current.master) {
+        seenSigned.current.master = signed.master.hash;
+        setLastMaster(signed.master);
+        // As in asMaster: the key just used is ours, so learn that before the next read of the chain.
+        await refreshBridge();
+        setOperations((n) => n + 1);
+      }
+    }, SIGNED_POLL_MS);
+    return () => clearInterval(timer);
+  }, [account, refreshBridge]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);

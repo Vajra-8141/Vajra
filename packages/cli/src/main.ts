@@ -5,7 +5,7 @@ import { LeafRegistry } from "@vajra/core/registry";
 import { ETH, RpcError, accountAbi, accountState, isLocalStack, ops, publicClient, refusalName, signDaily, submit } from "@vajra/core";
 import { startBridge } from "./bridge.ts";
 import { deploy } from "./deploy.ts";
-import { closeDevice, createWallet, localDailyAddress, localDailyKey, requireWallet, runMasterOp, theDevice, walletStatus } from "./wallet.ts";
+import { closeDevice, createWallet, localDailyAddress, localDailyKey, recordSigned, requireWallet, runMasterOp, theDevice, walletStatus } from "./wallet.ts";
 
 // Optional: it only holds what the leaf registry needs, and everything works without one.
 try {
@@ -27,6 +27,11 @@ function parse(list: string[]) {
 }
 
 const { flags, rest } = parse(args);
+const submitDaily = async (tx: Parameters<typeof submit>[0]) => {
+  const { hash, receipt } = await submit(tx, { log: console.log });
+  recordSigned("daily", { gas: Number(BigInt(receipt.frameReceipts[0]!.gasUsed)), hash });
+  return hash;
+};
 const report = (r: { hash: string; block: number; verifyGas: number; leaf: number; leavesLeft: number }) =>
   console.log(`mined ${r.hash}\nblock ${r.block}, VERIFY ${r.verifyGas} gas, leaf ${r.leaf}, ${r.leavesLeft} leaves left`);
 
@@ -106,7 +111,7 @@ switch (command) {
     const [to, amount] = rest as [Address, string];
     const { account } = requireWallet();
     const tx = await signDaily({ key: localDailyKey(), dailyKey: localDailyAddress(), account, calls: [ops.spend(ETH, to, parseEther(amount))] });
-    console.log(`mined ${(await submit(tx, { log: console.log })).hash}`);
+    console.log(`mined ${await submitDaily(tx)}`);
     break;
   }
   case "veto":
@@ -170,7 +175,7 @@ switch (command) {
     const { account } = requireWallet();
     const to = privateKeyToAccount(generatePrivateKey()).address;
     const tx = await signDaily({ key: localDailyKey(), dailyKey: localDailyAddress(), account, calls: [ops.spend(ETH, to, parseEther(rest[0] ?? "0.5"))] });
-    console.log(`the thief sends ${rest[0] ?? "0.5"} ETH to ${to}\nmined ${(await submit(tx, { log: console.log })).hash}`);
+    console.log(`the thief sends ${rest[0] ?? "0.5"} ETH to ${to}\nmined ${await submitDaily(tx)}`);
     break;
   }
   case "judge":

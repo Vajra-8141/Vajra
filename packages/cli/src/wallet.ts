@@ -232,9 +232,33 @@ async function runOnDevice(request: MasterOp, log: (line: string) => void): Prom
   return { hash, block: Number(receipt.blockNumber), verifyGas: Number(BigInt(receipt.frameReceipts[0]!.gasUsed)), leaf, hashes, leavesLeft: after.left };
 }
 
+/** The last transaction each key signed, from any process: the page cannot see what a phone tap or the thief's terminal did. */
+export interface Signed {
+  gas: number;
+  hash: Hex;
+}
+const lastSignedPath = keyPath("last-signed.json");
+
+export function lastSigned(): { daily: Signed | null; master: Signed | null } {
+  const none = { daily: null, master: null };
+  if (!existsSync(lastSignedPath)) return none;
+  const saved = JSON.parse(readFileSync(lastSignedPath, "utf8")) as { account: Address; daily: Signed | null; master: Signed | null };
+  return saved.account === loadWallet()?.account ? { daily: saved.daily, master: saved.master } : none;
+}
+
+export function recordSigned(key: "daily" | "master", signed: Signed) {
+  const account = requireWallet().account;
+  writeFileSync(lastSignedPath, JSON.stringify({ account, ...lastSigned(), [key]: signed }), { mode: 0o600 });
+}
+
 /** Signs and lands one master operation. Refuses before signing if the chain's root is not this signer's. */
 export async function runMasterOp(request: MasterOp, log: (line: string) => void = () => {}): Promise<MasterResult> {
-  if (useDevice()) return runOnDevice(request, log);
+  const result = await (useDevice() ? runOnDevice(request, log) : runOnSoftware(request, log));
+  recordSigned("master", { gas: result.verifyGas, hash: result.hash });
+  return result;
+}
+
+async function runOnSoftware(request: MasterOp, log: (line: string) => void): Promise<MasterResult> {
   const wallet = requireWallet();
   const signer = masterSigner();
   const { epochSalt } = await assertRootMatches(signer, wallet.account);

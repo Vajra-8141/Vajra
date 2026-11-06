@@ -10,7 +10,7 @@
 import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
 import { ETH, RpcError, readAccount, refusalName } from "@vajra/core";
 import { formatEther } from "viem";
-import { createWallet, loadWallet, runMasterOp, theDevice, walletStatus } from "./wallet.ts";
+import { createWallet, lastSigned, loadWallet, runMasterOp, theDevice, walletStatus } from "./wallet.ts";
 
 const PORT = Number(process.env.VAJRA_BRIDGE_PORT ?? 8787);
 const ORIGIN = process.env.VAJRA_ORIGIN ?? "http://localhost:3000";
@@ -77,6 +77,7 @@ export function startBridge() {
 
     try {
       if (req.method === "GET" && req.url === "/status") return send(res, 200, await walletStatus());
+      if (req.method === "GET" && req.url === "/signed") return send(res, 200, lastSigned());
       if (req.method === "POST" && req.url === "/create") return send(res, 200, await createWallet((await body(req)) as never));
       if (req.method === "POST" && req.url === "/master") {
         const request = (await body(req)) as never;
