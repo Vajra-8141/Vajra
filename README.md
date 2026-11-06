@@ -22,8 +22,8 @@ deployed sidecar cannot admit them. **To run all of it yourself, see [`JUDGES.md
 A transaction admitted by the alt mempool and mined, on the chain as it stands since the reset:
 [`0xc80c…fecb`](https://explorer.altmempool.wtf/tx/0xc80cb5dfdd9778f05c992bb1d90365204599bbd9ce830d44ddba8dae503bfecb). The explorer keeps its history in memory, so the record that lasts is in [`docs/evidence/`](docs/evidence/).
 
-**About the evidence.** The devnet was reset on 2026-11-06, which wiped every earlier transaction. `vajra e2e` and `vajra pin` have been rerun on the new chain, genesis `0x2ad3f67b…`, on the fixed contracts.
-The stealth, hardware, dashboard and Arkiv records in `docs/evidence/` were captured before the reset, so their transactions can no longer be looked up, and the stealth record predates the fix.
+**About the evidence.** The devnet was reset on 2026-11-06, which wiped every earlier transaction. `vajra e2e`, `vajra pin` and `vajra stealth` have been rerun on the new chain, genesis `0x2ad3f67b…`, on the fixed contracts.
+The hardware, dashboard and Arkiv records in `docs/evidence/` were captured before the reset, so their transactions can no longer be looked up.
 
 ## Why this needs the alternative mempool
 

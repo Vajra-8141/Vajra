@@ -1,17 +1,17 @@
 {
  "chainId": 1337,
- "at": "2026-11-05T19:29:44.810Z",
- "account": "0xCDb9c8a4649B2CDeEc8d3EDC8F6278cC0f73A750",
- "announceTx": "0x923bc1e40e9935cac56f33420acf9098189548cbca1fa3e4b0049727965255a8",
- "spendTx": "0x45311e96fa1ebeb0cf28b86590a658753aafe06370c4ef648c067dd9054ca4f6",
- "block": 406173,
- "hashes": 585,
+ "at": "2026-11-06T07:15:13.664Z",
+ "account": "0x4c87D72A84be078Ae3011c44dA3E2eCDEe35eA71",
+ "announceTx": "0x8f8b32f7c1cca24adfacfdf75122f59652e2e455b1cef4662f6d9b43d7a80825",
+ "spendTx": "0x74a697a8423edb0aa8395eafe0e4ad9edd96a6358cb29021e97131f1ee2f3398",
+ "block": 463,
+ "hashes": 495,
  "frameGas": [
-  80123,
+  74958,
   10089,
   41352
  ],
  "attempts": 1,
- "paymaster": "0xfe02203607bec1ca841a7d7d14587790d5830b6b",
+ "paymaster": "0x87345490052dff33b97a08ce1288b02a7ebf2e6d",
  "canonicalVerdict": "valid"
 }

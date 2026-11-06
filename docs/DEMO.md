@@ -53,7 +53,7 @@ mirror in a real browser with a scripted wallet: connect, spend, queue, veto, fr
 ## Say these first, before anyone asks
 
 - **"Reviews of our own code found two critical bugs in the contract we first deployed."** A thief with the daily key could disable the master key, and a stealth payer could take the money back. Both were reproduced on the mirror and are fixed in what is deployed now. `docs/FINDINGS.md` sections 8 and 9.
-- **"The devnet was reset on 6 November."** Earlier transactions are gone from the chain. `vajra e2e` and `pin` were rerun on the new one. Records of the rest are in `docs/evidence/`.
+- **"The devnet was reset on 6 November."** Earlier transactions are gone from the chain. `vajra e2e`, `pin` and `stealth` were rerun on the new one. Records of the rest are in `docs/evidence/`.
 - **"Groth16 is not post-quantum."** The recovery path is weaker against a quantum computer than the key it replaces. v2 is a STARK, and it is not built.
 - **"The pool hides which deposit paid, not that this account paid that recipient."** That is the price of a pool the rulebook can govern.
 - **"Recovery and the pool run locally."** The deployed sidecar refuses them, and the EF said a local sidecar is fine for judging.

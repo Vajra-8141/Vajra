@@ -1,6 +1,6 @@
 # What the live devnet actually does
 
-> The public devnet was reset on 2026-11-06. Transaction hashes in sections 1 to 6 are from the chain before that, and can no longer be looked up. `vajra pin` has been rerun on the new chain.
+> The public devnet was reset on 2026-11-06. Transaction hashes in sections 1 to 6 are from the chain before that, and can no longer be looked up. `vajra e2e`, `pin` and `stealth` have been rerun on the new chain.
 
 Everything here was observed on the public devnet (chain 1337) on 2026-11-05, or read in the source it runs:
 `forshtat/mempool-workshop-sidecar` at `2e22ff0`, `forshtat/ethrex` branch `eip8141-tracer` at `9aa3645`.
@@ -169,7 +169,7 @@ after sending the account a little ETH to pay for itself. The token on the mirro
 in `vajra stealth`, on both paths.
 
 **The fix is one check:** an account with a co-signer refuses keyed nonces. Same attack: `CoSignerRequired`, 0 taken. It is in the source of both contracts, and goes out with the same redeploy as
-section 8. `vajra stealth` has not yet been rerun on the new public chain: the fix is proven on the mirror.
+section 8. `vajra stealth` on the new public chain attempts it, and gets `CoSignerRequired`.
 
 ### Also from that review
 
