@@ -52,6 +52,8 @@ Next: make dashboard, then open http://localhost:3000. It walks through the thef
     vajra e2e                      the rulebook and every attack                about 2.5 min
     vajra pin                      the blocked escape, both mempools            about 15s
     vajra stealth                  stealth payment and paymaster                about 20s
+    vajra paymaster-e2e            quota and USDC paymasters, every attack      about 5 min
+    vajra explain 0xHash           why a transaction went the way it did
     vajra measure                  the gas table                                about 2 min
     vajra budget                   a staked limit over 100,000, admitted
     vajra nonce-burn               the flaw as first deployed. Then: nonce-burn fixed

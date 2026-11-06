@@ -1,0 +1,24 @@
+{
+  "name": "@vajra/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "viem-style actions for a VAJRA account: simulate, send, explain, spend, veto, escape status",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "example": "node examples/mirror.ts"
+  },
+  "dependencies": {
+    "@vajra/core": "workspace:*",
+    "viem": "^2.57.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
+  }
+}
