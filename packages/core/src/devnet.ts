@@ -23,7 +23,7 @@ const LOCAL: typeof PUBLIC = {
   execution: "http://127.0.0.1:18545",
   mempool: "http://127.0.0.1:14337/rpc/",
   gateway: "http://127.0.0.1:14337/rpc/",
-  explorer: "http://127.0.0.1:14337/explorer",
+  explorer: "http://127.0.0.1:18080",
   stakingRegistry: PUBLIC.stakingRegistry,
   usdc: PUBLIC.usdc,
 };

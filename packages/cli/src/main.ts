@@ -1,6 +1,7 @@
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { type Address, type Hex, formatEther, parseEther } from "viem";
 import { LeafRegistry } from "@vajra/core/registry";
-import { ETH, RpcError, accountAbi, accountState, ops, publicClient, refusalName, signDaily, submit } from "@vajra/core";
+import { ETH, RpcError, accountAbi, accountState, isLocalStack, ops, publicClient, refusalName, signDaily, submit } from "@vajra/core";
 import { startBridge } from "./bridge.ts";
 import { deploy } from "./deploy.ts";
 import { closeDevice, createWallet, localDailyAddress, localDailyKey, requireWallet, runMasterOp, theDevice, walletStatus } from "./wallet.ts";
@@ -51,6 +52,29 @@ async function status() {
   console.log(`daily key ${chain.dailyKey}\nfrozen ${chain.frozen}\nqueued items ${chain.nextItem}`);
   console.log(`leaf registry ${s.registryWriter ? `on Arkiv, writer ${s.registryWriter}` : "off: no keys in .env"}`);
   if (s.rootMatches === false) console.log("CHAIN STATE UNKNOWN: the account's root is not this signer's");
+}
+
+/**
+ * These runs record to docs/evidence/, and what is there is the public devnet's. A run against the mirror must not replace it,
+ * so on the mirror its record is moved to .vajra-local/evidence/, and the public file is put back.
+ */
+function protectEvidence() {
+  if (!isLocalStack) return;
+  const dir = new URL("../../../docs/evidence/", import.meta.url);
+  const kept = new URL("../../../.vajra-local/evidence/", import.meta.url);
+  const before = new Map(readdirSync(dir).map((name) => [name, readFileSync(new URL(name, dir))]));
+  mkdirSync(kept, { recursive: true });
+  process.on("exit", () => {
+    for (const name of readdirSync(dir)) {
+      const now = readFileSync(new URL(name, dir));
+      const was = before.get(name);
+      if (was?.equals(now)) continue;
+      writeFileSync(new URL(name, kept), now);
+      if (was) writeFileSync(new URL(name, dir), was);
+      else rmSync(new URL(name, dir));
+      console.log(`mirror run: recorded in .vajra-local/evidence/${name}, not in docs/evidence/`);
+    }
+  });
 }
 
 process.on("uncaughtException", (error) => {
@@ -118,12 +142,21 @@ switch (command) {
     await import("./registry-e2e.ts");
     break;
   case "e2e":
-  case "device-e2e":
+    protectEvidence();
+    await import("./e2e.ts");
+    break;
   case "stealth":
+    protectEvidence();
+    await import("./stealth.ts");
+    break;
+  case "device-e2e":
   case "measure":
   case "pin":
   case "budget":
     await import(`./${command}.ts`);
+    break;
+  case "judge":
+    await import("./judge.ts");
     break;
   case "shielded":
     await import("./shielded.ts");

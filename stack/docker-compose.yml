@@ -1,0 +1,70 @@
+# The local mirror: the same ethrex and sidecar commits as the public devnet, with the sidecar patched. See JUDGES.md.
+# Everything publishes to 127.0.0.1 only, and every chain lives in its container, so `down` forgets it.
+name: vajra
+
+services:
+  ethrex:
+    image: ghcr.io/forshtat/ethrex:eip8141-tracer-9aa3645d795945c64400f41a70aace0edfa7f383
+    # Upstream publishes amd64 only. On an ARM machine Docker runs this under emulation.
+    platform: linux/amd64
+    volumes:
+      - ./genesis.json:/genesis.json:ro
+      - ../.stack/jwt.hex:/jwt.hex:ro
+    ports:
+      - "127.0.0.1:18545:8545"
+    command:
+      - --network=/genesis.json
+      - --datadir=/tmp/chain
+      - --http.addr=0.0.0.0
+      - --http.port=8545
+      - --http.api=eth,net,web3,ethrex,debug,admin,txpool
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8551
+      - --authrpc.jwtsecret=/jwt.hex
+      - --syncmode=full
+      - --log.level=warn
+
+  miner:
+    image: node:22.18.0-alpine
+    restart: on-failure
+    depends_on: [ethrex]
+    volumes:
+      - ./miner.mjs:/miner.mjs:ro
+      - ../.stack/jwt.hex:/jwt.hex:ro
+    environment:
+      ENGINE_URL: http://ethrex:8551
+      RPC_URL: http://ethrex:8545
+      JWT_FILE: /jwt.hex
+    command: ["node", "/miner.mjs"]
+
+  sidecar:
+    image: vajra-sidecar:2e22ff0-budget010
+    build: ../.stack/sidecar
+    restart: on-failure
+    depends_on: [ethrex]
+    volumes:
+      - ./sidecar.config.json:/config.json:ro
+    ports:
+      - "127.0.0.1:14337:14337"
+    environment:
+      # The published throwaway key from the upstream devnet, funded in genesis.json, so that the faucet works here.
+      SKANDHA_FAUCET_KEY: "0x06f911c1ecb2053bb443ba0a0e28d630c583c3c0c2f334a9ecdc8c7c6ad4ea15"
+      NODE_ENV: production
+    command:
+      - standalone
+      - --configFile=/config.json
+      - --dataDir=/tmp/sidecar
+      - --api.address=0.0.0.0
+      - --api.port=14337
+      - --api.wsPort=14337
+      - --executor.bundlingMode=auto
+      - --redirectRpc
+      - --explorer.enable
+
+  explorer:
+    image: vajra-explorer:2e22ff0
+    build:
+      context: ../.stack/sidecar
+      dockerfile: ../../stack/explorer.Dockerfile
+    ports:
+      - "127.0.0.1:18080:8080"

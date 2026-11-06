@@ -1,0 +1,11 @@
+{
+  "entryPoints": ["0x00000000000000000000000000000000000000aa"],
+  "canonicalEntryPoint": "0x00000000000000000000000000000000000000aa",
+  "standardMempoolId": "QmcFZKUX9qoo3StwVycJTAhwdiqbEjcwNvQVK246p3z1rk",
+  "supportedMempools": [{ "mempoolId": "QmcFZKUX9qoo3StwVycJTAhwdiqbEjcwNvQVK246p3z1rk", "entryPoint": "0x00000000000000000000000000000000000000aa" }],
+  "relayers": ["0x06f911c1ecb2053bb443ba0a0e28d630c583c3c0c2f334a9ecdc8c7c6ad4ea15"],
+  "rpcEndpoint": "http://ethrex:8545",
+  "rpcEndpointSubmit": "http://ethrex:8545",
+  "stakingRegistryAddress": "0xd51c04d7a0b01124e84de152f4e56d9eecb22d2f",
+  "bundleInterval": 2000
+}
