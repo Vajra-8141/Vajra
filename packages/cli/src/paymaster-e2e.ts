@@ -1,6 +1,6 @@
 /**
- * Both paymasters on the mirror: real transactions through the real alt mempool, and every attack actually sent. Exits non-zero on
- * any difference from the claim.
+ * Both paymasters on the mirror, on a V2 account: real transactions through the real alt mempool, and every attack actually sent. Exits
+ * non-zero on any difference from the claim. A V2 account takes a sponsored daily transaction only from a paymaster its master key named.
  *
  * Every transaction here is also offered to the canonical mempool, which has to refuse it, and asked of `simulate` first. Its
  * verdict is then held against what the live sidecar did, so a wrong prediction is a failure like any other.
@@ -30,6 +30,7 @@ import {
   isLocalStack,
   memoryStore,
   ops,
+  opsV2,
   publicClient,
   quotaPaymasterAbi,
   quotaPaymasterBytecode,
@@ -57,8 +58,13 @@ if (!isLocalStack) throw new Error("run this on the mirror, with VAJRA_STACK=loc
 
 const deployer = loadOrCreateKey(keyPath("deployer.key"));
 const owner = privateKeyToAccount(deployer).address;
-const { w16, genesis, paymasters } = deployments();
+const { v2, genesis, paymasters } = deployments();
 if (!paymasters) throw new Error("no paymasters on this mirror: run `vajra deploy paymasters`");
+if (!v2) throw new Error("no V2 on this mirror: run `vajra deploy zk`");
+/** V2's own limit on a master signature's hashes: see FINDINGS section 15. */
+const MAX_HASHES = 520;
+/** `validateDaily` on V2 with the sponsored shape, with room. */
+const V2_DAILY_VERIFY_GAS = 55_000n;
 
 const QUOTA: Sponsor = { kind: "quota", paymaster: paymasters.quota };
 const PRICE = BigInt(paymasters.usdcPerEth);
@@ -155,15 +161,21 @@ const giveUsdc = (to: Address, amount: bigint) => asOwner(usdc, erc20Abi, "trans
 const usdcOf = (who: Address) => publicClient.readContract({ address: usdc, abi: erc20Abi, functionName: "balanceOf", args: [who] }) as Promise<bigint>;
 const ethOf = (address: Address) => publicClient.getBalance({ address });
 const fresh = () => privateKeyToAccount(generatePrivateKey()).address;
+const place = async (args: unknown[]) =>
+  (await waitForSuccess(await owned.deployContract({ abi: quotaPaymasterAbi as never, bytecode: quotaPaymasterBytecode, args: args as never, gas: 30_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" }), "placing a paymaster")).contractAddress!;
+
+/** Pays for the master transaction that names the paymasters, so that the accounts here never hold ETH and the two under test start clean. */
+const SETUP: Sponsor = { kind: "quota", paymaster: await place([owner, DEVNET.stakingRegistry, PAYMASTER_FEE_CAP, 86_400]) };
+await stakePaymaster(deployer, SETUP.paymaster);
 
 /** An account holding no ETH at all: nothing here can be paid for by the account itself. */
-async function newAccount(usdcAmount = 0n) {
+async function newAccount(usdcAmount = 0n, named: Address[] = [paymasters!.quota, paymasters!.usdc]) {
   const dailyKey = generatePrivateKey();
   const daily = privateKeyToAccount(dailyKey).address;
   const signer = new MasterSigner(WOTS_W16, memoryStore(), () => crypto.getRandomValues(new Uint8Array(32)));
   const account = await createAccount(
     deployer,
-    w16.factory,
+    v2!.factory,
     {
       dailyKey: daily,
       wotsRoot: signer.root,
@@ -179,11 +191,17 @@ async function newAccount(usdcAmount = 0n) {
     0n,
   );
   if (usdcAmount > 0n) await giveUsdc(account, usdcAmount);
+  const signMaster = (calls: Parameters<typeof signSponsoredMaster>[0]["calls"], sponsor: Sponsor) => signSponsoredMaster({ signer, account, epochSalt: genesis, calls, sponsor, maxHashes: MAX_HASHES }).tx;
+  const name = async (...sponsors: Address[]) => {
+    await enroll(SETUP.paymaster, account, 20_000_000n);
+    await submit(signMaster(sponsors.map((s) => opsV2.setSponsor(s)), SETUP));
+  };
+  if (named.length > 0) await name(...named);
   const pay = (to: Address, amount: bigint) => ops.spend(usdc, to, amount);
   const daily_ = (a: { calls: Parameters<typeof signSponsoredDaily>[0]["calls"]; sponsor?: Sponsor } & Partial<Parameters<typeof signSponsoredDaily>[0]>) =>
-    signSponsoredDaily({ key: dailyKey, dailyKey: daily, account, sponsor: QUOTA, ...a });
-  const master = (calls: Parameters<typeof signSponsoredMaster>[0]["calls"], sponsor: Sponsor = QUOTA) => signSponsoredMaster({ signer, account, epochSalt: genesis, calls, sponsor }).tx;
-  return { account, daily, dailyKey, signer, pay, sponsoredDaily: daily_, master };
+    signSponsoredDaily({ key: dailyKey, dailyKey: daily, account, sponsor: QUOTA, verifyGas: V2_DAILY_VERIFY_GAS, ...a });
+  const master = (calls: Parameters<typeof signSponsoredMaster>[0]["calls"], sponsor: Sponsor = QUOTA) => signMaster(calls, sponsor);
+  return { account, daily, dailyKey, signer, pay, sponsoredDaily: daily_, master, name };
 }
 
 /** `Call`s the master key can make to the token, with limits that fit. */
@@ -332,7 +350,7 @@ await refused(
       return { ...tx, frames };
     },
   }),
-  "SettleFrameMissing",
+  "FrameNotAllowed",
 );
 await refused(
   "settle pointed at the wrong frame",
@@ -350,10 +368,23 @@ await refused(
   await alice.sponsoredDaily({ calls: [alice.pay(fresh(), SPEND)], edit: (tx) => ({ ...tx, frames: tx.frames.map((f, i) => (i === 1 ? { ...f, target: usdc } : f)) }) }),
   /prefix not recognized/,
 );
+{
+  // What a daily signature could approve before, with nothing named: no DEFAULT frame at all.
+  const unnamed = await newAccount(50_000_000n, []);
+  await enroll(paymasters.quota, unnamed.account, 20_000_000n);
+  await refused("a sponsored daily transaction on an account whose master key named no paymaster", await unnamed.sponsoredDaily({ calls: [unnamed.pay(fresh(), SPEND)] }), "FrameNotAllowed");
+  await refused("a paymaster the master key did not name, on an account that named another", await alice.sponsoredDaily({ calls: [alice.pay(fresh(), SPEND)], sponsor: SETUP }), "FrameNotAllowed");
+  await refused("the daily key names a paymaster itself", await alice.sponsoredDaily({ calls: [opsV2.setSponsor(fresh())] }), "EscapeKeyOutranks");
+  const body = await alice.sponsoredDaily({
+    calls: [alice.pay(fresh(), SPEND)],
+    edit: (tx) => ({ ...tx, frames: [...tx.frames.slice(0, 3), lib.frame(profile, "DEFAULT", { target: paymasters.quota, execution: 40_000n, data: encodeFunctionData({ abi: quotaPaymasterAbi, functionName: "charge" }) }), ...tx.frames.slice(3)] }),
+  });
+  await refused("a DEFAULT frame in the body, even to a named paymaster", body, "FrameNotAllowed");
+}
 
 console.log("\n5. fees, enrolment, replay");
 await refused("a fee above the paymaster's cap", await alice.sponsoredDaily({ calls: [alice.pay(fresh(), SPEND)], fees: { maxFeePerGas: PAYMASTER_FEE_CAP + 1n, maxPriorityFeePerGas: PAYMASTER_FEE_CAP + 1n } }), "FeeTooHigh");
-await refused("a tip paid to a colluding block producer", await alice.sponsoredDaily({ calls: [alice.pay(fresh(), SPEND)], fees: { maxFeePerGas: 500_000_000_000n, maxPriorityFeePerGas: 500_000_000_000n } }), "FeeTooHigh");
+await refused("a tip paid to a colluding block producer", await alice.sponsoredDaily({ calls: [alice.pay(fresh(), SPEND)], fees: { maxFeePerGas: 500_000_000_000n, maxPriorityFeePerGas: 500_000_000_000n } }), "DailyTxCostExceeded");
 {
   const stranger = await newAccount(50_000_000n);
   await refused("an account nobody enrolled", await stranger.sponsoredDaily({ calls: [stranger.pay(fresh(), SPEND)] }), "NotEnrolled");
@@ -365,10 +396,12 @@ await refused("a tip paid to a colluding block producer", await alice.sponsoredD
 {
   const once = await spend();
   await quotaMined("a spend, to replay", paymasters.quota, alice.account, once);
-  await refused("the mined spend, replayed byte for byte", once, /nonce/i, { replay: true });
+  // The nonce is what stops it. The sidecar words this one from ethrex's first canonical violation, as in section 10 below.
+  await refused("the mined spend, replayed byte for byte", once, /prefix gas budget exceeded/, { replay: true });
+  check(/[Nn]once/.test((await simulate(once)).alt.reason ?? ""), "simulate gives the real cause next to it: the nonce");
   const used = await readQuota(paymasters.quota, alice.account);
   const stolen = privateKeyToAccount(generatePrivateKey());
-  await refused("a stranger signs for an enrolled account", await signSponsoredDaily({ key: generatePrivateKey(), dailyKey: stolen.address, account: alice.account, calls: [alice.pay(fresh(), SPEND)], sponsor: QUOTA }).catch(() => once), /NotDailyKey|signature/i);
+  await refused("a stranger signs for an enrolled account", await signSponsoredDaily({ key: generatePrivateKey(), dailyKey: stolen.address, account: alice.account, calls: [alice.pay(fresh(), SPEND)], sponsor: QUOTA, verifyGas: V2_DAILY_VERIFY_GAS }).catch(() => once), /NotDailyKey|signature/i);
   check((await readQuota(paymasters.quota, alice.account)).used === used.used, "none of that moved the quota");
 }
 
@@ -382,10 +415,9 @@ await reverts("a stranger moves the stake", "NotOwner", { account: fresh(), addr
 
 console.log("\n7. the stake is what gets it admitted");
 {
-  const place = async (args: unknown[]) =>
-    (await waitForSuccess(await owned.deployContract({ abi: quotaPaymasterAbi as never, bytecode: quotaPaymasterBytecode, args: args as never, gas: 30_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" }), "placing a paymaster")).contractAddress!;
   const bare = await place([owner, DEVNET.stakingRegistry, PAYMASTER_FEE_CAP, 86_400]);
   await enroll(bare, alice.account, 20_000_000n);
+  await alice.name(bare);
   const sponsor: Sponsor = { kind: "quota", paymaster: bare };
   await refused("the same contract with no ETH", await alice.sponsoredDaily({ calls: [alice.pay(fresh(), SPEND)], sponsor }), /reverted|has 0 wei|maximum cost/);
   await waitForSuccess(await owned.sendTransaction({ to: bare, value: parseEther("1"), ...plain }), "funding it");
@@ -396,7 +428,7 @@ console.log("\n7. the stake is what gets it admitted");
   const WINDOW = 40n;
   const short = await place([owner, DEVNET.stakingRegistry, PAYMASTER_FEE_CAP, WINDOW]);
   await stakePaymaster(deployer, short);
-  const fred = await newAccount(50_000_000n);
+  const fred = await newAccount(50_000_000n, [short]);
   const shortSponsor: Sponsor = { kind: "quota", paymaster: short };
   const probe = await fred.sponsoredDaily({ calls: [payeeSpend(fred, fresh(), SPEND)], sponsor: shortSponsor });
   await enroll(short, fred.account, (BigInt((await simulate(probe)).maxCost) / probe.fees.maxFeePerGas) * 11n / 10n);
@@ -559,7 +591,7 @@ console.log("\n13. frames a batch undid, whose status still says success");
   refusals.push({ attack: "a batch that undoes a charge, then settle, to reset a quota", refusal: "PayFrameMissing, then NothingToSettle: mined, nothing moved" });
 }
 
-console.log("\n14. a second collect in the body, to burn the approval");
+console.log("\n14. a second collect in the body, to burn the approval, which the account refuses before the paymaster has to");
 {
   const mona = await usdcAccount(100_000_000n);
   const collectFrame = lib.frame(profile, "DEFAULT", { target: paymasters.usdc, execution: 160_000n, state: 120_000n, data: encodeFunctionData({ abi: usdcPaymasterAbi, functionName: "collect", args: [PRICE] }) });
@@ -568,10 +600,7 @@ console.log("\n14. a second collect in the body, to burn the approval");
     sponsor: USDC,
     edit: (t) => ({ ...t, frames: [...t.frames.slice(0, 3), collectFrame, collectFrame, ...t.frames.slice(3)] }),
   });
-  const max = (BigInt((await simulate(tx)).maxCost) * PRICE + 10n ** 18n - 1n) / 10n ** 18n;
-  const { kept } = await usdcMined("a stolen daily key adds two more collect frames", mona.account, tx, { body: "fails" });
-  check(kept < max, `it was charged once: ${kept} kept, of at most ${max}`);
-  refusals.push({ attack: "a stolen daily key adds collect frames to burn the approval", refusal: "PayFrameMissing in each: mined, charged once" });
+  await refused("a stolen daily key adds two more collect frames", tx, "FrameNotAllowed");
 }
 
 mkdirSync(new URL("../../../docs/evidence/", import.meta.url), { recursive: true });

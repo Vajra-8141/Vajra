@@ -1,9 +1,9 @@
 {
- "ranAt": "2026-11-06T12:58:36.576Z",
+ "ranAt": "2026-11-06T14:13:01.303Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
  "chainId": 13370,
  "contract": "VajraAccountV2 before the fix",
- "account": "0x1a352FEe637f59e05aFC20f4c3e182054202D519",
+ "account": "0x71CF9407A154944D855e247BC728F800F49F67D3",
  "copies": {
   "proofs": 6,
   "pendingAtOnce": 6,
@@ -13,7 +13,7 @@
  "refusingRecipient": {
   "mined": 3,
   "refusal": null,
-  "accountBalanceFell": "7162821000000000",
+  "accountBalanceFell": "7162893000000000",
   "noteStillGood": true
  },
  "usedTicket": {
@@ -21,6 +21,6 @@
   "refusals": [
    "RecoveryProofInvalid"
   ],
-  "msPerTry": 11
+  "msPerTry": 12
  }
 }

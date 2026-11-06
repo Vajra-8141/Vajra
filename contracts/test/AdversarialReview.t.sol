@@ -20,7 +20,7 @@ contract ReviewApproveDouble {
     }
 }
 
-/// Independent review. Each test passes when the attack it names WORKS, so a fix should turn these red.
+/// Independent review. Each attack here once worked, and each test now holds that it is refused.
 /// The account, verifiers and proofs are real. The frame opcodes are answered by mocks, as in VajraAccountV2.t.sol.
 contract AdversarialReviewTest is Test {
     using stdJson for string;
@@ -32,10 +32,12 @@ contract AdversarialReviewTest is Test {
     uint256 constant WORK_BITS = 10; // packages/cli/src/deploy.ts on the mirror
     bytes32 constant SALT = 0xabababababababababababababababababababababababababababababababab;
     bytes32 constant NEW_ROOT = 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd;
-    bytes32 constant TICKET = keccak256("the ticket on the paper");
+    bytes32 constant EXIT_TICKET = keccak256("the exit's ticket on the paper");
+    bytes32 constant TICKET = keccak256(abi.encode(EXIT_TICKET));
     bytes32 constant GATE = keccak256(abi.encode(TICKET));
+    uint256 constant VERIFY_GAS = 60_000;
     bytes32 constant SPEND_TYPE = keccak256(
-        "DailySpend(address asset,address recipient,uint256 amount,uint256 nonce,uint256 maxFeePerGas,uint256 maxPriorityFeePerGas,uint256 executionGas,uint256 stateGas)"
+        "DailySpend(address asset,address recipient,uint256 amount,uint256 nonce,uint256 maxFeePerGas,uint256 maxPriorityFeePerGas,uint256 executionGas,uint256 stateGas,uint256 verifyGas,uint256 maxCost)"
     );
 
     uint256 constant APPROVE = 1;
@@ -165,9 +167,12 @@ contract AdversarialReviewTest is Test {
 
     // ---------------------------------------------------------------- 1. proof of work --------------
 
-    /// One solved `work` opens the pairing for any recipient and any known root: only the proof and nullifier are in its hash.
-    /// The proof here does not verify for these recipients, so every call is junk that a node pays a pairing for.
-    function test_attack_oneWorkBuysUnlimitedPairings() public {
+    function workHash(uint256 root, uint256 recipient, bytes32 key, uint256 work) private view returns (uint256) {
+        return uint256(keccak256(abi.encode(address(account), unshieldProof, key, root, nullifierHash, recipient, work)));
+    }
+
+    /// One solved `work` opens the pairing for the root, the nullifier and the recipient it was solved for. A variant has to solve its own.
+    function test_oneWorkBuysOnePairing() public {
         vm.prank(address(account));
         account.shield{value: DENOM}(firstNote);
         uint256 olderRoot = account.poolRoot();
@@ -176,25 +181,48 @@ contract AdversarialReviewTest is Test {
 
         bytes32 key = keccak256(abi.encodePacked(keccak256("vajra.unshield.v1"), nullifierHash));
         uint256 work;
-        while (uint256(keccak256(abi.encode(address(account), unshieldProof, key, work))) >> (256 - WORK_BITS) != 0) work++;
+        while (workHash(newerRoot, 1, key, work) >> (256 - WORK_BITS) != 0) work++;
 
         proofFrame(account.unshield.selector, 100, uint256(key), 500_000, 600_000);
         setWord(36, bytes32(nullifierHash));
         uint256 reached;
+        uint256 lucky;
         for (uint256 i = 1; i <= 40; ++i) {
-            setWord(4, bytes32(i % 2 == 0 ? olderRoot : newerRoot));
-            setWord(68, bytes32(i)); // a different transaction, a different hash, the same work
+            uint256 root = i % 2 == 0 ? olderRoot : newerRoot;
+            setWord(4, bytes32(root));
+            setWord(68, bytes32(i));
+            // About one variant in 1,024 solves by chance. That is the toll working, not a bypass.
+            bool solved = workHash(root, i, key, work) >> (256 - WORK_BITS) == 0;
+            if (solved) lucky++;
             uint256 before = gasleft();
-            vm.expectRevert(VajraAccountV2.ShieldProofInvalid.selector);
+            vm.expectRevert(solved ? VajraAccountV2.ShieldProofInvalid.selector : VajraAccountV2.ProofWorkMissing.selector);
             account.validateUnshield(unshieldProof, work);
             if (before - gasleft() > 100_000) reached++;
         }
-        assertEq(reached, 40, "every copy reached the pairing on one work");
+        assertEq(reached, lucky, "only a solved variant reaches the pairing");
+        assertEq(lucky, 1, "the one it was solved for");
+    }
+
+    /// The nullifier is in the hash on its own, and not only through the nonce key.
+    function test_workDoesNotMoveToAnotherNullifier() public {
+        vm.prank(address(account));
+        account.shield{value: DENOM}(firstNote);
+        uint256 root = account.poolRoot();
+        uint256 other = nullifierHash + 1;
+        bytes32 key = keccak256(abi.encodePacked(keccak256("vajra.unshield.v1"), other));
+        uint256 work;
+        while (workHash(root, 1, keccak256(abi.encodePacked(keccak256("vajra.unshield.v1"), nullifierHash)), work) >> (256 - WORK_BITS) != 0) work++;
+        proofFrame(account.unshield.selector, 100, uint256(key), 500_000, 600_000);
+        setWord(4, bytes32(root));
+        setWord(36, bytes32(other));
+        setWord(68, bytes32(uint256(1)));
+        vm.expectRevert(VajraAccountV2.ProofWorkMissing.selector);
+        account.validateUnshield(unshieldProof, work);
     }
 
     // ---------------------------------------------------------------- 2. what typed data leaves out ---
 
-    function typedDigest(address to, uint256 amount) private view returns (bytes32) {
+    function typedDigest(address to, uint256 amount, uint256 maxCost) private view returns (bytes32) {
         bytes32 domain = keccak256(
             abi.encode(
                 keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
@@ -205,7 +233,9 @@ contract AdversarialReviewTest is Test {
             )
         );
         bytes32 structHash = keccak256(
-            abi.encode(SPEND_TYPE, address(0), to, amount, uint256(5), uint256(2 gwei), uint256(1 gwei), uint256(500_000), uint256(700_000))
+            abi.encode(
+                SPEND_TYPE, address(0), to, amount, uint256(5), uint256(2 gwei), uint256(1 gwei), uint256(500_000), uint256(700_000), VERIFY_GAS, maxCost
+            )
         );
         return keccak256(abi.encodePacked("\x19\x01", domain, structHash));
     }
@@ -222,6 +252,7 @@ contract AdversarialReviewTest is Test {
         setTx(NONCE, 5);
         setTx(MAX_FEE, 2 gwei);
         setTx(MAX_PRIORITY, 1 gwei);
+        setFrameAt(0, EXECUTION_GAS_LIMIT, VERIFY_GAS);
         setFrame(MODE, 2);
         setFrame(RESOLVED_TARGET, uint256(uint160(address(account))));
         setFrame(VALUE, 0);
@@ -234,65 +265,67 @@ contract AdversarialReviewTest is Test {
         setWord(68, bytes32(amount));
     }
 
-    /// A wallet signs the typed digest, not the signature hash. Frame 0's limit and data, and any extra signature entry, are in no
-    /// field, so a stranger's copy with a padded VERIFY frame costs the account up to the daily cap, under the same signature.
-    function test_attack_typedCopyRaisesTheCostToTheCap() public {
+    /// Padding frame 0, or adding a signature entry, raises the maximum cost. The digest now holds that cost, so the copy dies in VERIFY.
+    function test_typedCopyCannotRaiseTheCost() public {
         address to = makeAddr("payee");
-        bytes32 signed = typedDigest(to, 1 ether);
         uint256 honestCost = (20_000 + 60_000 + 500_000 + 700_000) * uint256(2 gwei);
+        bytes32 signed = typedDigest(to, 1 ether, honestCost);
 
         walletFrame(signed, to, 1 ether, honestCost);
         vm.expectEmit(address(account));
         emit Approved(3);
         account.validateDaily(VajraScope.EXECUTION_AND_PAYMENT);
 
-        // The stranger's copy: nothing re-signed, and the digest does not move.
-        setFrameAt(0, DATA_LENGTH, 120_000);
-        setFrameAt(0, EXECUTION_GAS_LIMIT, 90_000);
+        // The stranger's copy: nothing re-signed.
         setTx(MAX_COST, DAILY_CAP);
-        vm.expectEmit(address(account));
-        emit Approved(3);
+        vm.expectRevert(VajraAccountV2.SignatureNotBoundToTransaction.selector);
         account.validateDaily(VajraScope.EXECUTION_AND_PAYMENT);
-        assertGt(DAILY_CAP, honestCost * 19);
+
+        // One wei is enough. A copy cannot raise the cost by anything.
+        setTx(MAX_COST, honestCost + 1);
+        vm.expectRevert(VajraAccountV2.SignatureNotBoundToTransaction.selector);
+        account.validateDaily(VajraScope.EXECUTION_AND_PAYMENT);
     }
 
-    /// APPROVE takes MAX_COST from the balance and refunds only at the end of the transaction. So the raised cost is missing while
-    /// the SENDER frame runs, and a spend that fits under the signed cost reverts under the copy's: nonce and fee gone, nobody paid.
-    /// That is the outcome FINDINGS section 15 says a copy can no longer cause.
-    function test_attack_typedCopyMakesTheSenderFrameFail() public {
+    /// The trade that keeps MAX_COST: padding paid for by cutting frame 0's limit. It would turn unused VERIFY gas into gas burned, inside
+    /// the signed cost, and nothing in MAX_COST would show it. So frame 0's limit is signed too.
+    function test_typedCopyCannotTradeVerifyGasForPadding() public {
+        address to = makeAddr("payee");
+        uint256 cost = 0.003 ether;
+        walletFrame(typedDigest(to, 1 ether, cost), to, 1 ether, cost);
+        setFrameAt(0, EXECUTION_GAS_LIMIT, VERIFY_GAS - 30_000);
+        vm.expectRevert(VajraAccountV2.SignatureNotBoundToTransaction.selector);
+        account.validateDaily(VajraScope.EXECUTION_AND_PAYMENT);
+    }
+
+    /// APPROVE takes MAX_COST from the balance and refunds only at the end of the transaction. A near-full-balance spend that fits under
+    /// the signed cost cannot now be made to revert, because a copy under a higher cost never gets past VERIFY.
+    function test_typedCopyCannotMakeTheSenderFrameFail() public {
         address to = makeAddr("payee");
         uint256 honestCost = 0.003 ether;
         uint256 amount = 4.99 ether;
-        bytes32 signed = typedDigest(to, amount);
+        bytes32 signed = typedDigest(to, amount, honestCost);
+
+        // The copy: same signature, higher cost. It is what used to pass here and revert in the SENDER frame.
+        walletFrame(signed, to, amount, DAILY_CAP);
+        vm.expectRevert(VajraAccountV2.SignatureNotBoundToTransaction.selector);
+        account.validateDaily(VajraScope.EXECUTION_AND_PAYMENT);
 
         // Honest: VERIFY passes, the balance is debited the signed cost, and the spend goes through.
-        uint256 snap = vm.snapshotState();
         walletFrame(signed, to, amount, honestCost);
         account.validateDaily(VajraScope.EXECUTION_AND_PAYMENT);
         vm.deal(address(account), 5 ether - honestCost);
         vm.prank(address(account));
         account.spend(address(0), to, amount);
         assertEq(to.balance, amount);
-        vm.revertToState(snap);
-
-        // The copy: same signature, same digest, VERIFY passes. Only MAX_COST changed.
-        walletFrame(signed, to, amount, DAILY_CAP);
-        account.validateDaily(VajraScope.EXECUTION_AND_PAYMENT);
-        vm.deal(address(account), 5 ether - DAILY_CAP);
-        vm.prank(address(account));
-        vm.expectRevert(VajraAccountV2.ValueNotConserved.selector);
-        account.spend(address(0), to, amount);
-        assertEq(to.balance, 0);
     }
 
     // ---------------------------------------------------------------- 3. the exit's reserve ---------
 
-    /// A recovery sent from the account is public. A stranger resends its proof and ticket from the exit, and the reserve pays, with no
-    /// key and no secret. Nonce keys are per sender, so nothing ties the two.
-    function test_attack_strangerReroutesARecoveryOntoTheReserve() public {
+    function exitWithRecovery() private returns (VajraExit exit) {
         VajraExit exitImplementation = new VajraExit(4, 3, account.STAKING_REGISTRY());
         VajraExitFactory factory = new VajraExitFactory(address(exitImplementation));
-        VajraExit exit = VajraExit(payable(factory.create{value: 0.006 ether}(address(account), keccak256("exit tree"), SALT, 0, 0)));
+        exit = VajraExit(payable(factory.create{value: 0.006 ether}(address(account), keccak256("exit tree"), SALT, 0, 0)));
         vm.etch(vm.computeCreateAddress(address(exitImplementation), APPROVE), type(ReviewApproveDouble).runtimeCode);
         vm.mockCall(
             vm.computeCreateAddress(address(exitImplementation), TX_PARAM), abi.encode(TX_SENDER), abi.encode(uint256(uint160(address(exit))))
@@ -308,21 +341,145 @@ contract AdversarialReviewTest is Test {
         setWord(4, NEW_ROOT);
         setWord(36, bytes32(nullifier));
         setTx(MAX_COST, MAX_PROOF_COST);
+    }
 
+    /// A recovery sent from the account shows its proof and ticket. That ticket is the hash of the exit's, so a stranger who resends the
+    /// proof from the exit has nothing to put there, and the reserve pays nothing.
+    function test_strangerCannotRerouteARecoveryOntoTheReserve() public {
+        VajraExit exit = exitWithRecovery();
+        vm.expectRevert(VajraAccountV2.RecoveryGateInvalid.selector);
+        exit.validateRecovery(recoveryProof, TICKET);
+    }
+
+    /// The paper can still use the exit, which is what an owner banned from the account's route needs.
+    function test_thePaperStillRecoversFromTheExit() public {
+        VajraExit exit = exitWithRecovery();
         vm.expectEmit(address(exit));
         emit Approved(3);
-        exit.validateRecovery(recoveryProof, TICKET);
+        exit.validateRecovery(recoveryProof, EXIT_TICKET);
     }
 
     // ---------------------------------------------------------------- 4. sponsorship on V2 ---------
 
-    /// `[only_verify, charge, pay, SENDER, settle]` has a DEFAULT frame after the daily VERIFY, and V2's walk refuses those. So no daily
-    /// transaction on V2 can be sponsored. `paymaster-e2e` runs on V1, where the walk skips them.
-    function test_finding_v2DailyCannotBeSponsored() public {
-        walletFrame(bytes32(0), address(0), 0, 0);
+    address paymaster = makeAddr("named paymaster");
+
+    function sponsoredFrames() private {
+        walletFrame(bytes32(0), address(0), 0, 0.003 ether);
         setTx(FRAME_COUNT, 5);
         setFrameAt(1, MODE, 0);
+        setFrameAt(1, RESOLVED_TARGET, uint256(uint160(paymaster)));
+        setFrameAt(2, MODE, 1);
+        setFrameAt(3, MODE, 2);
+        setFrameAt(3, RESOLVED_TARGET, uint256(uint160(address(account))));
+        setFrameAt(3, VALUE, 0);
+        vm.mockCall(helper(FRAME_DATA_LOAD), abi.encode(uint256(0), uint256(3)), abi.encode(bytes32(account.spend.selector)));
+        setFrameAt(4, MODE, 0);
+        setFrameAt(4, RESOLVED_TARGET, uint256(uint160(paymaster)));
+    }
+
+    function name(address sponsor) private {
+        vm.prank(address(account));
+        account.setSponsor(sponsor, true);
+    }
+
+    function refusesFrame(uint256 frame) private {
+        vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.FrameNotAllowed.selector, frame));
+        account.validateDaily(VajraScope.EXECUTION);
+    }
+
+    /// `[only_verify, charge, pay, SENDER, settle]`, to a paymaster the master key named.
+    function test_sponsored_namedPaymasterIsApproved() public {
+        name(paymaster);
+        sponsoredFrames();
+        vm.expectEmit(address(account));
+        emit Approved(2);
+        account.validateDaily(VajraScope.EXECUTION);
+    }
+
+    /// With nothing named, a daily signature approves exactly what it did before.
+    function test_sponsored_refusedUntilTheMasterKeyNamesAPaymaster() public {
+        sponsoredFrames();
+        refusesFrame(1);
+    }
+
+    function test_sponsored_onlyTheMasterKeyCanNameOne() public {
+        vm.expectRevert(VajraAccountV2.NotAuthorized.selector);
+        account.setSponsor(paymaster, true);
+    }
+
+    function test_sponsored_aNamedPaymasterCanBeRemoved() public {
+        name(paymaster);
+        vm.prank(address(account));
+        account.setSponsor(paymaster, false);
+        assertFalse(account.sponsors(paymaster));
+        sponsoredFrames();
+        refusesFrame(1);
+    }
+
+    function test_sponsored_settleOnAnUnnamedContractIsRefused() public {
+        name(paymaster);
+        sponsoredFrames();
+        setFrameAt(4, RESOLVED_TARGET, uint256(uint160(makeAddr("somewhere else"))));
+        refusesFrame(4);
+    }
+
+    /// A stolen key adding collect frames in the body, to burn the approval.
+    function test_sponsored_noDefaultFrameInTheBody() public {
+        name(paymaster);
+        sponsoredFrames();
+        setFrameAt(3, MODE, 0);
+        setFrameAt(3, RESOLVED_TARGET, uint256(uint160(paymaster)));
+        refusesFrame(3);
+    }
+
+    /// The body is still walked: a sponsored transaction reaches nothing a paid one cannot.
+    function test_sponsored_theBodyStaysOnTheRulebook() public {
+        name(paymaster);
+        sponsoredFrames();
+        vm.mockCall(helper(FRAME_DATA_LOAD), abi.encode(uint256(0), uint256(3)), abi.encode(bytes32(account.setDailyKey.selector)));
+        vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.EscapeKeyOutranks.selector, account.setDailyKey.selector));
+        account.validateDaily(VajraScope.EXECUTION);
+    }
+
+    function test_sponsored_aBodyFrameCannotTargetThePaymaster() public {
+        name(paymaster);
+        sponsoredFrames();
+        setFrameAt(3, RESOLVED_TARGET, uint256(uint160(paymaster)));
+        refusesFrame(3);
+    }
+
+    /// An account that pays for itself has no use for a DEFAULT frame.
+    function test_sponsored_notWhenTheAccountPays() public {
+        name(paymaster);
+        sponsoredFrames();
         vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.FrameNotAllowed.selector, uint256(1)));
+        account.validateDaily(VajraScope.EXECUTION_AND_PAYMENT);
+    }
+
+    function test_sponsored_onlyWithTheDailyFrameFirst() public {
+        name(paymaster);
+        sponsoredFrames();
+        setTx(CURRENT_FRAME, 1);
+        setFrameAt(2, MODE, 0);
+        setFrameAt(2, RESOLVED_TARGET, uint256(uint160(paymaster)));
+        refusesFrame(2);
+    }
+
+    /// What a paymaster takes for gas is held to the same cap as what the account pays itself.
+    function test_sponsored_costCapHolds() public {
+        name(paymaster);
+        sponsoredFrames();
+        setTx(MAX_COST, DAILY_CAP + 1);
+        vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.DailyTxCostExceeded.selector, DAILY_CAP + 1));
+        account.validateDaily(VajraScope.EXECUTION);
+    }
+
+    /// A wallet's signature is pinned to `[VERIFY, SENDER]`, so a stranger cannot wrap it in a sponsored shape.
+    function test_sponsored_aWalletSignatureCannotBeWrapped() public {
+        name(paymaster);
+        sponsoredFrames();
+        vm.mockCall(helper(SIG_PARAM), abi.encode(uint256(0), uint256(2)), abi.encode(typedDigest(address(0), 0, 0.003 ether)));
+        vm.expectRevert(VajraAccountV2.SignatureNotBoundToTransaction.selector);
         account.validateDaily(VajraScope.EXECUTION);
     }
 }

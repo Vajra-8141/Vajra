@@ -47,6 +47,7 @@ export const SHIELD_STATE_GAS = 3_000_000n;
 
 export const opsV2 = {
   setExit: (exit: Address): Call => ({ data: encode("setExit", [exit]), execution: 60_000n, state: 100_000n }),
+  setSponsor: (paymaster: Address, allowed = true): Call => ({ data: encode("setSponsor", [paymaster, allowed]), execution: 60_000n, state: 100_000n }),
   setRecovery: (commitment: bigint, delay: bigint, gate: Hex): Call => ({ data: encode("setRecovery", [commitment, delay, gate]), execution: 80_000n, state: 300_000n }),
   queueRecovery: (root: Hex, nullifier: bigint): Call => ({ data: encode("queueRecovery", [root, nullifier]), ...PROOF_FRAME_GAS.recovery }),
   // The first note in a tree writes a slot at every level, at 97,920 state gas each. Twenty Poseidon hashes run at about 60,000
@@ -73,13 +74,18 @@ function proofTx(a: { account: Address; exit?: Address; verifyData: Hex; nonceKe
 }
 
 /** `[VERIFY(proof), SENDER(queueRecovery)]`. Nothing here is secret, and nothing needs a key. */
+/**
+ * What the paper hands over for a recovery from the exit. Its keccak is `recoveryTicket`, so seeing that one does not give this one: a
+ * stranger who copies a recovery sent from the account cannot resend it from the exit, on the reserve.
+ */
+export const exitTicket = (secret: bigint): Hex => keccak256(concat([toHex("vajra-recovery-ticket"), numberToHex(secret, { size: 32 })]));
 /** What the paper hands over before a node will run the pairing. Its keccak is the gate `setRecovery` stores. */
-export const recoveryTicket = (secret: bigint): Hex => keccak256(concat([toHex("vajra-recovery-ticket"), numberToHex(secret, { size: 32 })]));
+export const recoveryTicket = (secret: bigint): Hex => keccak256(exitTicket(secret));
 export const recoveryGate = (ticket: Hex): Hex => keccak256(ticket);
 
-/** The toll on an unshield: a number whose hash, with this proof and nonce key, starts with the zero bits the contract asks for. */
-export function proofWork(account: Address, proof: FlatProof, nonceKey: bigint, bits = deployments().v2?.workBits ?? 0): bigint {
-  const bytes = hexToBytes(encodeAbiParameters(parseAbiParameters("address, uint256[8], uint256, uint256"), [account, proof as never, nonceKey, 0n]));
+/** A number whose hash, with what comes before it, starts with `bits` zero bits. `encoded` ends with the 32-byte word it goes in. */
+function solveWork(encoded: Hex, bits: number): bigint {
+  const bytes = hexToBytes(encoded);
   const view = new DataView(bytes.buffer, bytes.byteOffset);
   const last = bytes.length - 4;
   for (let work = 0; ; work++) {
@@ -88,6 +94,17 @@ export function proofWork(account: Address, proof: FlatProof, nonceKey: bigint, 
   }
 }
 
+/** The toll on an unshield. It covers everything the pairing is asked about, so a solved number buys one pairing. */
+export function proofWork(a: { account: Address; proof: FlatProof; nonceKey: bigint; root: bigint; nullifierHash: bigint; recipient: Address }, bits = deployments().v2?.workBits ?? 0): bigint {
+  const words = parseAbiParameters("address, uint256[8], uint256, uint256, uint256, address, uint256");
+  return solveWork(encodeAbiParameters(words, [a.account, a.proof as never, a.nonceKey, a.root, a.nullifierHash, a.recipient, 0n]), bits);
+}
+
+/** The toll as it was on the bytes in `VajraAccountV2.pre-fix.json`, which `vajra proof-spam` still runs against. */
+export const preFixProofWork = (account: Address, proof: FlatProof, nonceKey: bigint, bits = deployments().v2?.workBits ?? 0): bigint =>
+  solveWork(encodeAbiParameters(parseAbiParameters("address, uint256[8], uint256, uint256"), [account, proof as never, nonceKey, 0n]), bits);
+
+/** `ticket` is `recoveryTicket`, or `exitTicket` with `exit`. */
 export function recoveryTx(a: { account: Address; exit?: Address; newRoot: Hex; nullifier: bigint; proof: FlatProof; ticket: Hex; verifyGas?: bigint; fees?: Fees }): FrameTx {
   return proofTx({
     account: a.account,
@@ -105,7 +122,7 @@ export function unshieldTx(a: { account: Address; root: bigint; nullifierHash: b
   const nonceKey = a.nonceKey ?? unshieldNonceKey(a.nullifierHash);
   return proofTx({
     account: a.account,
-    verifyData: encode("validateUnshield", [a.proof, a.work ?? proofWork(a.account, a.proof, nonceKey)]),
+    verifyData: encode("validateUnshield", [a.proof, a.work ?? proofWork({ ...a, nonceKey })]),
     nonceKey,
     call: opsV2.unshield(a.root, a.nullifierHash, a.recipient),
     verifyGas: a.verifyGas,

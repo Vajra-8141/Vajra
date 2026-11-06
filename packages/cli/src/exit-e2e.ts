@@ -29,6 +29,7 @@ import {
   publicClient,
   receiptOf,
   recoveryGate,
+  exitTicket,
   recoveryTicket,
   recoveryTx,
   sendAlt,
@@ -145,12 +146,13 @@ const ticket = recoveryTicket(paper);
 await mined("set recovery, master key", master(signer, account, epochSalt, [opsV2.setRecovery(await recoveryCommitment(paper), 60n, recoveryGate(ticket))]));
 const recoveredTree = newSigner();
 const proved = await proveRecovery({ secret: paper, newRoot: recoveredTree.root, account, epochSalt, chainId: DEVNET.chainId });
-const viaExit = (over: Partial<Parameters<typeof recoveryTx>[0]> = {}) => recoveryTx({ account, exit, newRoot: recoveredTree.root, nullifier: proved.nullifier, proof: proved.proof, ticket, ...over });
+const viaExit = (over: Partial<Parameters<typeof recoveryTx>[0]> = {}) => recoveryTx({ account, exit, newRoot: recoveredTree.root, nullifier: proved.nullifier, proof: proved.proof, ticket: exitTicket(paper), ...over });
 const bent = [...proved.proof] as unknown as bigint[];
 bent[0] = bent[0]! + 1n;
 await refused("A corrupted proof, through the exit", viaExit({ proof: bent as unknown as FlatProof }), "RecoveryProofInvalid");
 await refused("A seen proof, moved onto the attacker's root, through the exit", viaExit({ newRoot: keccak256(toHex("attacker root")) }), "RecoveryProofInvalid");
 await refused("A guessed ticket, through the exit", viaExit({ ticket: keccak256(toHex("a guess")) }), "RecoveryGateInvalid");
+await refused("A recovery seen from the account, resent from the exit so that the reserve pays", viaExit({ ticket }), "RecoveryGateInvalid");
 const honestRecovery = viaExit();
 const extra = lib.frame(profile, "SENDER", { target: fresh(), execution: 400_000n, state: 400_000n, value: parseEther("0.01"), data: "0x" });
 await refused("A seen proof, with a frame added that pays the attacker from the reserve", { ...honestRecovery, frames: [...honestRecovery.frames, extra] }, "ProofTxShapeInvalid");

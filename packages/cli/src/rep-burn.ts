@@ -36,6 +36,7 @@ import {
   publicClient,
   receiptOf,
   recoveryGate,
+  exitTicket,
   recoveryTicket,
   recoveryTx,
   refusalNameV2,
@@ -192,7 +193,7 @@ if (fixed) {
   console.log("\n4. The second route, in the same slot");
   const exitVeto = signExitTx({ signer: exitTree, exit: exit!, account, epochSalt, calls: [ops.veto(queuedId)] });
   const exitEscape = signExitTx({ signer: exitTree, exit: exit!, account, epochSalt, calls: [ops.escape(harbor, harborSalt)] });
-  const exitRecovery = recoveryTx({ account, exit: exit!, newRoot: newTree.root, nullifier: proved.nullifier, proof: proved.proof, ticket: recoveryTicket(paper) });
+  const exitRecovery = recoveryTx({ account, exit: exit!, newRoot: newTree.root, nullifier: proved.nullifier, proof: proved.proof, ticket: exitTicket(paper) });
   outcomes.exitVeto = await verdict("veto, from the exit, alt", () => sendAlt(exitVeto.tx));
   outcomes.exitRecovery = await verdict("recovery, from the exit, alt", () => sendAlt(exitRecovery));
   outcomes.exitEscape = await verdict("escape, from the exit, canonical", () => sendCanonical(exitEscape.tx));

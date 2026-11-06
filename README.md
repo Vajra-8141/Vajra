@@ -68,8 +68,8 @@ evidence, on the local mirror and nowhere else.
 | Dashboard, exposure scanner | BUILT | every flow driven in a real browser over the Nym mixnet, with a scripted wallet |
 | Master key on hardware | BUILT | a real ESP32 signed through the CLI (7 mined) and the dashboard (3 mined), with a person pressing BOOT. **Not safe from a computer it is plugged into**: see [`docs/HARDWARE.md`](docs/HARDWARE.md) |
 | Leaf registry on Arkiv | BUILT | `vajra arkiv`, on the live Arkiv testnet and devnet. The dashboard reads it and verifies each signature in the browser |
-| Daily quota paymaster, USDC paymaster | BUILT, LOCAL | `vajra paymaster-e2e`: 16 mined, 46 attacks refused, the canonical mempool refused all 47 offered, 0 failures. **The first version could be drained, with every test passing**: see [`docs/FINDINGS.md`](docs/FINDINGS.md). Not audited |
-| Admission simulator, `vajra explain`, `@vajra/sdk` | BUILT, LOCAL | `simulate` gives each mempool's verdict, rule and fix. Its 63 verdicts in that run were held against what the nodes then did. Alt verdicts only on the mirror: elsewhere they stay unknown |
+| Daily quota paymaster, USDC paymaster | BUILT, LOCAL | `vajra paymaster-e2e`, on V2: 15 mined, 50 attacks refused, the canonical mempool refused all 51 offered, 0 failures. **The first version could be drained, with every test passing**: see [`docs/FINDINGS.md`](docs/FINDINGS.md). Not audited |
+| Admission simulator, `vajra explain`, `@vajra/sdk` | BUILT, LOCAL | `simulate` gives each mempool's verdict, rule and fix. Its 66 verdicts in that run were held against what the nodes then did. Alt verdicts only on the mirror: elsewhere they stay unknown |
 | Phone alert, "Not me" and "Pay, it's me" | IN BUILD | `vajra watch`. Runs end to end on the mirror against a local stand-in for Telegram's servers. Also tried on Nov 6 with a real bot and phone on the mirror: two **Not me** taps cancelled, one **Pay, it's me** tap paid 0.5 ETH, using the software signer. **Not me** also passed on the public devnet with real MetaMask and a real phone. **Pay** has not been tried there, or with the board signing |
 | Browser extension | BUILT, LOCAL | `apps/extension/test/e2e.mjs`: loaded in Brave, a dapp connected over EIP-1193 and EIP-6963, and paid, on the mirror. Pays only: see below |
 | Phone app | BUILT, LOCAL | `apps/phone/test/e2e.mjs`: the PWA in Brave against the real service. Not tried on a physical phone |
@@ -215,6 +215,9 @@ On the local mirror, by `vajra recover` and `vajra shielded`, each sent for real
 | One note, proved to several recipients at once | `Frame transaction cannot be replaced: fee too low`. Fixed: all were admitted before |
 | A note paid to a contract that refuses it, to burn the owner's fees | the note is spent, once. Fixed: this burned 0.0072 ETH in 3 tries, and the note lived on |
 | A recovery's public ticket, reused so that nodes run pairings for nothing | `RecoveryGateInvalid`. Fixed: it reached the pairing |
+| A recovery seen on the account, resent from the exit so that the reserve pays | `RecoveryGateInvalid`. Fixed: the reserve paid |
+| A proof of work solved once, spent on other recipients and roots | `ProofWorkMissing`. Fixed: each reached the pairing |
+| A wallet's spend copied with frame 0 padded, to raise the cost until the spend fails | `SignatureNotBoundToTransaction`. Fixed: the nonce and fee were lost |
 | A wallet signature moved onto another recipient, amount, fee, account or chain, or dirtied to die in the SENDER frame | `SignatureNotBoundToTransaction` |
 | Daily key names an exit, replaces its tree, or sends from its address | `EscapeKeyOutranks`, `FrameNotAllowed`, reverted |
 | The exit key tries anything but veto, freeze and escape | `FrameNotAllowed` |
@@ -228,18 +231,22 @@ On the local mirror, by `vajra paymaster-e2e`, each sent for real, from accounts
 | Over the day's quota, in one transaction or the third of three | `OverQuota` |
 | Two at once, on one remaining quota | both admitted, one mined, the other `OverQuota` at inclusion |
 | The charge or repay frame starved of gas | `ChargeFrameStarved`. Too little to reach that check is the node's out-of-gas |
-| The settle frame starved, missing, moved before the body, or pointed elsewhere | `SettleFrameStarved`, `SettleFrameMissing` |
+| The settle frame starved, missing, or pointed elsewhere | `SettleFrameStarved`, `SettleFrameMissing` |
+| Settle moved before the body, a DEFAULT frame in the body, or a paymaster the master key did not name | `FrameNotAllowed` |
 | No charge frame | `ChargeFrameMissing` |
-| A fee above the cap, or a tip to a colluding block producer | `FeeTooHigh` |
+| A fee above the cap | `FeeTooHigh` |
+| A tip to a colluding block producer, over the account's cost cap | `DailyTxCostExceeded` |
 | An account nobody enrolled, or one removed | `NotEnrolled` |
 | A mined transaction, replayed | the protocol nonce |
 | No approval, no USDC | `InsufficientAllowance`, `InsufficientUsdc` |
 | A lower price signed, or the owner raising it on a signed transaction | `PriceChanged` |
 | The same contract with no stake | `unstaked payer accessed` |
 | A batch that undoes a charge, then settle. **This drained the first version** | `PayFrameMissing`, `NothingToSettle`: nothing moves |
-| Extra collect frames, to burn the approval | `PayFrameMissing`: charged once |
+| Extra collect frames, to burn the approval | `FrameNotAllowed`, on V2 |
 
 A body that revokes the approval or empties the account changes nothing: the USDC was taken before it ran. The USDC price is a number the owner sets, and the contract says so.
+
+A V2 account takes a sponsored daily transaction only from a paymaster its master key named with `setSponsor`. Naming one lets a stolen daily key spend whatever was approved to it on gas, up to `maxDailyTxCost` a transaction, so keep that approval small. V1 skips the frames instead, with no such check: see [`docs/FINDINGS.md`](docs/FINDINGS.md) section 19.
 
 ## Run it
 

@@ -17,10 +17,12 @@ import {
   encodeFunctionData,
   hashMessage,
   hashTypedData,
+  hexToBytes,
   keccak256,
   numberToHex,
   parseSignature,
   toBytes,
+  toRlp,
 } from "viem";
 import { DEVNET, RpcError, rpc, sleep } from "./devnet.ts";
 import VajraAccount from "./artifacts/VajraAccount.json" with { type: "json" };
@@ -147,12 +149,48 @@ const DAILY_FEE_FIELDS = [
   { name: "maxPriorityFeePerGas", type: "uint256" },
   { name: "executionGas", type: "uint256" },
   { name: "stateGas", type: "uint256" },
+  { name: "verifyGas", type: "uint256" },
+  { name: "maxCost", type: "uint256" },
 ] as const;
 
 const DAILY_TYPES = {
   DailySpend: [{ name: "asset", type: "address" }, { name: "recipient", type: "address" }, { name: "amount", type: "uint256" }, ...DAILY_FEE_FIELDS],
   DailyExecute: [{ name: "id", type: "uint256" }, ...DAILY_FEE_FIELDS],
 } as const;
+
+const SIGNATURE_COST: Record<number, bigint> = { [profile.sigSchemes.ARBITRARY!]: 100n, [profile.sigSchemes.SECP256K1!]: 2_800n, [profile.sigSchemes.P256!]: 6_700n };
+
+/**
+ * ethrex's `total_gas_limit`, in crates/common/types/transaction.rs. TXPARAM's MAX_COST is this times `maxFeePerGas`, when there are no
+ * blobs. Data costs 4 gas a zero byte and 16 any other, and the floor is 64 a byte whatever it holds.
+ */
+export function maxGas(tx: FrameTx): bigint {
+  if (tx.blobVersionedHashes.length > 0 || tx.recentRootReferences.length > 0) throw new Error("this arithmetic has no blobs or recent roots in it");
+  const nonces = concat([toRlp(tx.nonceKeys.map((k) => (k === 0n ? "0x" : numberToHex(k)))), toRlp(tx.nonceSeq === 0n ? "0x" : numberToHex(tx.nonceSeq))]);
+  const fields = [...tx.frames.map((f) => f.data), ...tx.signatures.flatMap((s) => [s.signer, s.msg, s.signature]), nonces].map((field) => hexToBytes(field));
+  const data = fields.flatMap((field) => [...field]).reduce((sum, byte) => sum + (byte === 0 ? 4n : 16n), 0n);
+  const size = fields.reduce((sum, field) => sum + BigInt(field.length), 0n);
+  const sum = (values: bigint[]) => values.reduce((a, b) => a + b, 0n);
+  const mandatory =
+    12_000n + 475n * BigInt(tx.frames.length) + sum(tx.signatures.map((s) => SIGNATURE_COST[s.scheme] ?? 0n)) + 6_000n * BigInt(tx.frames.filter((f) => f.value !== 0n).length);
+  const execution = sum(tx.frames.map((f) => f.limits.execution));
+  const state = sum(tx.frames.map((f) => f.limits.state));
+  return (mandatory + data + execution > mandatory + size * 64n ? mandatory + data + execution : mandatory + size * 64n) + state;
+}
+
+/** `validateDaily(scope)`, with nothing after it. */
+const VERIFY_DATA_HEX_LENGTH = 2 + (4 + 32) * 2;
+const withVerifyData = (tx: FrameTx, data: Hex): FrameTx => ({ ...tx, frames: tx.frames.map((f, i) => (i === 0 ? { ...f, data } : f)) });
+const bareVerifyData = (tx: FrameTx) => tx.frames[0]!.data.slice(0, VERIFY_DATA_HEX_LENGTH) as Hex;
+const NO_ZERO_MSG = `0x${"ff".repeat(32)}` as Hex;
+const NO_ZERO_SIGNATURE = `0x${"ff".repeat(65)}` as Hex;
+
+/**
+ * The gas a wallet signs for. `msg` and the signature are part of what a transaction costs, and they cost less for each zero byte they
+ * hold, which nobody can know before signing. So this assumes none, and `withTypedSignature` makes up what they saved.
+ */
+const signedGas = (tx: FrameTx) =>
+  maxGas({ ...withVerifyData(tx, bareVerifyData(tx)), signatures: tx.signatures.map((e, i) => (i === 0 ? { ...e, msg: NO_ZERO_MSG, signature: NO_ZERO_SIGNATURE } : e)) });
 
 /**
  * What a wallet is asked to sign on a V2 account, as EIP-712 typed data, so that it can show the asset, the recipient and the
@@ -168,6 +206,8 @@ export function dailyTypedData(tx: FrameTx) {
     maxPriorityFeePerGas: tx.fees.maxPriorityFeePerGas,
     executionGas: body.limits.execution,
     stateGas: body.limits.state,
+    verifyGas: tx.frames[0]!.limits.execution,
+    maxCost: tx.fees.maxFeePerGas * signedGas(tx),
   };
   const domain = { name: "VAJRA", version: "2", chainId: Number(tx.chainId), verifyingContract: tx.sender };
   if (functionName === "spend") {
@@ -181,12 +221,20 @@ export function dailyTypedData(tx: FrameTx) {
   throw new Error(`a wallet can only sign spend and executeQueued, not ${functionName}`);
 }
 
-/** Attaches a wallet's 65-byte signature over `dailyTypedData`, repacked as in `withWalletSignature`. */
+/**
+ * Attaches a wallet's 65-byte signature over `dailyTypedData`, repacked as in `withWalletSignature`.
+ *
+ * The account holds the cost to exactly what was signed. Each zero byte in `msg` or the signature saved 12 gas of what `signedGas` counted,
+ * and 3 zero bytes after frame 0's argument put that back. `validateDaily` does not read them, and frame 0's data is not signed.
+ */
 export function withTypedSignature(tx: FrameTx, signature: Hex): FrameTx {
   const { r, s, yParity } = parseSignature(signature);
   const packed = concat([numberToHex(yParity ?? 0, { size: 1 }), r, s]);
   const msg = hashTypedData(dailyTypedData(tx) as never);
-  return { ...tx, signatures: tx.signatures.map((e, i) => (i === 0 ? { ...e, msg, signature: packed } : e)) };
+  const signed = { ...withVerifyData(tx, bareVerifyData(tx)), signatures: tx.signatures.map((e, i) => (i === 0 ? { ...e, msg, signature: packed } : e)) };
+  const padded = withVerifyData(signed, `${bareVerifyData(tx)}${"00".repeat(Number((signedGas(tx) - maxGas(signed)) / 4n))}`);
+  if (maxGas(padded) !== signedGas(tx)) throw new Error("this transaction's cost cannot be made to match what was signed");
+  return padded;
 }
 
 /** Spec §5, and `masterDigest` on the account. */

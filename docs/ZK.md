@@ -65,6 +65,8 @@ root, on this account, under this salt, on this chain. The nullifier is `Poseido
 - **A ticket closes when it is used.** It goes public with the recovery, so `queueRecovery` closes the gate, and a junk proof then dies for a
   hash. A rotation leaves an unused paper alone. A used paper cannot be set again: `RecoveryAlreadyUsed`. The next one needs a new secret.
   While a recovery is pending the ticket is public and the gate open, so until that block a junk proof still costs a node a pairing.
+- **The exit takes its own ticket.** The account's ticket is the hash of the exit's, and the paper makes both. So a stranger who sees a recovery
+  from the account cannot resend it from the exit, on the reserve. See `FINDINGS.md` section 18.
 - **A ban does not have to stop a recovery.** A thief with the daily key can get the account banned on a node, and that refuses a recovery
   from the account. A staked `VajraExit` carries the same proof from its own address. See `FINDINGS.md` sections 10 and 12. A proof has no second
   door otherwise: it is over the canonical cap.
