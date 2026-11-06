@@ -8,11 +8,14 @@ const EXECUTED = 2;
 const VETOED = 3;
 
 /** A node answering for one account, whose queue holds these states. Records which items it was asked for. `head` is the chain it is on. */
-function nodeWith(states: number[], chain: { head: Hex } = { head: `0x${"aa".repeat(32)}` }) {
+function nodeWith(states: number[], chain: { head: Hex; pruned?: boolean } = { head: `0x${"aa".repeat(32)}` }) {
   const asked: bigint[] = [];
   const answer = (call: { method: string; params: { data: Hex }[] }) => {
     if (call.method === "eth_getBalance") return "0x1";
-    if (call.method === "eth_getBlockByNumber") return { number: "0x10", hash: chain.head };
+    if (call.method === "eth_getBlockByNumber") {
+      if (chain.pruned && (call.params[0] as unknown) !== "latest") throw new Error("that block is gone");
+      return { number: "0x10", hash: chain.head };
+    }
     const { functionName, args } = decodeFunctionData({ abi: accountAbi, data: call.params[0]!.data }) as { functionName: string; args?: readonly unknown[] };
     const encode = (result: unknown) => encodeFunctionResult({ abi: accountAbi, functionName, result } as never);
     switch (functionName) {
@@ -108,6 +111,19 @@ describe("readAccount", () => {
     const { items } = await readAccount(account);
     expect(asked[0]).toBe(0n);
     expect(items.some((item) => item.id === 0n && item.state === WAITING)).toBe(true);
+  });
+
+  // ethrex answers null. A node that answers with an error must not fail every read for as long as the mark lives.
+  it("reads on when a node calls the marked block an error", async () => {
+    const account = anAccount();
+    const chain = { head: `0x${"aa".repeat(32)}` as Hex, pruned: false };
+    const asked = nodeWith(Array(40).fill(EXECUTED), chain);
+    await readAccount(account);
+    chain.pruned = true;
+    asked.length = 0;
+    const { items } = await readAccount(account);
+    expect(items).toHaveLength(12);
+    expect(asked[0]).toBe(0n);
   });
 
   it("reads a queue of two pages, and throws rather than call a failed read an empty queue", async () => {

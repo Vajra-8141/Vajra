@@ -94,7 +94,12 @@ const fetchFor = (url: string) => (url === DEVNET.mempool || url === DEVNET.gate
  * How long any node gets to answer. A node that hangs has to become a failed read, or a watcher stuck on it goes on showing its last good
  * state. Long enough for the mixnet, whose first read is slow. A race and not an abort signal, because a route brings its own transport.
  */
-export const RPC_TIMEOUT_MS = 120_000;
+let rpcTimeoutMs = 120_000;
+
+/** For a process on a direct connection, with no mixnet to wait for, where every second on a hung read comes off a deadline. */
+export const setRpcTimeout = (ms: number) => {
+  rpcTimeoutMs = ms;
+};
 
 export async function rpc<T = unknown>(url: string, method: string, params: unknown[] = []): Promise<T> {
   return withTimeout(
@@ -109,7 +114,7 @@ export async function rpc<T = unknown>(url: string, method: string, params: unkn
       if (body.error) throw new RpcError(method, body.error.code, body.error.message, body.error.data);
       return body.result as T;
     })(),
-    RPC_TIMEOUT_MS,
+    rpcTimeoutMs,
     `no answer to ${method}:`,
   );
 }
@@ -137,7 +142,7 @@ export async function rpcBatch<T = unknown>(url: string, calls: RpcCall[]): Prom
       if (!response.ok) throw new RpcError("batch", response.status, `HTTP ${response.status} from ${url}`);
       return (await response.json()) as { id: number; result?: T; error?: { code: number; message: string; data?: unknown } }[];
     })(),
-    RPC_TIMEOUT_MS,
+    rpcTimeoutMs,
     "no answer to a batch:",
   );
   if (!Array.isArray(replies)) throw new RpcError("batch", -1, "the node did not answer the batch");

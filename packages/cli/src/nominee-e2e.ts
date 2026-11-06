@@ -121,11 +121,12 @@ type Holder = ReturnType<typeof holder>;
 
 /**
  * The network between a holder and the chain, for a holder on a lane of its own. The chain behind it is the real one and the process is the
- * real one, and this decides what reaches them: a node that will not simulate, reads that die, a sidecar that is down or sits on what it is
- * given. A node's answers are never made up here, only withheld.
+ * real one, and this decides what reaches them: a node that will not simulate, a node that dies, a head that stops moving, a sidecar that
+ * is down or sits on what it is given. So it refuses, and replays an old block, and it answers for a sidecar that sits on a transaction.
  */
 function network(lane: number, o: { mempool?: "up" | "down" | "sits"; simulate?: boolean } = {}) {
-  const state = { reads: true };
+  const state = { alive: true, stuck: false };
+  let oldHead: unknown = null;
   const bodyOf = (req: IncomingMessage) =>
     new Promise<string>((resolve) => {
       let text = "";
@@ -144,12 +145,16 @@ function network(lane: number, o: { mempool?: "up" | "down" | "sits"; simulate?:
   const servers = [
     createServer(async (req, res) => {
       const body = await bodyOf(req);
-      const call = JSON.parse(body) as { id: number; method: string };
+      const call = JSON.parse(body) as { id: number; method: string; params?: unknown[] };
       if (o.simulate === false && call.method === "ethrex_simulateFrameTransaction") return reply(res, call.id, { error: { code: -32601, message: "Method not found" } });
-      if (!state.reads && call.method !== "eth_sendRawTransaction") {
+      if (!state.alive) {
         res.writeHead(503);
         res.end("no");
         return;
+      }
+      if (state.stuck && call.method === "eth_getBlockByNumber" && call.params?.[0] === "latest") {
+        oldHead ??= await rpc(DEVNET.execution, "eth_getBlockByNumber", ["latest", false]);
+        return reply(res, call.id, { result: oldHead });
       }
       await relay(DEVNET.execution, body, res);
     }).listen(18545 + lane * 100, "127.0.0.1"),
@@ -435,25 +440,48 @@ check(copied.state === "sent" && copied.copy && copied.hash === paddedLanding.ha
 console.log("\n11. What goes wrong between the holder and the chain, each with a real theft and a real process");
 const dark = await ownerOf("the node goes dark");
 const sidecarDown = await ownerOf("the sidecar is down");
-const sidecarSits = await ownerOf("the sidecar sits on it", { margin: 30 });
+const sidecarSits = await ownerOf("the sidecar sits on it");
+const stuckHead = await ownerOf("the head stops");
 const short = await ownerOf("a short reserve", { reserve: parseEther("0.001") });
 const shortCheck = await checkRescue(short.rescue);
 check(shortCheck.state === "broken" && !wouldBurn(shortCheck), `a reserve that is short is said to be, and holds nothing back: ${shortCheck.state === "broken" ? shortCheck.reason.slice(0, 80) : shortCheck.state}`);
 
 async function theNodeGoesDark() {
-  const net = network(7, { simulate: false });
-  const h = holder(dark, 7);
+  const net = network(LANES + 1, { simulate: false });
+  const h = holder(dark, LANES + 1);
   await until("the holder to say it cannot tell", () => h.said(/the rescue is unknown/));
   check(!h.said(/would fail|WOULD FAIL/i), "a node that will not simulate is unknown, and is not called broken");
   await mined("the node goes dark: the thief queues a payment", await steal(dark, fresh()));
   await until("the holder to see the item", () => h.said(/leaves in/));
-  net.state.reads = false;
-  await until("the rescue to land, with the holder unable to read anything", async () => (await receiptOf(dark.rescue.hash)) !== null);
-  check(h.said(/state unknown/), "the holder could not read the chain");
-  check(h.said(/the last good read said it is time/), "and it sent on the last good read");
-  net.state.reads = true;
+  net.state.alive = false;
+  await until("the rescue to land, with nothing reaching the holder's node", async () => (await receiptOf(dark.rescue.hash)) !== null);
+  check(h.said(/state unknown/), "the holder's node is dead: no read and no send gets through it");
+  check(h.said(/the last good read said it is time/) && h.said(/admitted by the alt mempool/), "and it sent on the last good read, through the sidecar");
+  net.state.alive = true;
   await holderFinished(h, "after the node came back");
   check((await publicClient.getBalance({ address: dark.harbor })) > parseEther("1.2"), "the money reached the harbor");
+  net.close();
+}
+
+/** Lanes for the proxies, well clear of any real mirror, and clear of a suite running on another lane. */
+const LANES = 16 + Number(process.env.VAJRA_LANE ?? 0) * 4;
+const spare: { run: string; secondsToSpare: number }[] = [];
+
+/** A node stuck at one block. It goes on showing the item with the same time left, and the theft on the real chain does not wait. */
+async function theHeadStops() {
+  const net = network(LANES);
+  const h = holder(stuckHead, LANES);
+  await until("the holder to say it is ready", () => h.said(/the rescue is ready/));
+  await mined("the head stops: the thief queues a payment", await steal(stuckHead, fresh()));
+  const theft = (await rescueDue(stuckHead.rescue)).waiting[0]!;
+  await until("the holder to see the item", () => h.said(/leaves in/));
+  net.state.stuck = true;
+  await until("the rescue to land, with the holder's head stopped", async () => (await receiptOf(stuckHead.rescue.hash)) !== null);
+  const receipt = (await receiptOf(stuckHead.rescue.hash))!;
+  const landedAt = Number((await publicClient.getBlock({ blockNumber: BigInt(receipt.blockNumber) })).timestamp);
+  spare.push({ run: "the head stops", secondsToSpare: Number(theft.executeAfter) - landedAt });
+  check(framesSucceeded(receipt) && landedAt < Number(theft.executeAfter), `the head stopped, and the rescue still went, with ${Number(theft.executeAfter) - landedAt} seconds to spare`);
+  await holderFinished(h, "the head stops");
   net.close();
 }
 
@@ -467,6 +495,7 @@ async function theSidecarIsDown(who: Owner, lane: number, mode: "down" | "sits")
   check(h.said(/the alt mempool did not carry it/), `${who.name}: the alt mempool could not carry it, and the holder said so`);
   const receipt = (await receiptOf(who.rescue.hash))!;
   const landedAt = Number((await publicClient.getBlock({ blockNumber: BigInt(receipt.blockNumber) })).timestamp);
+  spare.push({ run: who.name, secondsToSpare: Number(theft.executeAfter) - landedAt });
   check(framesSucceeded(receipt) && landedAt < Number(theft.executeAfter), `${who.name}: the canonical mempool carried it, with ${Number(theft.executeAfter) - landedAt} seconds to spare`);
   await holderFinished(h, who.name);
   net.close();
@@ -484,7 +513,7 @@ async function theReserveIsShort() {
   await holderFinished(h, "a short reserve");
 }
 
-await Promise.all([theNodeGoesDark(), theSidecarIsDown(sidecarDown, 8, "down"), theSidecarIsDown(sidecarSits, 9, "sits"), theReserveIsShort()]);
+await Promise.all([theNodeGoesDark(), theHeadStops(), theSidecarIsDown(sidecarDown, LANES + 2, "down"), theSidecarIsDown(sidecarSits, LANES + 3, "sits"), theReserveIsShort()]);
 
 console.log("\n12. A signer restored from an old backup spends the rescue's own leaf");
 const seed = new Uint8Array(randomBytes(32));
@@ -537,7 +566,11 @@ const fresher = join(state, "rescue-2.json");
 check(cli("nominee-setup", "--out", fresher).ok && cli("nominee-check", fresher).ok, "a new one, signed by the new tree, works");
 check(cli("thief", "0.6").ok && cli("freeze").ok, "a theft waits, and the owner freezes");
 const thaw = cli("unfreeze");
-check(thaw.ok && /still waiting/.test(thaw.said), "`vajra unfreeze` warns that a freeze never ended it");
+check(!thaw.ok && /still waiting/.test(thaw.said), "`vajra unfreeze` refuses before it signs, because a freeze never ended the theft");
+const held = JSON.parse(readFileSync(join(state, "wallet.json"), "utf8")) as { account: Address };
+check((await accountState(held.account)).frozen, "so the account is still frozen");
+refusals.push({ attack: "The owner unfreezes with a theft still waiting", refusal: "refused before signing: still waiting" });
+check(cli("veto", "0").ok && cli("unfreeze").ok && !(await accountState(held.account)).frozen, "cancelled first, it unfreezes");
 
 const result = {
   ranAt: new Date().toISOString(),
@@ -548,6 +581,7 @@ const result = {
   queueDelaySeconds: 60,
   marginSeconds: 15,
   rescueGas,
+  secondsToSpareWhenTheNetworkFailed: spare,
   secondsLeftWhenTheRescueLanded: secondsLeft,
   thiefTransactionsSentMeanwhile: pins,
   thiefPendingInTheNodesPool: { lookedTimes: pendingSeen.length, seenTimes: pendingSeen.filter(Boolean).length, inTheLastFive: pendingSeen.slice(-5).filter(Boolean).length },

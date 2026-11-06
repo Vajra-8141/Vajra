@@ -7,12 +7,12 @@ import { type Hex, encodeEventTopics, encodeFunctionResult, decodeFunctionData, 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MasterSigner,
-  RPC_TIMEOUT_MS,
   WOTS_W16,
   accountV2Abi,
   checkRescue,
   exitAbi,
   harborCommitment,
+  keepBurn,
   memoryStore,
   parseRescue,
   rescueDue,
@@ -21,6 +21,7 @@ import {
   sendAtFrom,
   sendRescue,
   setRpcFetch,
+  setRpcTimeout,
   signRescue,
   timeToSend,
   wouldBurn,
@@ -43,6 +44,8 @@ const { tx: signed } = signRescue({ signer, exit, account, epochSalt, harbor, ha
 const aRescue = (marginSeconds = 15) => ({ tx: signed, rescue: parseRescue(rescueFile({ tx: signed, genesis, marginSeconds })) });
 
 interface World {
+  /** Each chain has a head of its own, so that one test's stall cannot reach the next. */
+  head: Hex;
   items: number;
   recipientOf: (id: number) => Hex;
   executeAfter: (id: number) => bigint;
@@ -63,8 +66,10 @@ interface World {
 
 const healthy = () => ({ canonicalMempoolValid: true, frames: [{ gasUsed: "0x17b42", succeeded: true }, { gasUsed: "0x10000", succeeded: true }], gasUsed: "0x20000", executionError: null, maxCost: "0x1" });
 
+let heads = 0;
 function world(over: Partial<World> = {}): World {
   return {
+    head: keccak256(toHex(`head ${heads++}`)),
     items: 0,
     recipientOf: () => payee,
     executeAfter: () => 1000n,
@@ -99,7 +104,7 @@ function answer(w: World, memo: Map<string, Hex>, call: { method: string; params
       return w.logs();
     case "eth_getBlockByNumber":
       if (call.params[0] === "0x0") return { hash: w.genesis };
-      return { number: "0x10", hash: `0x${"11".repeat(32)}`, parentHash: `0x${"22".repeat(32)}`, timestamp: `0x${w.now.toString(16)}`, baseFeePerGas: "0x7", gasLimit: "0x1c9c380", gasUsed: "0x0", miner: zeroAddress, logsBloom: `0x${"00".repeat(256)}`, transactions: [], uncles: [], difficulty: "0x0", extraData: "0x", nonce: "0x0000000000000000", sha3Uncles: `0x${"00".repeat(32)}`, receiptsRoot: `0x${"00".repeat(32)}`, stateRoot: `0x${"00".repeat(32)}`, transactionsRoot: `0x${"00".repeat(32)}`, size: "0x0" };
+      return { number: "0x10", hash: w.head, parentHash: `0x${"22".repeat(32)}`, timestamp: `0x${w.now.toString(16)}`, baseFeePerGas: "0x7", gasLimit: "0x1c9c380", gasUsed: "0x0", miner: zeroAddress, logsBloom: `0x${"00".repeat(256)}`, transactions: [], uncles: [], difficulty: "0x0", extraData: "0x", nonce: "0x0000000000000000", sha3Uncles: `0x${"00".repeat(32)}`, receiptsRoot: `0x${"00".repeat(32)}`, stateRoot: `0x${"00".repeat(32)}`, transactionsRoot: `0x${"00".repeat(32)}`, size: "0x0" };
     case "ethrex_simulateFrameTransaction":
       return w.simulate();
     case "eth_call": {
@@ -269,6 +274,12 @@ describe("whether it would work", () => {
     expect(wouldBurn(check)).toBe(false);
   });
 
+  it("does not let a forged genesis hide a burn", async () => {
+    serve(world({ commitment: keccak256(toHex("moved")) }));
+    const forged = parseRescue(rescueFile({ tx, genesis: keccak256(toHex("not this chain")), marginSeconds: 15 }));
+    expect(wouldBurn(await checkRescue(forged))).toBe(true);
+  });
+
   it("still tries with a reserve that is short, since someone can top it up", async () => {
     serve(world({ reserve: 1n }));
     const check = await checkRescue(rescue);
@@ -359,23 +370,70 @@ describe("sending it", () => {
     expect(canonical).toBe(1);
   });
 
+  // Both mempools then hold the same bytes, so which one carried it cannot be told, and the tool does not claim to know.
   it(
-    "goes there when the sidecar takes it and never relays it",
+    "goes there as well when the sidecar takes it and never relays it",
     async () => {
       const { sent, canonical } = await through(answered((method) => (method === "skandha_frameTransactionStatus" ? { status: "Pending" } : rescue.hash)));
       expect(canonical).toBe(1);
-      expect(sent.route).toBe("canonical");
+      expect(sent.route).toBe("either");
     },
     20_000,
   );
 
+  it("does not let a sidecar that hangs use up more than its patience", async () => {
+    setRpcTimeout(5_000);
+    try {
+      const started = Date.now();
+      const { canonical } = await through((() => new Promise(() => {})) as typeof fetch);
+      expect(canonical).toBe(1);
+      expect(Date.now() - started).toBeLessThan(3_000);
+    } finally {
+      setRpcTimeout(120_000);
+    }
+  });
+
+  // This is the outage the fallback is for. `submit` reads a receipt before it sends, so a dead node used to mean the sidecar was never asked.
+  it("still asks the sidecar when the node is dead", async () => {
+    let sent = 0;
+    const dead = (async () => new Response("no", { status: 503 })) as typeof fetch;
+    const sidecar = answered((method) => {
+      if (method === "eth_sendFrameTransaction") sent++;
+      return rescue.hash;
+    });
+    setRpcFetch(dead, { sidecar });
+    await expect(sendRescue(rescue, { timeoutMs: 400 })).rejects.toThrow(/not mined in time/);
+    expect(sent).toBe(1);
+  });
+
+  it("is not stopped by a refusal from the canonical mempool once the sidecar holds it", async () => {
+    const w = world();
+    const node = (async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string);
+      if (body.method === "eth_sendRawTransaction") {
+        w.receipt = { status: "0x1", blockNumber: "0x2a", gasUsed: "0x1", frameReceipts: [{ status: "0x1", gasUsed: "0x1", stateGasUsed: "0x0", logs: [] }] };
+        return reply(body.id, { error: { code: -32000, message: "something the node does not like" } });
+      }
+      return reply(body.id, { result: answer(w, new Map(), body) });
+    }) as typeof fetch;
+    setRpcFetch(node, { sidecar: answered(() => rescue.hash) });
+    expect((await sendRescue(rescue, { timeoutMs: 400 })).route).toBe("either");
+  });
+
+  it("gives up when neither mempool takes it", async () => {
+    const refuses = (async (_u: string, init: RequestInit) => reply(JSON.parse(init.body as string).id, { error: { code: -32602, message: "refused" } })) as typeof fetch;
+    setRpcFetch(refuses, { sidecar: refuses });
+    await expect(sendRescue(rescue, { timeoutMs: 400 })).rejects.toThrow(/refused/);
+  });
+
+  // What ethrex really says of a transaction it already holds: crates/blockchain/error.rs at 9aa3645.
   it("waits for it when the canonical mempool already has it", async () => {
     const w = world();
     const node = (async (_url: string, init: RequestInit) => {
       const body = JSON.parse(init.body as string);
       if (body.method === "eth_sendRawTransaction") {
         w.receipt = { status: "0x1", blockNumber: "0x2a", gasUsed: "0x1", frameReceipts: [{ status: "0x1", gasUsed: "0x1", stateGasUsed: "0x0", logs: [] }] };
-        return reply(body.id, { error: { code: -32000, message: "already known" } });
+        return reply(body.id, { error: { code: -32000, message: "A pending frame transaction from this sender is already in the pool" } });
       }
       return reply(body.id, { result: answer(w, new Map(), body) });
     }) as typeof fetch;
@@ -406,6 +464,15 @@ describe("what a failed read means at the moment it matters", () => {
     expect(timeToSend({ check: burns, due: null, lastSendAt: 0 }, 1000)).toBe(false);
   });
 
+  // One flaked read used to turn a known burn into unknown, and unknown goes.
+  it("remembers a burn through a read that failed, and lets a good read end it", () => {
+    expect(keepBurn(unknown, burns)).toBe(burns);
+    expect(keepBurn(ready, burns)).toBe(ready);
+    expect(keepBurn(free, burns)).toBe(free);
+    expect(keepBurn(unknown, ready)).toBe(unknown);
+    expect(keepBurn(unknown, null)).toBe(unknown);
+  });
+
   // An item was waiting, its time came, and the chain stopped answering. A rescue nobody needed costs a frozen account. A theft costs everything.
   it("goes on the last good read, when the chain stops answering at the margin", () => {
     expect(timeToSend({ check: unknown, due: null, lastSendAt: 5000 }, 5000)).toBe(true);
@@ -424,28 +491,68 @@ describe("what a failed read means at the moment it matters", () => {
 
 describe("a node that does not answer", () => {
   // `rpc` had no timeout, so a page stuck on one read went on showing "Ready".
-  // Fires the real timer by hand. A fake clock would also run vitest's own timers, which it keeps to talk to its workers.
   it("fails, and does not hang", async () => {
-    const timers = vi.spyOn(globalThis, "setTimeout");
+    setRpcTimeout(50);
     try {
       setRpcFetch((() => new Promise(() => {})) as typeof fetch);
-      const read = rpc("http://127.0.0.1:1", "eth_blockNumber");
-      const seen = expect(read).rejects.toThrow(/no answer/);
-      const expire = timers.mock.calls.find(([, ms]) => ms === RPC_TIMEOUT_MS)?.[0] as () => void;
-      expire();
-      await seen;
+      await expect(rpc("http://127.0.0.1:1", "eth_blockNumber")).rejects.toThrow(/no answer/);
     } finally {
-      timers.mockRestore();
+      setRpcTimeout(120_000);
     }
   });
 });
 
 describe("a head that has stopped moving", () => {
+  /** Two reads of one chain, this many seconds apart by this machine's clock. */
+  async function readsApart(seconds: number, w: World) {
+    const started = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(started);
+    try {
+      serve(w);
+      const first = await rescueDue(aRescue().rescue);
+      clock.mockReturnValue(started + seconds * 1000);
+      return { first, later: await rescueDue(aRescue().rescue) };
+    } finally {
+      clock.mockRestore();
+    }
+  }
+
+  // A node stuck at one block showed the item, and the same time left, for ever, while the theft matured on the real chain.
+  it("does not stop the clock: the rescue still goes", async () => {
+    const { first, later } = await readsApart(3600, world({ items: 1, executeAfter: () => 1100n, now: 1000n }));
+    expect(first.sendIn).toBe(85);
+    expect(first.due).toBe(false);
+    expect(later.due).toBe(true);
+    expect(timeToSend({ check: null, due: later, lastSendAt: null })).toBe(true);
+  });
+
+  it("does not count a gap between blocks", async () => {
+    const { later } = await readsApart(20, world({ items: 1, executeAfter: () => 1100n, now: 1000n }));
+    expect(later.sendIn).toBe(85);
+  });
+
+  it("starts counting again when the head moves", async () => {
+    const w = world({ items: 1, executeAfter: () => 1100n, now: 1000n });
+    const started = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(started);
+    try {
+      serve(w);
+      await rescueDue(aRescue().rescue);
+      clock.mockReturnValue(started + 60_000);
+      w.head = keccak256(toHex("the next block"));
+      w.now = 1060n;
+      expect((await rescueDue(aRescue().rescue)).sendIn).toBe(25);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it("is called out, and does not stop the watch", async () => {
     const now = BigInt(Math.floor(Date.now() / 1000)) - 600n;
-    serve(world({ now }));
+    serve(world({ now, items: 1, executeAfter: () => now + 1000n }));
     const due = await rescueDue(aRescue().rescue);
     expect(due.staleBy).toBeGreaterThanOrEqual(600);
+    expect(due.waiting).toHaveLength(1);
   });
 
   it("is quiet on a healthy chain", async () => {
