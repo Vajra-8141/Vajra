@@ -1,0 +1,52 @@
+{
+ "ranAt": "2026-11-06T04:29:51.686Z",
+ "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch",
+ "chainId": 13370,
+ "genesis": "0x74f05f1d3d0589fbf8e763a064aefe6d9941f6ab907cb52993142ede6c23cf3c",
+ "method": "ethrex_simulateFrameTransaction, a fresh proof per sample",
+ "recoveryVerify": {
+  "min": 294080,
+  "median": 294080,
+  "max": 294080,
+  "samples": 24
+ },
+ "recoveryWholeTx": {
+  "min": 872849,
+  "median": 872897,
+  "max": 872909,
+  "samples": 24
+ },
+ "unshieldVerify": {
+  "min": 302852,
+  "median": 329180,
+  "max": 353314,
+  "samples": 24
+ },
+ "unshieldWholeTx": {
+  "min": 641818,
+  "median": 670498,
+  "max": 696754,
+  "samples": 24
+ },
+ "shieldFirstNoteSenderFrame": 896245,
+ "shieldLaterWholeTx": {
+  "min": 965762,
+  "median": 986868,
+  "max": 1007981,
+  "samples": 31
+ },
+ "proverMs": {
+  "recovery": {
+   "min": 77,
+   "median": 83,
+   "max": 318,
+   "samples": 24
+  },
+  "unshield": {
+   "min": 324,
+   "median": 341,
+   "max": 368,
+   "samples": 24
+  }
+ }
+}

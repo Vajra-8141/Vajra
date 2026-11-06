@@ -150,6 +150,9 @@ switch (command) {
     await import("./stealth.ts");
     break;
   case "device-e2e":
+    protectEvidence();
+    await import("./device-e2e.ts");
+    break;
   case "measure":
   case "pin":
   case "budget":
@@ -157,6 +160,12 @@ switch (command) {
     break;
   case "judge":
     await import("./judge.ts");
+    break;
+  case "compare":
+    await import("./compare.ts");
+    break;
+  case "measure-zk":
+    await import("./measure-zk.ts");
     break;
   case "shielded":
     await import("./shielded.ts");
@@ -197,6 +206,8 @@ recovery: recover-setup [--delay s] [--out file] | recover-prove --secret file [
           recover                        (no flags: the whole story on a fresh account, with every attack)
 pool:     shield | unshield <recipient>  (one note in, one note out)
           shielded                       (the whole pool on a fresh account, with every attack)
+          compare                        (the same proof, offered to the sidecar as deployed and as patched)
+          measure-zk                     (the gas rows for proofs)
           These need the mirror: VAJRA_STACK=local.
 devnet:   deploy [w16|w256|stealth] | e2e | device-e2e | stealth | measure | pin | budget | arkiv`);
     process.exit(1);

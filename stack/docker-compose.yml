@@ -61,6 +61,29 @@ services:
       - --redirectRpc
       - --explorer.enable
 
+  # The sidecar as deployed, at the same commit with no patch. Only `vajra compare` uses it, so it is off by default.
+  sidecar-unpatched:
+    profiles: [compare]
+    image: vajra-sidecar:2e22ff0
+    build: ../.stack/sidecar-unpatched
+    restart: on-failure
+    depends_on: [ethrex]
+    volumes:
+      - ./sidecar.config.json:/config.json:ro
+    ports:
+      - "127.0.0.1:14338:14337"
+    environment:
+      NODE_ENV: production
+    command:
+      - standalone
+      - --configFile=/config.json
+      - --dataDir=/tmp/sidecar
+      - --api.address=0.0.0.0
+      - --api.port=14337
+      - --api.wsPort=14337
+      - --executor.bundlingMode=manual
+      - --redirectRpc
+
   explorer:
     image: vajra-explorer:2e22ff0
     build:

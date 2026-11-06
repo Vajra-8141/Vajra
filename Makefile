@@ -1,5 +1,5 @@
 # See JUDGES.md. Needs Docker, Node 22.18 or newer, and pnpm.
-.PHONY: judge up down
+.PHONY: judge up down unpatched
 
 judge:
 	pnpm install --frozen-lockfile --filter @vajra/cli...
@@ -11,3 +11,7 @@ up:
 
 down:
 	./stack/down.sh
+
+# The sidecar as deployed, beside the patched one, for `vajra compare`. Adds about 90 seconds, once.
+unpatched:
+	./stack/unpatched.sh
