@@ -31,9 +31,9 @@ import {
   recoveryGate,
   recoveryTicket,
   recoveryTx,
+  rpc,
   sendRescue,
   signDaily,
-  simulateFrames,
   submit,
   unshieldTx,
   waitForSuccess,
@@ -335,12 +335,11 @@ check((await held(after.address)) === PAID, `${formatEther(PAID)} ETH is held fo
 const freeAfter = await free(after.address);
 check(freeAfter >= freeBefore, `the note paid its own fee: the owner's free balance did not fall, ${formatEther(freeBefore)} to ${formatEther(freeAfter)} ETH`);
 await refused("One note, the same proof sent again", { ...refusedTx, nonceSeq: 1n }, "NullifierSpent");
-// Valid in VERIFY, so it is really mined, and has to fail in its frame. The name comes from the client's own trace of the same bytes.
+// Valid in VERIFY, so it is really mined, and has to fail in its frame. The name comes from the client's trace of the transaction that landed.
 const lootAddress = fresh();
-const raid = await after.thief([ops.spend(ETH, lootAddress, parseEther("0.15"))]);
-const traced = JSON.stringify(await simulateFrames(raid, "latest", true));
-const named = traced.includes(toFunctionSelector("ValueNotConserved()").slice(2));
-const raided = await submit(raid);
+const raided = await submit(await after.thief([ops.spend(ETH, lootAddress, parseEther("0.15"))]));
+const trace = JSON.stringify(await rpc(DEVNET.execution, "debug_traceTransaction", [raided.hash, { tracer: "callTracer" }]));
+const named = trace.includes(toFunctionSelector("ValueNotConserved()").slice(2));
 steps.push({ step: "the thief's same spend, mined with its frame failed", hash: raided.hash });
 const kept = !framesSucceeded(raided.receipt) && (await publicClient.getBalance({ address: lootAddress })) === 0n && (await held(after.address)) === PAID;
 check(named && kept, `The thief's same spend, really sent: ${named ? "ValueNotConserved" : "no name in the trace"}, its frame failed, and the thief holds nothing`);
