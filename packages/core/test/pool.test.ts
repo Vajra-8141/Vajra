@@ -95,7 +95,8 @@ describe("the pool meter", () => {
 });
 
 describe("reading a pool", () => {
-  afterEach(() => setRpcFetch((...args) => fetch(...args)));
+  // Not the real fetch: a client's retries can outlive a test, and in a unit test the chain it names is the public one.
+  afterEach(() => setRpcFetch((async () => new Response("", { status: 503 })) as unknown as typeof fetch));
 
   const DENOM = 10n ** 17n;
   const FEE = 5n * 10n ** 15n;
