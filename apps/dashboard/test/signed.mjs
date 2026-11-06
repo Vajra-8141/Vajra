@@ -24,11 +24,11 @@ const until = async (test, ms = 30_000) => {
 const before = await panel.textContent();
 vajra("thief", "0.2");
 check(await until(async () => (await panel.textContent()) !== before && (await panel.locator("> div").nth(0).textContent()).includes("gas to verify")), "the thief's signature shows on the Daily key row");
-check(await until(async () => (await page.getByRole("button", { name: "Not me, cancel" }).count()) > 0), "the alarm is up");
+check(await until(async () => (await page.locator(".alarm").count()) > 0), "the alarm is up");
 const id = (await page.locator(".item .sub").first().textContent()).match(/Item (\d+)/)[1];
 vajra("veto", id);
 check(await until(async () => (await panel.locator("> div").nth(1).textContent()).includes("gas to verify")), "the veto shows on the Master key row");
-check(await until(async () => (await page.getByRole("button", { name: "Not me, cancel" }).count()) === 0), "the alarm cleared");
+check(await until(async () => (await page.locator(".alarm").count()) === 0), "the alarm cleared");
 await page.waitForTimeout(12_000);
 const banners = await page.locator(".banner.error").allTextContents();
 check(banners.length === 0, `no false alarm after the outside signature: ${banners.join(" | ") || "none"}`);

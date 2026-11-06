@@ -41,7 +41,7 @@ Three terminals on the presenter's laptop, and the phone with Telegram open on `
 
 **Run moment 4 last on the public account.** Escape really does send everything to the harbor, and the account is finished after that.
 
-**Tap on the phone only.** The **Who signed** panel picks up phone taps and the thief's terminal within a few seconds, and the alarm can take up to about 10 seconds to show. The dashboard shows the same **Not me** and **Pay** buttons. Leave them alone, so that one item is never answered from two places at once.
+**Answer on the phone.** The dashboard's alarm only warns: it goes red, beeps and tells you to check your phone. The **Who signed** panel picks up phone taps and the thief's terminal within a few seconds, and the alarm can take up to about 10 seconds to show. The watcher must be running before anything is queued, or the alert only goes out once it starts.
 
 **About one transaction in twenty is cancelled by the node.** `submit` rebroadcasts the same bytes on its own, which adds about
 30 seconds. It is not a failure. Say what is happening if it lands on stage.
@@ -95,13 +95,12 @@ Both signed the same account, on the same chain.
 
 **MetaMask fails:** `vajra spend 0xAddress 0.0001` from a terminal, and say the wallet would sign the same thing.
 
-**The alert does not arrive:** the laptop beep and the red page come from the dashboard, which reads the same queue. Veto from the dashboard, and say what you are doing. Check terminal 3 afterwards.
+**The alert does not arrive:** the laptop beep and the red page come from the dashboard, which reads the same queue. Use the **Veto** button in the queue list, and say what you are doing. Check terminal 3 afterwards.
 
 **The public devnet is down or resets:** `vajra deploy` restores the contracts in one command, for about 0.1 ETH. If there is no ETH, use the mirror:
 
     make judge
-    make dashboard                                # own terminal
-    VAJRA_STACK=local node packages/cli/src/main.ts watch --allow-software-pay
+    make dashboard                                # own terminal. With a bot in .env it starts the watcher too
 
 Then the same beats with `VAJRA_STACK=local`, and say that it is local. The page shows a banner saying so. Reads are direct, not over Nym, and the proof page shows 0 confirmed, because it looks up public transactions.
 

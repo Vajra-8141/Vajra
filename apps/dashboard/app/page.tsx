@@ -79,36 +79,23 @@ function beep() {
 }
 
 /** Fires on what the chain says is queued, and nothing else. The queue is public, so a theft has to show up here. */
-function Alarm({ items, now, busy, onVeto, onPay }: { items: AccountView["items"]; now: number; busy: boolean; onVeto: (id: bigint) => void; onPay: (id: bigint) => void }) {
+function Alarm({ items, now }: { items: AccountView["items"]; now: number }) {
   const heard = useRef(new Set<bigint>());
-  const [dismissed, setDismissed] = useState<Set<bigint>>(new Set());
   useEffect(() => {
     if (items.some((item) => !heard.current.has(item.id))) beep();
     for (const item of items) heard.current.add(item.id);
   }, [items]);
-  const live = items.filter((item) => !dismissed.has(item.id));
-  if (live.length === 0) return null;
+  if (items.length === 0) return null;
   return (
     <div className="alarm" role="alert">
-      {live.map((item) => {
+      {items.map((item) => {
         const left = Number(item.executeAfter) - now;
         return (
           <div key={item.id.toString()}>
             <strong>
               {eth(item.amount)} to <span className="mono">{short(item.recipient)}</span>
             </strong>
-            <div>{left > 0 ? `Leaves in ${countdown(left)} unless you stop it. Was this you?` : "Matured. Anyone can execute it now."}</div>
-            <div className="actions">
-              <button className="danger" disabled={busy} onClick={() => onVeto(item.id)}>
-                Not me, cancel
-              </button>
-              <button disabled={busy} onClick={() => onPay(item.id)}>
-                Pay, it's me
-              </button>
-              <button disabled={busy} onClick={() => setDismissed((d) => new Set(d).add(item.id))}>
-                Dismiss
-              </button>
-            </div>
+            <div>{left > 0 ? `Leaves in ${countdown(left)} unless you stop it. Was this you? Answer on your phone.` : "Matured. Anyone can execute it now."}</div>
           </div>
         );
       })}
@@ -116,7 +103,6 @@ function Alarm({ items, now, busy, onVeto, onPay }: { items: AccountView["items"
   );
 }
 
-/** What actually signed. The same account, two kinds of signature, and the hash one outranks the other. */
 function SignedBy({ daily, master }: { daily: { gas: number; hash: string } | null; master: { gas: number; hash: string } | null }) {
   return (
     <section className="card" aria-labelledby="signed">
@@ -394,13 +380,7 @@ export default function AccountPage() {
       {known?.frozen && <div className="banner frozen">Frozen. Every daily-key transaction is refused until the master key unfreezes the account.</div>}
       {problem && <div className="banner error">{problem}</div>}
       {notice && <div className="banner ok">{notice}</div>}
-      <Alarm
-        items={pending}
-        now={now}
-        busy={!!busy}
-        onVeto={(id) => asMaster(`Veto of item ${id}`, { op: "veto", id: id.toString() })}
-        onPay={(id) => asMaster(`Payment of item ${id}`, { op: "pay", id: id.toString() })}
-      />
+      <Alarm items={pending} now={now} />
 
       <div className="grid">
         <div className="stack">
