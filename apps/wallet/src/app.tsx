@@ -1,6 +1,7 @@
 /** The shell: which wallet state we're in, the tabs and rail, the note that this is test money, and the routes. */
 import { useEffect, useState, type ReactNode } from "react";
 import { engine, isFake } from "./wallet";
+import { Verify } from "./screens/verify";
 import { go, LiveProvider, note, TaskProvider, useLive, useRoute } from "./ui";
 import { Backup, Brand, Create, Lock, ReceiveKey, Recover, Recovering, Restore, Welcome } from "./screens/onboarding";
 import { Home, Queue, statusOf } from "./screens/home";
@@ -203,6 +204,15 @@ export function App() {
         <Note />
         <main>
           <ReceiveKey link={location.href} onReceived={sync} />
+        </main>
+      </div>
+    );
+  } else if (path === "/verify") {
+    body = (
+      <div className="plain-shell">
+        <Note />
+        <main>
+          <Verify />
         </main>
       </div>
     );

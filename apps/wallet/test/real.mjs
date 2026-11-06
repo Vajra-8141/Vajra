@@ -23,7 +23,7 @@ async function device(name, size) {
 const tap = (p, name, role = "button") => p.getByRole(role, { name, exact: false }).first().click();
 const sheet = (p, name) => p.getByRole("dialog").getByRole("button", { name }).click();
 const closeSheet = async (p, timeout = 120000) => {
-  const b = p.locator("button, a").filter({ hasText: /^(Done|Open your safe|Back to Home|Go to Home)$/ }).first();
+  const b = p.locator("button, a").filter({ hasText: /^(Done|Open your safe|Back to Home|Go to Home|Check it yourself)$/ }).first();
   await b.waitFor({ timeout });
   await b.click();
 };

@@ -269,6 +269,8 @@ input[type="range"]::-moz-range-thumb { width: 28px; height: 28px; border-radius
 .safety .step-body { padding-left: 0; }
 .safe-on { color: var(--ok); }
 .practice { display: grid; gap: var(--s3); padding: var(--s4); border: 1px solid var(--line); border-radius: 14px; }
+.check-result { display: grid; gap: var(--s2); padding: var(--s4); border: 1px solid var(--line); border-radius: 14px; }
+.raw { max-height: 280px; overflow: auto; font-family: var(--font-code); font-size: var(--t-xs); color: var(--t60); white-space: pre-wrap; word-break: break-all; }
 .emergency { display: grid; gap: var(--s3); padding-top: var(--s4); border-top: 1px solid var(--line); }
 
 .paper { padding: var(--s5) var(--s4); font-family: var(--font-code); font-size: 1.125rem; line-height: 1.6; text-align: center; overflow-wrap: anywhere; font-variant-numeric: normal; background: var(--surface-1); border: 1px solid var(--line-strong); border-radius: var(--r3); -webkit-user-select: all; user-select: all; }

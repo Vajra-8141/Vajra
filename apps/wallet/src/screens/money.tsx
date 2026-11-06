@@ -73,9 +73,9 @@ export function Send({ code: startCode }: { code?: string }) {
       void run({
         title: "Sending privately",
         run: (s) => engine.sendPrivately(code.trim(), amount.trim(), s),
-        result: (d) => ({ title: "Sent privately", body: "Only the person with that code can find and claim it.", done: d, action: "Back to Home" }),
+        result: (d) => ({ title: "Sent privately", body: "Only the person with that code can find and claim it. You don't have to take our word for it.", done: d, action: "Check it yourself" }),
       }).then((d) => {
-        if (d) go("/");
+        if (d) go(`/verify?tx=${d.hash}`);
       });
     else
       void run({ title: "Sending", run: (s) => engine.send(to as Address, amount.trim(), s) }).then((r) => {
@@ -203,6 +203,9 @@ function PrivateReceive({ safe }: { safe: Address }) {
           <Copy text={code} label="Copy code only" />
         </>
       )}
+      <a className="text-btn" href="#/verify">
+        Check any payment yourself
+      </a>
       <div className="group-head">
         <h2>Payments to you</h2>
         <button className="text-btn" disabled={scanning} onClick={scan}>
