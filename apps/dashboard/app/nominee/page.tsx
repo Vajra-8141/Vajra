@@ -1,7 +1,7 @@
 "use client";
 
 import { type ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
-import { type QueuedView, type Rescue, type RescueCheck, type RescueDue, ETH, RescueInvalid, checkRescue, isLocalStack, parseRescue, publicClient, rescueDue, sendAtFrom, sendRescue, timeToSend, wouldBurn } from "@vajra/core";
+import { type QueuedView, type Rescue, type RescueCheck, type RescueDue, ETH, RescueInvalid, checkRescue, isLocalStack, keepBurn, parseRescue, publicClient, rescueDue, sendAtFrom, sendRescue, timeToSend, wouldBurn } from "@vajra/core";
 import { Lattice } from "../../components/lattice";
 import { Stamp } from "../../components/stamp";
 import { Term } from "../../components/term";
@@ -67,6 +67,7 @@ export default function NomineePage() {
   const [harborHolds, setHarborHolds] = useState<bigint | null>(null);
   const inFlight = useRef(false);
   const lastSendAt = useRef<number | null>(null);
+  const lastCheck = useRef<RescueCheck | null>(null);
 
   const load = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -77,6 +78,7 @@ export default function NomineePage() {
     setSendFailed(null);
     setArmed(false);
     lastSendAt.current = null;
+    lastCheck.current = null;
     try {
       setRescue(parseRescue(await file.text()));
       setInvalid(null);
@@ -92,7 +94,7 @@ export default function NomineePage() {
     setSending(true);
     setSendFailed(null);
     try {
-      await sendRescue(r);
+      await sendRescue(r, { patienceMs: r.marginSeconds * 333 });
     } catch (error) {
       setSendFailed((error as Error).message.slice(0, 300));
     } finally {
@@ -107,8 +109,9 @@ export default function NomineePage() {
     let live = true;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
-      const health = await checkRescue(rescue);
+      const health = keepBurn(await checkRescue(rescue), lastCheck.current);
       if (!live) return;
+      lastCheck.current = health;
       setCheck(health);
       if (health.state === "sent") {
         const held = await publicClient.getBalance({ address: rescue.harbor }).catch(() => null);

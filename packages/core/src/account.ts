@@ -194,14 +194,23 @@ export async function readAccount(address: Address): Promise<AccountView> {
   const decode = <T>(functionName: string, data: Hex | undefined) => decodeFunctionResult({ abi: accountAbi, functionName, data: data! }) as T;
 
   const mark = settledBelow.get(address);
-  const [dailyKey, frozen, nextItem, rule, balance, anchor] = await rpcBatch<Hex>(DEVNET.execution, [
-    call("dailyKey"),
-    call("frozen"),
-    call("nextItem"),
-    call("rule", [ETH]),
-    { method: "eth_getBalance", params: [address, "latest"] },
-    ...(mark ? [{ method: "eth_getBlockByNumber", params: [mark.block, false] }] : []),
-  ]);
+  let answers: Hex[];
+  try {
+    answers = await rpcBatch<Hex>(DEVNET.execution, [
+      call("dailyKey"),
+      call("frozen"),
+      call("nextItem"),
+      call("rule", [ETH]),
+      { method: "eth_getBalance", params: [address, "latest"] },
+      ...(mark ? [{ method: "eth_getBlockByNumber", params: [mark.block, false] }] : []),
+    ]);
+  } catch (error) {
+    // Some nodes call a block they have pruned an error and not a null, and that must not fail every read from then on.
+    if (!mark) throw error;
+    settledBelow.delete(address);
+    return readAccount(address);
+  }
+  const [dailyKey, frozen, nextItem, rule, balance, anchor] = answers;
   const next = decode<bigint>("nextItem", nextItem);
   const start = next > QUEUE_WINDOW ? next - QUEUE_WINDOW : 0n;
   const settled = mark && (anchor as unknown as { hash: Hex } | null)?.hash === mark.hash ? mark.below : 0n;

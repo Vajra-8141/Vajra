@@ -5,7 +5,7 @@ import { LeafRegistry } from "@vajra/core/registry";
 import { ETH, RpcError, accountAbi, accountState, isLocalStack, ops, publicClient, refusalName, signDaily, submit } from "@vajra/core";
 import { startBridge } from "./bridge.ts";
 import { deploy } from "./deploy.ts";
-import { closeDevice, createWallet, localDailyAddress, localDailyKey, recordSigned, requireWallet, runMasterOp, theDevice, walletStatus, warnOfWaiting } from "./wallet.ts";
+import { closeDevice, createWallet, localDailyAddress, localDailyKey, recordSigned, requireWallet, runMasterOp, theDevice, refuseIfWaiting, walletStatus } from "./wallet.ts";
 
 // Optional: it only holds what the leaf registry needs, and everything works without one.
 try {
@@ -124,8 +124,8 @@ switch (command) {
   case "unfreeze":
   case "escape":
   case "rotate":
+    if (command === "unfreeze" && !args.includes("--anyway")) await refuseIfWaiting();
     report(await runMasterOp({ op: command }, console.log));
-    if (command === "unfreeze") await warnOfWaiting();
     break;
   case "set-daily":
     report(await runMasterOp({ op: "setDailyKey", key: rest[0] as Address }, console.log));

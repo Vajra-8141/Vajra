@@ -22,12 +22,14 @@ import {
   exitAbi,
   framesSucceeded,
   genesisHash,
+  keepBurn,
   parseRescue,
   publicClient,
   rescueDue,
   rescueFile,
   sendAtFrom,
   sendRescue,
+  setRpcTimeout,
   signRescue,
   sleep,
   timeToSend,
@@ -42,6 +44,8 @@ export const localRescuePath = () => keyPath("rescue.json");
 
 /** A rescue cannot raise its fee later, so it is signed well above today's. This is a cap: unused gas comes back. */
 const DEFAULT_MAX_FEE_GWEI = "10";
+/** A watcher talks to a node directly, so it does not wait as long on one as a page on the mixnet does. */
+const WATCH_RPC_TIMEOUT_MS = 20_000;
 
 /** How long the owner's own alert says they have. Null if this machine has signed no rescue. */
 export function localRescueMargin(): number | null {
@@ -61,10 +65,13 @@ export async function nomineeSetup(o: { out?: string; margin?: string; maxFee?: 
   // A missing seed file would become a new tree here, without a word, and sign something the exit can never accept.
   const treePath = keyPath("signer.exit.json");
   if (!existsSync(treePath)) throw new Error(`${treePath} is not here, so this machine does not hold the exit's key. Restore it from your backup: a new one could not sign for this exit`);
-  const tree = exitTree();
-  const held = (await publicClient.readContract({ address: exit, abi: exitAbi, functionName: "root" })) as string;
-  if (tree.root !== held) throw new Error(`${treePath} is not the tree this exit holds. Restore the right one from your backup`);
-  const [{ epochSalt }, assets, delay, genesis] = await Promise.all([accountState(account), read<readonly Address[]>("assets"), read<bigint>("queueDelay"), genesisHash()]);
+  const [{ epochSalt }, assets, delay, genesis, held] = await Promise.all([
+    accountState(account),
+    read<readonly Address[]>("assets"),
+    read<bigint>("queueDelay"),
+    genesisHash(),
+    publicClient.readContract({ address: exit, abi: exitAbi, functionName: "root" }) as Promise<string>,
+  ]);
 
   const margin = o.margin ? Number(o.margin) : defaultMargin(Number(delay));
   if (!Number.isSafeInteger(margin) || margin <= 0 || margin >= Number(delay)) throw new Error(`the margin has to be between 0 and the queue's delay, ${delay} seconds`);
@@ -72,6 +79,9 @@ export async function nomineeSetup(o: { out?: string; margin?: string; maxFee?: 
   const tokens = assets.filter((asset) => asset !== ETH).length + extra.length;
   const fees = { maxFeePerGas: parseGwei(o.maxFee ?? DEFAULT_MAX_FEE_GWEI), maxPriorityFeePerGas: DEFAULT_FEES.maxPriorityFeePerGas };
 
+  // Loaded here and not earlier: nothing may wait between reading which leaf is next and signing it, or another process could sign the same one.
+  const tree = exitTree();
+  if (tree.root !== held) throw new Error(`${treePath} is not the tree this exit holds. Restore the right one from your backup`);
   const { tx, leaf } = signRescue({ signer: tree, exit, account, epochSalt, harbor, harborSalt, tokens, extra, fees });
   const text = rescueFile({ tx, genesis, marginSeconds: margin });
   const out = o.out ?? localRescuePath();
@@ -113,6 +123,7 @@ export async function nomineeWatch(o: { rescue: string; margin?: string; interva
   if (!Number.isSafeInteger(margin) || margin <= 0) throw new Error(`--margin is a whole number of seconds, and ${o.margin} is not`);
   const interval = Number(o.interval ?? 3) * 1000;
   if (!(interval > 0)) throw new Error(`--interval is a number of seconds, and ${o.interval} is not`);
+  setRpcTimeout(WATCH_RPC_TIMEOUT_MS);
   console.log(`watching ${rescue.account}. This process holds no key.\nIf anything is still waiting ${margin} seconds before it leaves, this sends everything to ${rescue.harbor}.`);
 
   let said = "";
@@ -127,7 +138,7 @@ export async function nomineeWatch(o: { rescue: string; margin?: string; interva
   for (;;) {
     let due: RescueDue | null = null;
     try {
-      health = await checkRescue(rescue);
+      health = keepBurn(await checkRescue(rescue), health);
       if (health.state === "sent") {
         if (health.succeeded) {
           console.log(`already sent${health.copy ? ", by a copy" : ""}: ${health.hash}, block ${health.block}`);
@@ -156,9 +167,10 @@ export async function nomineeWatch(o: { rescue: string; margin?: string; interva
     if (timeToSend({ check: health, due, lastSendAt })) {
       console.log(due ? `nobody answered. Sending the rescue, with ${due.soonest! - due.now} seconds left` : `the chain cannot be read, and the last good read said it is time. Sending the rescue`);
       try {
-        const { hash, receipt, route } = await sendRescue(rescue, { log: console.log });
+        const { hash, receipt, route } = await sendRescue(rescue, { log: console.log, patienceMs: (due?.margin ?? margin) * 333 });
         if (framesSucceeded(receipt)) {
-          console.log(`rescued: ${hash}, block ${Number(BigInt(receipt.blockNumber))}, through the ${route} mempool. The harbor holds ${formatEther(await publicClient.getBalance({ address: rescue.harbor }))} ETH`);
+          const through = route === "either" ? "one of the two mempools" : `the ${route} mempool`;
+          console.log(`rescued: ${hash}, block ${Number(BigInt(receipt.blockNumber))}, through ${through}. The harbor holds ${formatEther(await publicClient.getBalance({ address: rescue.harbor }))} ETH`);
           return;
         }
         console.log(`THE RESCUE MINED AND A FRAME FAILED: ${hash}`);
