@@ -28,6 +28,9 @@ import {
   poolMeter,
   publicClient,
   readPoolFacts,
+  recoveryGate,
+  recoveryTicket,
+  recoveryTx,
   sendRescue,
   signDaily,
   simulateFrames,
@@ -38,7 +41,7 @@ import {
 } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
-import { type Note, noteCommitment, noteFromSeed, noteNullifier, proveUnshield, stopProver } from "./proving.ts";
+import { type Note, noteCommitment, noteFromSeed, noteNullifier, proveRecovery, proveUnshield, randomFieldElement, recoveryCommitment, stopProver } from "./proving.ts";
 import { CLAIM_GAS, denomination, noteFee, poolLeaves, readPool } from "./shield.ts";
 import { check, deployRefuser, evidence, master, mined, newAccount, newSigner, preFixV2Factory, refusals, refused, tally } from "./zk-run.ts";
 
@@ -350,6 +353,19 @@ await mined("the thief spends the free balance down, as a spend may", await afte
 await refused("Fees reaching into a claim, with almost nothing free", await after.thief([ops.spend(ETH, fresh(), 1n)]), "ValueNotConserved");
 // A master transaction's fee is not held to this: the master key can take the pool anyway. So the owner tops up before signing anything here.
 await waitForSuccess(await walletFor(deployer).sendTransaction({ to: after.address, value: parseEther("0.3"), gas: 500_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" }), "topping the account up");
+
+console.log("\n10b. A recovery's fee cannot reach it either");
+const rec = await thiefAccount("recovery", deployments().v2!.factory, parseEther("0.2"));
+const recNote = await depositNote("a note, with the master key", rec);
+await mined("the note goes to a contract that refuses it", sendNote(rec.address, await proofOf(rec.address, recNote.note, recNote.leaf, await deployRefuser(deployer))));
+const paper2 = randomFieldElement();
+const ticket2 = recoveryTicket(paper2);
+await mined("the owner sets a recovery paper", rec.owner([opsV2.setRecovery(await recoveryCommitment(paper2), 60n, recoveryGate(ticket2))]));
+const recDraft = await rec.thief([ops.spend(ETH, fresh(), (await free(rec.address)) - parseEther("0.003"))]);
+await mined("the thief spends the free balance down", await rec.thief([ops.spend(ETH, fresh(), (await free(rec.address)) - maxGas(recDraft) * recDraft.fees.maxFeePerGas - 1_000_000_000_000n)]));
+const recRoot = newSigner().root;
+const recProved = await proveRecovery({ secret: paper2, newRoot: recRoot, account: rec.address, epochSalt: (await accountState(rec.address)).epochSalt, chainId });
+await refused("A recovery's fee reaching into a claim", recoveryTx({ account: rec.address, newRoot: recRoot, nullifier: recProved.nullifier, proof: recProved.proof, ticket: ticket2 }), "ValueNotConserved");
 
 console.log("\n11. Nobody but the holder can move it");
 const bent = [...refusedProof.proof] as unknown as bigint[];
