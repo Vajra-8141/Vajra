@@ -31,9 +31,9 @@ printf '%s' "$GENESIS_KEY" > "$root/.vajra-local/deployer.key"
 
 rpc() { curl -s -m 3 "$1" -H 'content-type: application/json' -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"$2\",\"params\":[]}"; }
 for _ in $(seq 1 120); do
-  rpc http://127.0.0.1:14337/rpc/ eth_chainId | grep -q 0x343a && [ "$(rpc http://127.0.0.1:18545 eth_blockNumber | grep -c '"0x[1-9a-f]')" = 1 ] && break
+  rpc http://127.0.0.1:$VAJRA_SIDECAR_PORT/rpc/ eth_chainId | grep -q 0x343a && [ "$(rpc http://127.0.0.1:$VAJRA_RPC_PORT eth_blockNumber | grep -c '"0x[1-9a-f]')" = 1 ] && break
   sleep 1
 done
-rpc http://127.0.0.1:14337/rpc/ eth_chainId | grep -q 0x343a || { echo "the sidecar did not come up" >&2; "${compose[@]}" logs --tail 30 sidecar >&2; exit 1; }
-rpc http://127.0.0.1:18545 eth_blockNumber | grep -q '"0x[1-9a-f]' || { echo "no blocks are being made" >&2; "${compose[@]}" logs --tail 30 miner ethrex >&2; exit 1; }
+rpc http://127.0.0.1:$VAJRA_SIDECAR_PORT/rpc/ eth_chainId | grep -q 0x343a || { echo "the sidecar did not come up" >&2; "${compose[@]}" logs --tail 30 sidecar >&2; exit 1; }
+rpc http://127.0.0.1:$VAJRA_RPC_PORT eth_blockNumber | grep -q '"0x[1-9a-f]' || { echo "no blocks are being made" >&2; "${compose[@]}" logs --tail 30 miner ethrex >&2; exit 1; }
 echo "mirror up: ethrex http://127.0.0.1:18545, alt mempool http://127.0.0.1:14337/rpc/, explorer http://127.0.0.1:18080"

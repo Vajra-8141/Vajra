@@ -18,12 +18,13 @@ const PUBLIC = {
  * The mirror `stack/up.sh` boots: the same two upstream commits, with the sidecar patched. It has its own chain id, so that
  * nothing recorded against it can be read as a public devnet result.
  */
+const LANE = Number((globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.NEXT_PUBLIC_VAJRA_LANE ?? (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.VAJRA_LANE ?? 0) * 100;
 const LOCAL: typeof PUBLIC = {
   chainId: 13370,
-  execution: "http://127.0.0.1:18545",
-  mempool: "http://127.0.0.1:14337/rpc/",
-  gateway: "http://127.0.0.1:14337/rpc/",
-  explorer: "http://127.0.0.1:18080",
+  execution: `http://127.0.0.1:${18545 + LANE}`,
+  mempool: `http://127.0.0.1:${14337 + LANE}/rpc/`,
+  gateway: `http://127.0.0.1:${14337 + LANE}/rpc/`,
+  explorer: `http://127.0.0.1:${18080 + LANE}`,
   stakingRegistry: PUBLIC.stakingRegistry,
   usdc: PUBLIC.usdc,
 };

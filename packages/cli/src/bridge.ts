@@ -12,8 +12,9 @@ import { ETH, RpcError, readAccount, refusalName } from "@vajra/core";
 import { formatEther } from "viem";
 import { createWallet, lastSigned, loadWallet, runMasterOp, theDevice, walletStatus } from "./wallet.ts";
 
-const PORT = Number(process.env.VAJRA_BRIDGE_PORT ?? 8787);
-const ORIGIN = process.env.VAJRA_ORIGIN ?? "http://localhost:3000";
+const LANE = Number(process.env.VAJRA_LANE ?? 0) * 100;
+const PORT = Number(process.env.VAJRA_BRIDGE_PORT ?? 8787 + LANE);
+const ORIGIN = process.env.VAJRA_ORIGIN ?? `http://localhost:${3000 + LANE}`;
 
 const MAX_BODY = 16_384;
 

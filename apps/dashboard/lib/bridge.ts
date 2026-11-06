@@ -1,5 +1,5 @@
 /** The local process that holds the master key. The dashboard asks it for operations and never sees the seed. */
-export const BRIDGE = "http://127.0.0.1:8787";
+export const BRIDGE = `http://127.0.0.1:${8787 + Number(process.env.NEXT_PUBLIC_VAJRA_LANE ?? 0) * 100}`;
 
 export interface BridgeStatus {
   signer: "software" | "esp32" | "emulator";

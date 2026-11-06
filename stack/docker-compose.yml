@@ -11,7 +11,7 @@ services:
       - ./genesis.json:/genesis.json:ro
       - ../.stack/jwt.hex:/jwt.hex:ro
     ports:
-      - "127.0.0.1:18545:8545"
+      - "127.0.0.1:${VAJRA_RPC_PORT:-18545}:8545"
     command:
       - --network=/genesis.json
       - --datadir=/tmp/chain
@@ -45,7 +45,7 @@ services:
     volumes:
       - ./sidecar.config.json:/config.json:ro
     ports:
-      - "127.0.0.1:14337:14337"
+      - "127.0.0.1:${VAJRA_SIDECAR_PORT:-14337}:14337"
     environment:
       # The published throwaway key from the upstream devnet, funded in genesis.json, so that the faucet works here.
       SKANDHA_FAUCET_KEY: "0x06f911c1ecb2053bb443ba0a0e28d630c583c3c0c2f334a9ecdc8c7c6ad4ea15"
@@ -71,7 +71,7 @@ services:
     volumes:
       - ./sidecar.config.json:/config.json:ro
     ports:
-      - "127.0.0.1:14338:14337"
+      - "127.0.0.1:${VAJRA_UNPATCHED_PORT:-14338}:14337"
     environment:
       NODE_ENV: production
     command:
@@ -90,4 +90,4 @@ services:
       context: ../.stack/sidecar
       dockerfile: ../../stack/explorer.Dockerfile
     ports:
-      - "127.0.0.1:18080:8080"
+      - "127.0.0.1:${VAJRA_EXPLORER_PORT:-18080}:8080"
