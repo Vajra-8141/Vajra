@@ -311,6 +311,9 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         if (nonceKey == 0) {
             _requireStealthSpend(s.coSigner, leaf);
         } else {
+            // A stealth account's hash key is known to whoever paid it, so the co-signature is the only thing that makes it the
+            // recipient's. It has to hold on every path, and the linear nonce above is the only one that checks it.
+            if (s.coSigner != address(0)) revert CoSignerRequired();
             // One leaf, one key, one use: the nonce key is derived from the root and the leaf, so the protocol itself
             // refuses a second transaction on this leaf, including after a rotation back to an old root.
             if (txparam(TxParam.NONCE_KEY_COUNT) != 1 || nonceKey != uint256(keccak256(abi.encodePacked(root, uint8(leaf))))) {

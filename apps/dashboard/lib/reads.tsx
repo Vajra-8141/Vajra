@@ -8,7 +8,7 @@
  * own: switching to one that hides nothing is a choice the user has to make with their eyes open.
  */
 import { AnonRpcWorker } from "@anon-rpc/browser-harness";
-import { setRpcFetch } from "@vajra/core";
+import { isLocalStack, setRpcFetch } from "@vajra/core";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 const BOOTSTRAP_RPC = "https://ethereum-rpc.publicnode.com";
@@ -64,7 +64,8 @@ const bootstrap = {
 const blocked: typeof fetch = () => Promise.reject(new Error("no read path: the anonymizing network is not available"));
 
 export function ReadsProvider({ children }: { children: ReactNode }) {
-  const [network, setNetwork] = useState<NetworkId>("nym");
+  // An anonymizing network cannot reach a chain on this machine, so the mirror reads directly, and the page says so.
+  const [network, setNetwork] = useState<NetworkId>(isLocalStack ? "direct" : "nym");
   const [status, setStatus] = useState<Status>("starting");
   const [error, setError] = useState<string | null>(null);
   const worker = useRef<AnonRpcWorker | null>(null);
@@ -72,7 +73,7 @@ export function ReadsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const saved = localStorage.getItem("vajra.reads") as NetworkId | null;
-      if (saved && saved in NETWORKS) setNetwork(saved);
+      if (saved && saved in NETWORKS && !isLocalStack) setNetwork(saved);
     } catch {
       // Private windows can refuse storage. The default is the safe one anyway.
     }

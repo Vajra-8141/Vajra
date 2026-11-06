@@ -9,15 +9,20 @@ curve for a quantum computer to break.
 If your seed phrase is stolen, a thief can take a day's limit and no more. Anything bigger waits in public, where you can
 cancel it. And when you press escape, a thief's pending transaction cannot stop you.
 
-> **A known flaw in the deployed contract.** A thief holding only the daily key can spend every nonce key the master key will ever
-> need, which ends the master key: no veto, no freeze, no escape. We reproduced it on the local mirror against the deployed bytes,
-> 64 of 64 leaves in about 90 seconds, and did not run it on the public devnet. The fix is one check. It is in this repo's source, where
-> the same attack gets 0 of 64, but **it is not on the public devnet yet**, so `contracts/src/VajraAccount.sol` is now one check ahead of
-> the addresses in `1337.json`. Accounts already created there keep the flaw. See [`docs/FINDINGS.md`](docs/FINDINGS.md) section 8.
+> **Two known flaws in the deployed contract.** First, a thief holding only the daily key can spend every nonce key the master key will
+> ever need, which ends the master key: no veto, no freeze, no escape. Second, whoever paid a stealth account can take the money back
+> with no co-signature, by using a keyed nonce. We reproduced both on the local mirror against the deployed bytes (64 of 64 leaves
+> burned, 25 of 25 tokens taken), and ran neither on the public devnet. Each fix is one check. They are in this repo's source, where the
+> same attacks get 0 of 64 and 0 of 25, but **they are not on the public devnet yet**, so `contracts/src/VajraAccount.sol` is ahead of the
+> addresses in `1337.json`. Accounts already created there keep the flaws. See [`docs/FINDINGS.md`](docs/FINDINGS.md) sections 8 and 9.
 
 Built on [EIP-8141](https://eips.ethereum.org/EIPS/eip-8141) frame transactions and the ERC-8421 alternative mempool.
 The core runs on the public devnet (chain 1337). Recovery by proof and the shielded pool run on a local mirror of it, because the
 deployed sidecar cannot admit them. **To run all of it yourself, see [`JUDGES.md`](JUDGES.md): one command.**
+
+First transaction signed by the real board, admitted by the alt mempool and mined:
+[`0x80e6…9920`](https://explorer.altmempool.wtf/tx/0x80e60964ed0188ff322f378934482e078303559226a286e542e661238e279920). The explorer keeps its
+history in memory, so the record that lasts is in [`docs/evidence/`](docs/evidence/).
 
 ## Why this needs the alternative mempool
 
@@ -101,8 +106,8 @@ Say these before anyone asks. [`docs/ZK.md`](docs/ZK.md) has the rest.
 - **The chain still shows that this account paid that recipient.** The pool hides which deposit paid. An outside depositor gets real, small
   unlinkability, and an owner shielding their own balance gets almost none. That is the cost of a pool the rulebook can govern.
 - **Lost master key plus stolen paper means the thief wins.** The veto needs a master key.
-- **Nothing here is audited.** An independent review of the first version found two critical bugs, both reproduced, both fixed in V2. One of
-  them is the deployed contract's flaw above, which is fixed in the source and not yet on chain.
+- **Nothing here is audited.** Two independent reviews found three critical bugs, each reproduced on a real client and fixed in the source.
+  Two of them are the deployed contract's flaws above, and those are not fixed on chain.
 
 ## Leaf registry on Arkiv
 
@@ -145,13 +150,13 @@ cost the account anything, with the named refusal shown.
 | A wallet signature moved onto a different recipient | `SignatureNotBoundToTransaction` |
 | Daily key spends while frozen, or after an escape | `AccountFrozen` |
 | A one-time key signs twice, through a compromised signer | protocol nonce, then `LeafAlreadySpent` |
-| The stealth sender takes the money back, holding the full hash key | `CoSignerRequired` |
+| The stealth sender takes the money back, holding the full hash key, on the linear nonce | `CoSignerRequired`. **On a keyed nonce the deployed contract lets this through**: see the top of this page |
 | An attacker with the ECDSA key but not the hash key | `BadMasterSignature` |
 
 A spend over the limit is not refused: it queues, in public, and the master key can cancel it. A hostile token cannot block
 an escape: malformed returns, return bombs and gas burners are all tested.
 
-One attack on that list's contract **succeeds**: see the flaw at the top of this page.
+Two attacks on that contract **succeed**: see the flaws at the top of this page.
 
 On the local mirror, by `vajra recover` and `vajra shielded`, each sent for real:
 
@@ -223,6 +228,14 @@ The rulebook runs in the SENDER frame, because `TIMESTAMP` is banned in validati
 act and what shape the transaction has. That is what makes the priority rule structural: a daily-signed transaction that
 reaches a master function never becomes valid.
 
+## Against the judging criteria
+
+**Creativity:** a bank account's rules, enforced in validation, with a hash-based key outranking the wallet you already use, and a shielded pool that a freeze can stop and an
+escape can sweep. **Usefulness:** a stolen seed phrase costs a day's limit instead of everything, and a lost master key is recoverable. **Practicality:** your wallet stays your
+wallet, verification fits under the 100,000 cap at w=16, and `make judge` runs all of it. **How well it works:** every claim here has a command and a recorded run, and the flaws we
+found are at the top of this page. **Relation to the alt mempool:** it carries the escape past a thief's pending transaction, and it is the only route for a proof that needs a
+staked budget and precompiles.
+
 ## CROPS
 
 - **Censorship resistance:** the escape reaches the chain even while a thief holds the public mempool slot, and it needs
@@ -237,12 +250,13 @@ reaches a master function never becomes valid.
 
 ## What this does not prove
 
-0. **On the deployed contract, a thief holding only the daily key can disable the master key.** See the top of this page. Until it is
-   redeployed, and for any account created before that, "a thief cannot stop your escape" holds only against a pending transaction.
+0. **On the deployed contract, a thief holding only the daily key can disable the master key, and a stealth payer can take the payment
+   back.** See the top of this page. Until it is redeployed, and for any account created before that, "a thief cannot stop your escape"
+   holds only against a pending transaction, and "the sender cannot spend" does not hold.
 1. **This is not production post-quantum cryptography.** The parameters are unreviewed and there is no formal proof. Plain
    keccak chains give multi-target attacks a discount of about 19 bits that WOTS+ or XMSS would remove. Production means
    LMS, XMSS or SPHINCS+, which are heavier.
-2. **Stealth spending has a remaining case.** A sender who also owns a quantum computer can spend what it sent. See
+2. **Stealth spending has a remaining case, even with the fix.** A sender who also owns a quantum computer can spend what it sent. See
    [`docs/STEALTH.md`](docs/STEALTH.md).
 3. **By default the master key is a software signer, on the same machine as the wallet.** Its seed sits in a file, so a
    phished seed phrase cannot reach it, but malware on that machine gets both keys and the rulebook protects nothing. The two
@@ -250,7 +264,9 @@ reaches a master function never becomes valid.
    while it is unplugged. Any program on a computer it is plugged into can copy the key in half a second and press its button,
    both measured in [`docs/HARDWARE.md`](docs/HARDWARE.md). It is a prototype, not a secure element, and it has no PIN.
 4. **The rulebook does not bound gas across transactions.** A thief can burn the account's ETH through many transactions,
-   each under the per-transaction cost cap. That leaves through fees, not the daily limit.
+   each under the per-transaction cost cap. That leaves through fees, not the daily limit. With no ETH left, a recovery cannot pay for
+   itself until someone tops the account up, and the thief can race each top-up. A thief can also fill the queue with spends: changing the
+   daily key does not cancel them, so each needs a veto, and an unvetoed one still matures.
 5. **A 64-leaf tree is a demo lifetime.** Rotation works. Backing up one-time key state across devices is the known unsolved
    problem of stateful hash signatures.
 6. **Devnet only.** Chain 1337 can reset at any time, and the explorer keeps its history in memory. Recorded evidence is in

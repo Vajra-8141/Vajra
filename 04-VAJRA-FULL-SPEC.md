@@ -1,5 +1,8 @@
 # VAJRA — Complete Engineering Specification
 
+> **This is the original plan, and parts of it were proved wrong.** It predates the measurements: for example it plans w=256 at about 400k gas, and says recovery and the pool would not ship. The status tags
+> here are out of date. [`README.md`](README.md) and [`docs/FINDINGS.md`](docs/FINDINGS.md) are the current truth.
+
 **Supersedes nothing, extends `03-VAJRA-SPEC.md`.** That file holds the hackathon battle plan (devnet endpoints, judge scripts, Devcon ammo). This file is the full technical specification of everything VAJRA is and is becoming — including Step 3 (STARK recovery, shielded notes), which is now **in build**, not just on a slide. Time-boxing rules from 03 still govern what ships by the Nov 7 deadline; this document does not care about the deadline.
 
 ---

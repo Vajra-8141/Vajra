@@ -47,10 +47,12 @@ Timings are tighter than before, to fit the two new beats in four minutes. Steal
 Run `make judge` and `make unpatched` before going on stage, and have logs of `vajra compare`, `vajra recover` and `vajra shielded` open. Those runs take a minute or more each, so
 do not run them live. Beats 2:55 and 3:20 are on the local mirror: chain 13370, 2-second blocks. Say so.
 
-**If the public devnet is down:** the mirror runs every beat. `make judge`, then run the same commands with `VAJRA_STACK=local`, and say that it is local.
+**If the public devnet is down:** `make judge`, then `make dashboard` in its own terminal, then the same commands with `VAJRA_STACK=local`, and say that it is local. The page shows a banner saying so. Tested on the
+mirror in a real browser with a scripted wallet: connect, spend, queue, veto, freeze, unfreeze. Differences: reads are direct, not over Nym, and the proof page shows 0 confirmed, because it looks up public transactions.
 
 ## Say these first, before anyone asks
 
+- **"On the deployed contract, a stealth payer can take the money back."** On a keyed nonce no co-signature was asked for. Same story: found in review, reproduced locally, fixed in the source. `docs/FINDINGS.md` section 9.
 - **"A thief with the daily key can disable the master key on the deployed contract."** They spend the master key's public nonce keys. We found it reviewing our own new code,
   reproduced it locally, and fixed it in the source. `docs/FINDINGS.md` section 8. **Until `stack/redeploy-public.sh` has run and the demo account is new, do not say "the thief
   cannot stop your escape" without "while a transaction is pending".** After that, say what was found and fixed, and that older accounts keep the flaw.
@@ -75,7 +77,7 @@ signature and costs 3.7 times the gas. If the sidecar gets per-entity budgets, i
 choice on gas. `len2` and `logW` are constructor arguments, so it is a redeploy, not a rewrite.
 
 **The sender derives your stealth key, so can it not spend?** It knows the hash key, which is why that key alone is not enough.
-Spending also needs ERC-8441's stealth key, which the sender cannot compute. Refused live with `CoSignerRequired`. The remaining
+Spending also needs ERC-8441's stealth key, which the sender cannot compute. **On the deployed contract this holds only on the linear nonce:** see `FINDINGS.md` section 9. Once fixed, it is refused with `CoSignerRequired` on both. The remaining
 case is a sender who also owns a quantum computer. See `STEALTH.md`.
 
 **Why not rotate your keys before Q-day?** Rotation is a transaction, and on the day it matters that transaction exposes your

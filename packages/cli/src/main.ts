@@ -164,6 +164,9 @@ switch (command) {
   case "nonce-burn":
     await import("./nonce-burn.ts");
     break;
+  case "stealth-theft":
+    await import("./stealth-theft.ts");
+    break;
   case "compare":
     await import("./compare.ts");
     break;

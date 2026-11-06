@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { DEVNET, isLocalStack } from "@vajra/core";
 import { NETWORKS, type NetworkId, useReads } from "../lib/reads";
 
 export function Chrome({ children }: { children: React.ReactNode }) {
@@ -43,6 +44,11 @@ export function Chrome({ children }: { children: React.ReactNode }) {
       {status === "failed" && (
         <div className="banner error">
           {NETWORKS[network].label} is not available: {error}. Nothing is being read. Choose another route above to continue; the options marked not private expose your IP to the RPC.
+        </div>
+      )}
+      {isLocalStack && (
+        <div className="banner warn">
+          Local mirror, chain {DEVNET.chainId}, on this machine. Nothing on this page is happening on the public devnet.
         </div>
       )}
       {status === "ready" && !NETWORKS[network].private && (

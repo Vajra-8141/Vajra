@@ -43,6 +43,7 @@ import {
   waitForSuccess,
   walletFor,
   withMasterSignature,
+  signMasterTx,
 } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
@@ -142,6 +143,9 @@ console.log("\n4. who cannot spend it");
   const digest = masterDigest({ chainId: DEVNET.chainId, epochSalt: genesis, account, nonceKey: 0n, sigHash: sigHash(tx) });
   const attempt = await coSignTx(withMasterSignature(tx, greedy.sign(0, digest)), thief);
   await refused("the sender, holding the full WOTS seed, takes the money back", attempt, "CoSignerRequired");
+  // The same theft on a keyed nonce, the master key's usual path, where no co-signature is even asked for.
+  const keyed = signMasterTx({ signer: greedy, account, epochSalt: genesis, calls: [transfer(senderAddress, AMOUNT)], maxHashes: 660 });
+  await refused("the sender takes the money back on a keyed nonce", keyed.tx, "CoSignerRequired");
 }
 {
   // A quantum attacker can produce the ECDSA half from the public key. It cannot produce the hash half without the seed.

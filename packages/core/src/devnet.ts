@@ -28,8 +28,19 @@ const LOCAL: typeof PUBLIC = {
   usdc: PUBLIC.usdc,
 };
 
-/** True when this process runs against the mirror. A browser has no `process`, and always gets the public devnet. */
-export const isLocalStack = typeof process !== "undefined" && process.env?.VAJRA_STACK === "local";
+/**
+ * True when this process runs against the mirror. A browser has no environment, so Next writes NEXT_PUBLIC_VAJRA_STACK into the
+ * bundle at build time, from VAJRA_STACK: see next.config.mjs. Anything else gets the public devnet.
+ */
+function readStack(): string | undefined {
+  try {
+    return process.env.NEXT_PUBLIC_VAJRA_STACK || process.env.VAJRA_STACK;
+  } catch {
+    return undefined;
+  }
+}
+
+export const isLocalStack = readStack() === "local";
 
 export const DEVNET = isLocalStack ? LOCAL : PUBLIC;
 

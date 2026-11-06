@@ -1,0 +1,10 @@
+{
+ "ranAt": "2026-11-06T06:16:29.137Z",
+ "stack": "local mirror, with a stand-in token. NOT run on the public devnet",
+ "chainId": 13370,
+ "contract": "VajraAccount as first deployed",
+ "account": "0x399F89126483D80344AE6e16EFECd3247A46D78e",
+ "outcome": "mined 0x245c12e4f420ea789dc43bb0ceb63205dc20136bbfc5b210f5227fc36f2e5a5b, frames ok: true",
+ "taken": "25000000",
+ "of": "25000000"
+}

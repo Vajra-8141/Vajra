@@ -8,7 +8,8 @@ const ROUTE = process.env.ROUTE ?? "nym";
 /** With a real signer a person presses its button: each operation then waits for a file named after it in this directory. */
 const GATE = process.env.GATE;
 const SHOTS = process.env.SHOTS ?? "/tmp";
-const key = readFileSync(new URL("../../../.vajra/daily.key", import.meta.url), "utf8").trim();
+const STATE = process.env.VAJRA_STACK === "local" ? ".vajra-local" : ".vajra";
+const key = readFileSync(new URL(`../../../${STATE}/daily.key`, import.meta.url), "utf8").trim();
 const daily = privateKeyToAccount(key);
 
 let failures = 0;
@@ -17,7 +18,7 @@ const check = (ok, what) => {
   if (!ok) failures++;
 };
 
-const browser = await chromium.launch({ executablePath: "/usr/bin/chromium", args: ["--no-sandbox"] });
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? "/usr/bin/chromium", args: ["--no-sandbox"] });
 const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
 await context.exposeBinding("__personalSign", async (_, message) => daily.signMessage({ message: { raw: message } }));
 await context.addInitScript(

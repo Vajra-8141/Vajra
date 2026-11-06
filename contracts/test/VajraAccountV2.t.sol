@@ -48,6 +48,7 @@ contract VajraAccountV2Test is Test {
 
     // TxParam and FrameParam ids.
     uint256 constant NONCE = 1;
+    uint256 constant TX_SENDER = 2;
     uint256 constant MAX_COST = 6;
     uint256 constant FRAME_COUNT = 9;
     uint256 constant CURRENT_FRAME = 10;
@@ -440,6 +441,7 @@ contract VajraAccountV2Test is Test {
     function dailyFrame(uint256 count, uint256 key) private {
         vm.mockCall(helper(SIG_PARAM), abi.encode(uint256(0), uint256(0)), abi.encode(uint256(uint160(daily))));
         vm.mockCall(helper(SIG_PARAM), abi.encode(uint256(0), uint256(2)), abi.encode(uint256(0)));
+        setTx(TX_SENDER, uint256(uint160(address(account))));
         setTx(NONCE_KEY_COUNT, count);
         setTx(NONCE_KEY_0, key);
         setTx(MAX_COST, 0.001 ether);
@@ -450,6 +452,22 @@ contract VajraAccountV2Test is Test {
     function test_daily_isApprovedOnTheLinearNonce() public {
         dailyFrame(1, 0);
         expectApproved();
+        account.validateDaily(VajraScope.EXECUTION_AND_PAYMENT);
+    }
+
+    function test_daily_cannotPayForSomeoneElsesTransaction() public {
+        dailyFrame(1, 0);
+        setTx(TX_SENDER, uint256(uint160(thief)));
+        vm.expectRevert(VajraAccountV2.NotAuthorized.selector);
+        account.validateDaily(VajraScope.PAYMENT);
+    }
+
+    function test_daily_aWalletSignatureCannotSurviveAChangedFrameMode() public {
+        dailyFrame(1, 0);
+        vm.mockCall(helper(SIG_PARAM), abi.encode(uint256(0), uint256(2)), abi.encode(uint256(1)));
+        setTx(FRAME_COUNT, 2);
+        setFrame(MODE, 0);
+        vm.expectRevert(VajraAccountV2.SignatureNotBoundToTransaction.selector);
         account.validateDaily(VajraScope.EXECUTION_AND_PAYMENT);
     }
 

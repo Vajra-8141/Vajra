@@ -9,5 +9,5 @@ try {
 /** @type {import("next").NextConfig} */
 export default {
   transpilePackages: ["@vajra/core"],
-  env: { NEXT_PUBLIC_ARKIV_KEY: process.env.ARKIV ?? "" },
+  env: { NEXT_PUBLIC_ARKIV_KEY: process.env.ARKIV ?? "", NEXT_PUBLIC_VAJRA_STACK: process.env.VAJRA_STACK ?? "" },
 };

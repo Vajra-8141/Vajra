@@ -8,14 +8,13 @@
  *     vajra nonce-burn v2      VajraAccountV2
  */
 import { randomBytes } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
-import { type Address, type Hex, keccak256, parseEther, toHex } from "viem";
+import { writeFileSync } from "node:fs";
+import { keccak256, parseEther, toHex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   DEVNET,
   ETH,
   type FrameTx,
-  LEGACY_GAS_PRICE,
   MasterSigner,
   RpcError,
   WOTS_W16,
@@ -33,12 +32,11 @@ import {
   signDailyTx,
   signMasterTx,
   submit,
-  waitForSuccess,
-  walletFor,
 } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 import { V2_STAKE } from "./wallet.ts";
+import { preFixFactory } from "./zk-run.ts";
 
 if (!isLocalStack) throw new Error("this is an attack: it runs on the local mirror only, with VAJRA_STACK=local");
 
@@ -47,18 +45,7 @@ const fixed = process.argv.includes("fixed");
 const { w16, v2: zk, genesis } = deployments();
 const deployer = loadOrCreateKey(keyPath("deployer.key"));
 
-/** The bytes first deployed, put on the mirror, so that the flaw stays reproducible after the source is fixed. */
-async function preFixFactory(): Promise<Address> {
-  const load = (name: string) => JSON.parse(readFileSync(new URL(`../../core/src/artifacts/${name}.json`, import.meta.url), "utf8"));
-  const wallet = walletFor(deployer);
-  const place = async (artifact: { abi: never; bytecode: Hex }, args: unknown[]) => {
-    const hash = await wallet.deployContract({ ...artifact, args: args as never, gas: 30_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" });
-    return (await waitForSuccess(hash, "placing the pre-fix contract")).contractAddress!;
-  };
-  return place(load("VajraFactory"), [await place(load("VajraAccount.pre-fix"), [4, 3, DEVNET.stakingRegistry])]);
-}
-
-const factory = v2 ? zk!.factory : fixed ? w16.factory : await preFixFactory();
+const factory = v2 ? zk!.factory : fixed ? w16.factory : await preFixFactory(deployer);
 const dailyKey = generatePrivateKey();
 const daily = privateKeyToAccount(dailyKey).address;
 const signer = new MasterSigner(WOTS_W16, memoryStore(), () => new Uint8Array(randomBytes(32)));

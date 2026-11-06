@@ -37,7 +37,7 @@ published meta-address and `ss`. Spending needs both keys, and they fail indepen
 
 | Attacker | WOTS | ECDSA | Can spend |
 |---|---|---|---|
-| The sender, or a scanner | has it | cannot compute it | no, refused live with `CoSignerRequired` |
+| The sender, or a scanner | has it | cannot compute it | no, refused live with `CoSignerRequired`, **once fixed. On the deployed contract it can, on a keyed nonce**: see `FINDINGS.md` section 9 |
 | A quantum attacker who is neither | no `ss`, ML-KEM holds | can forge it | no, refused live with `BadMasterSignature` |
 | The sender **with** a quantum computer | has it | can forge it | **yes** |
 

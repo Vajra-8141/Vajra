@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Puts the nonce-key fix on the public devnet: a new w=16 implementation and factory, and a new paymaster, because it sponsors the
+# Puts the fixes in docs/FINDINGS.md sections 8 and 9 on the public devnet: a new w=16 implementation and factory, and a new paymaster, because it sponsors the
 # implementation by code hash. w=256 is not redeployed. Needs .vajra/deployer.key, passed by hand: see HANDOFF.md section 2.
 #
 # An account is a clone of one implementation, so an existing account keeps the flaw. Only accounts created after this have the fix.

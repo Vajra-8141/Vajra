@@ -2,8 +2,8 @@
 
 State at commit `ba303e5`, Friday 6 November 2026, 04:10 IST, with sections 3 and 7 updated later that day for recovery, the pool and the local mirror.
 
-> **Read `docs/FINDINGS.md` section 8 first.** A thief with only the daily key can disable the master key on the deployed contract. Reproduced on the local mirror. The owner has
-> approved the redeploy, and the source is fixed. **Not on chain 1337 yet:** whoever holds `.vajra/deployer.key` runs `stack/redeploy-public.sh`, then makes new demo accounts (task 9).
+> **Read `docs/FINDINGS.md` sections 8 and 9 first.** On the deployed contract, a thief with only the daily key can disable the master key, and a stealth payer can take the money back. Both reproduced on the
+> local mirror. The source is fixed. **Not on chain 1337 yet:** the devnet stopped at block 408262, and once it is back, `stack/redeploy-public.sh` runs, then new demo accounts (task 9).
 
 **Deadline: submit by 06:00 IST on Saturday 7 November.** That is the team's target from the spec. The event closes at 09:00 IST.
 
@@ -113,7 +113,7 @@ Serial access on Arch needs the `uucp` group and a fresh login. The owner's mach
     git submodule update --init
     pnpm install
     pnpm test               # 162 passing: 121 core, 41 CLI
-    pnpm test:contracts     # 179 passing
+    pnpm test:contracts     # 181 passing
     pnpm test:firmware      # 143 checks, 0 failures
     alias vajra='node packages/cli/src/main.ts'
     vajra status            # reads the devnet, needs .vajra/
@@ -384,6 +384,7 @@ boundary is stated before anyone asks. The two spec files were written before th
 | "Cut the cable and the key is unreachable" | Fine as a statement about the network, not about a computer it is plugged into |
 | "This is production post-quantum cryptography" | Unreviewed parameters. Plain keccak chains give multi-target attacks about a 19-bit discount. Production means LMS, XMSS or SPHINCS+ |
 | "The sender cannot spend, ever" | A sender who also owns a quantum computer can. See `docs/STEALTH.md` |
+| "The sender cannot spend" | On the deployed contract it can, on a keyed nonce: `docs/FINDINGS.md` section 9 |
 | "The thief cannot stop your escape" | A pending transaction cannot. On the deployed contract a thief with the daily key can disable the master key: `docs/FINDINGS.md` section 8 |
 | "Hidden balances" | A local pool that hides which deposit paid a withdrawal. The chain still shows the account paid the recipient |
 | "STARK recovery" | Groth16 recovery, locally. Not post-quantum. STARK is designed, and no STARK proof exists |

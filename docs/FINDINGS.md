@@ -152,3 +152,31 @@ nullifier is untouched but its nonce key is gone, so a recovery or a note is dea
 
 **The lesson:** in EIP-8141, approving a transaction spends its nonce keys, and a mined transaction whose SENDER frame failed still spent them. An account
 has to decide which nonce keys each path may touch, and everything that consumes a nonce has to be pinned by whatever authorizes it.
+
+## 9. Whoever paid a stealth account can take the money back
+
+Found by a second independent review, then reproduced on the real client. **It is in the deployed contract.**
+
+A stealth account's hash key is derived from a secret the payer knows, which is why spending also needs a co-signature the payer cannot make. `validateMaster` asked for that
+co-signature only when the nonce key was 0. On a keyed nonce, the master key's ordinary path, it took the other branch and never looked. So the payer signs an ordinary master
+transaction with the seed it already has.
+
+On the mirror, against the bytes first deployed (`vajra stealth-theft`, `docs/evidence/stealth-theft-deployed-contract-latest.json`): the payer took 25 of 25 tokens, with no co-signature,
+after sending the account a little ETH to pay for itself. The token on the mirror is a stand-in. **It was not run on the public devnet.**
+
+`vajra stealth` said `CoSignerRequired`, and that was true of what it tried: it only ever tried nonce key 0. The claim was wider than the test, and that is how this survived. The attack is now
+in `vajra stealth`, on both paths.
+
+**The fix is one check:** an account with a co-signer refuses keyed nonces. Same attack: `CoSignerRequired`, 0 taken. It is in the source of both contracts, and goes out with the same redeploy as
+section 8. **A stealth account already created keeps the flaw,** and anything in one should be moved.
+
+### Also from that review
+
+Fixed in `VajraAccountV2` only, and **still open in `VajraAccount.sol`**:
+
+- **The daily key can make the account pay for a thief's own transaction.** `validateDaily` never checks that the transaction's sender is the account, and with `Scope.PAYMENT` it acts as a paymaster.
+  Each is capped per transaction, and no nonce of the account's is touched. Traced in code, not reproduced live.
+- **Anyone can cancel a stock wallet's pending spend.** The wallet digest leaves out the body frame's mode, and the frame walk skips anything that is not SENDER, so a copy can turn the spend into a no-op under
+  the same signature. The nonce and fee are spent and nobody is paid. The owner can sign again. Shown with mocked frame opcodes, not reproduced live.
+
+**Open in both,** as design limits, and in the README: fee burn across many transactions, and a queue with no cap that survives a change of daily key.

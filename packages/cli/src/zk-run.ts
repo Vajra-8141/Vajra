@@ -1,9 +1,12 @@
 /** What the two proof runs share: recording what was mined, and insisting that an attack dies with the right name. */
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { type Address, type Hex, parseEther } from "viem";
 import {
+  DEVNET,
   ETH,
   type FrameTx,
+  LEGACY_GAS_PRICE,
   MasterSigner,
   RpcError,
   WOTS_W16,
@@ -18,6 +21,8 @@ import {
   sendAlt,
   signMasterTx,
   submit,
+  waitForSuccess,
+  walletFor,
 } from "@vajra/core";
 import { V2_STAKE } from "./wallet.ts";
 
@@ -90,3 +95,14 @@ const MAX_HASHES = 660;
 
 export const master = (signer: MasterSigner, account: Address, epochSalt: Hex, calls: Parameters<typeof signMasterTx>[0]["calls"]) =>
   signMasterTx({ signer, account, epochSalt, calls, maxHashes: MAX_HASHES }).tx;
+
+/** The bytes first deployed, put on the mirror, so that what they got wrong stays reproducible after the source is fixed. */
+export async function preFixFactory(deployer: Hex): Promise<Address> {
+  const load = (name: string) => JSON.parse(readFileSync(new URL(`../../core/src/artifacts/${name}.json`, import.meta.url), "utf8"));
+  const wallet = walletFor(deployer);
+  const place = async (artifact: { abi: never; bytecode: Hex }, args: unknown[]) => {
+    const hash = await wallet.deployContract({ ...artifact, args: args as never, gas: 30_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" });
+    return (await waitForSuccess(hash, "placing the pre-fix contract")).contractAddress!;
+  };
+  return place(load("VajraFactory"), [await place(load("VajraAccount.pre-fix"), [4, 3, DEVNET.stakingRegistry])]);
+}

@@ -43,5 +43,8 @@ the author's reasoning, read it adversarially and reported two critical bugs. Ne
 - **Anyone could kill a pending recovery or note** by copying it with less gas. The tests pinned the frame's shape and not its gas.
 - **A thief with the daily key could end the master key.** That one is in the deployed contract, and had passed everything since the first day. See `docs/FINDINGS.md` section 8.
 
+A second reviewer then found a third: a stealth payer could take the money back on a keyed nonce. `vajra stealth` had reported that attack refused, because it only ever tried nonce key 0. A passing test had
+proved less than the sentence written from it.
+
 Testing also corrected the author's own reports. A first "clean" run came from a sidecar left over from an earlier boot, still answering on the port, and it was only caught
 because the mempool's transaction count did not add up.

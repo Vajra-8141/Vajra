@@ -1,0 +1,10 @@
+{
+ "ranAt": "2026-11-06T06:16:09.834Z",
+ "stack": "local mirror, with a stand-in token. NOT run on the public devnet",
+ "chainId": 13370,
+ "contract": "VajraAccount, fixed",
+ "account": "0x8d861c970C5D73AA4Ec78923919F9179D93aC481",
+ "outcome": "REFUSED CoSignerRequired",
+ "taken": "0",
+ "of": "25000000"
+}
