@@ -526,6 +526,25 @@ export function Recovering() {
         <Failed e={error ?? new Error("network")} retry={() => void refresh()} />
       </Screen>
     );
+  if (!item && snap.recoveryPending)
+    return (
+      <Screen title="Almost there" lead="Your new hash key is in. One last step gives this wallet a new wallet key and safe.">
+        <button
+          className="btn primary"
+          onClick={() =>
+            void run({
+              title: "Finishing recovery",
+              run: (s) => engine.finishRecovery(s),
+              result: (d) => ({ title: "Your new key took over", body: "This device now holds your account.", done: d, action: "Go to Home" }),
+            }).then((v) => {
+              if (v) go("/");
+            })
+          }
+        >
+          Finish recovery
+        </button>
+      </Screen>
+    );
   if (!item)
     return (
       <Screen title="Nothing is waiting" lead="No recovery is waiting on this account. If you just started one, it was either finished or cancelled by whoever holds the hash key.">
@@ -548,7 +567,7 @@ export function Recovering() {
         onClick={() =>
           void run({
             title: "Finishing recovery",
-            run: (s) => engine.finishQueued(item.id, s),
+            run: (s) => engine.finishRecovery(s),
             result: (d) => ({ title: "Your new key took over", body: "This device now holds your account.", done: d, action: "Go to Home" }),
           }).then((v) => {
             if (v) go("/");

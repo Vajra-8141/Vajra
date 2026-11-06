@@ -84,6 +84,10 @@ export interface Snapshot {
   hashKeyTotal: number;
   /** Is the hash key on this device? false after it was moved to a phone. */
   hashKeyHere: boolean;
+  /** Is the wallet key on this device? false on a phone that only holds the hash key. */
+  walletKeyHere: boolean;
+  /** A recovery has landed here and still has to be finished. */
+  recoveryPending: boolean;
   safe: { address: Address; balance: string | null; keyHeld: boolean };
   recoverySet: boolean | null;
   exit: { address: Address; reserve: string | null } | null;
@@ -148,6 +152,8 @@ export interface Engine {
   setupRecovery(delaySeconds: number, onStep: OnStep): Promise<{ paper: string } & Done>;
   /** On a new device, with only the paper and the account address. A new passphrase protects the new key. */
   recover(paper: string, account: Address, passphrase: string, onStep: OnStep): Promise<Done>;
+  /** Picks a recovery back up after a reload: waits out the delay, installs the key, and sets a new wallet key and safe. */
+  finishRecovery(onStep: OnStep): Promise<Done>;
 
   /** Second way out: its own address, its own money. */
   setupExit(onStep: OnStep): Promise<Done>;

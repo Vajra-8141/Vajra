@@ -295,7 +295,7 @@ export function Drill() {
                 </button>
               </div>
             );
-          const blocked = s.frozen ? "Your wallet is frozen, so a thief couldn't even try. Unfreeze first." : s.escaped ? "This wallet has escaped, so there's nothing left to steal." : !s.hashKeyHere ? "Your hash key is on your phone, so run the practice there." : null;
+          const blocked = s.frozen ? "Your wallet is frozen, so a thief couldn't even try. Unfreeze first." : s.escaped ? "This wallet has escaped, so there's nothing left to steal." : !s.walletKeyHere ? "Your wallet key is on your other device. Start the practice there, and answer it here." : null;
           return (
             <>
               <p className="lead">Let's rob you, for real. Your own wallet key, the one a thief would steal, will try to send more than your limit to a random address.</p>

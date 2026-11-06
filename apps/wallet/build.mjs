@@ -40,6 +40,17 @@ if (!fake && readFileSync(`${dist}app.js`, "utf8").includes(FAKE_MARK)) {
   process.exit(1);
 }
 
+if (!fake) {
+  // Proofs are made on the device, so the circuits and the prover ship with the app.
+  const circuits = new URL("../../circuits/build/", import.meta.url).pathname;
+  mkdirSync(`${dist}zk/`, { recursive: true });
+  for (const name of ["recovery", "unshield"]) {
+    cpSync(`${circuits}${name}/${name}_js/${name}.wasm`, `${dist}zk/${name}.wasm`);
+    cpSync(`${circuits}${name}/${name}.zkey`, `${dist}zk/${name}.zkey`);
+  }
+  cpSync(new URL("./node_modules/snarkjs/build/snarkjs.min.js", import.meta.url).pathname, `${dist}snarkjs.min.js`);
+}
+
 const crcTable = Array.from({ length: 256 }, (_, n) => {
   let c = n;
   for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;

@@ -186,7 +186,7 @@ export function Home() {
     <WithSnap>
       {(s) => {
         const st = statusOf(s);
-        const low = s.balance !== null && Number(s.balance) < 0.05;
+        const low = s.balance !== null && Number(s.balance) < 0.004;
         const empty = s.balance !== null && Number(s.balance) === 0;
         const next = nextStep(s);
         const topUp = () => void run({ title: "Getting test ETH", run: (x) => engine.topUp(x), result: () => ({ title: "Test ETH arrived", body: "It's in your wallet now." }) });
@@ -228,11 +228,11 @@ export function Home() {
                     <button className="btn primary" onClick={topUp}>
                       Get test ETH
                     </button>
-                  ) : (
+                  ) : s.walletKeyHere ? (
                     <a className="btn primary" href="#/send">
                       Send
                     </a>
-                  )}
+                  ) : null}
                   <a className="btn" href="#/receive">
                     Receive
                   </a>

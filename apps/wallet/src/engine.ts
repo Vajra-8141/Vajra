@@ -88,6 +88,10 @@ interface Secrets {
   backedUp: boolean;
   /** Queue items this device asked for on purpose. */
   mine: string[];
+  /** A recovery that has landed and not finished, so a reload can pick it up. */
+  recovering?: { id: string; executeAfter: number } | null;
+  /** Activity, carried in the backup so a restored device still knows what was done. */
+  historyCopy?: HistoryItem[];
 }
 
 interface Stored {
@@ -381,7 +385,7 @@ export const engine: Engine = {
     await config();
     onStep("Making your wallet key");
     const dailyKey = generatePrivateKey();
-    onStep("Making your hash key: 64 one-time signatures");
+    onStep("Making your hash key");
     await tick();
     const seed = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
     const root = treeOf(seed).root;
@@ -435,6 +439,7 @@ export const engine: Engine = {
         throw new Error("This backup is older than your wallet's current hash key. Use a newer backup, or your recovery paper.");
       }
     }
+    if (value.historyCopy?.length && history().length === 0) kv.set(historyKey(), JSON.stringify(value.historyCopy));
     await persist();
     onStep("Your wallet is back");
   },
@@ -442,6 +447,7 @@ export const engine: Engine = {
   async backup() {
     const s = need();
     s.secrets.backedUp = true;
+    s.secrets.historyCopy = history();
     await persist();
     return JSON.stringify(stored()!.sealed);
   },
@@ -488,6 +494,8 @@ export const engine: Engine = {
       hashKeyLeft: leavesLeft,
       hashKeyTotal: ROTATION_LEAF,
       hashKeyHere: seed !== null,
+      walletKeyHere: s.dailyKey !== null,
+      recoveryPending: !!s.recovering,
       safe: { address: s.safe, balance: safeBalance === null ? null : eth(safeBalance), keyHeld: s.safeKey !== null },
       recoverySet: gate === null ? null : gate !== zeroHash,
       exit: s.exit ? { address: s.exit.address, reserve: exitAddress === null ? null : eth(exitAddress) } : null,
@@ -734,17 +742,41 @@ export const engine: Engine = {
     });
     const id = (await read<bigint>(account, "nextItem")) - 1n;
     const item = await read<{ executeAfter: bigint }>(account, "queuedItem", [id]);
-    onStep(`Your old hash key can still cancel this. Waiting until ${new Date(Number(item.executeAfter) * 1000).toLocaleTimeString()}`);
+    const s = need().secrets;
+    s.recovering = { id: id.toString(), executeAfter: Number(item.executeAfter) };
+    s.mine.push(id.toString());
+    await persist();
+    await engine.finishRecovery(onStep);
+    return finished(done);
+  },
+
+  async finishRecovery(onStep) {
+    await config();
+    const s = need().secrets;
+    if (!s.recovering) throw new Error("There's no recovery to finish on this device.");
+    const { id, executeAfter } = s.recovering;
+    const { account, dailyKey, safe, harborSalt } = s;
+    onStep(`Your old hash key can still cancel this. Waiting until ${new Date(executeAfter * 1000).toLocaleTimeString()}`);
     for (;;) {
-      if ((await publicClient.getBlock()).timestamp > item.executeAfter) break;
+      if ((await publicClient.getBlock()).timestamp > executeAfter) break;
       await sleep(3000);
     }
-    onStep("Installing your new hash key");
-    await api("/api/finish", { account, id: id.toString() });
+    const item = await read<{ state: number }>(account, "queuedItem", [BigInt(id)]);
+    if (item.state === 3) {
+      s.recovering = null;
+      await persist();
+      throw new Error("The hash key cancelled this recovery, so nothing changed.");
+    }
+    if (item.state === 1) {
+      onStep("Installing your new hash key");
+      await api("/api/finish", { account, id });
+    }
     onStep("Giving the wallet a new wallet key and safe");
-    const finishing = await master([ops.setDailyKey(privateKeyToAccount(dailyKey).address), ops.setHarbor(harborCommitment(safe, harborSalt))], onStep);
+    const finishing = await master([ops.setDailyKey(privateKeyToAccount(dailyKey!).address), ops.setHarbor(harborCommitment(safe, harborSalt))], onStep);
+    s.recovering = null;
+    await persist();
     record("recovered", "Recovered this wallet with the paper", finishing.hash);
-    return finished(done);
+    return finished(finishing);
   },
 
   async setupExit(onStep) {

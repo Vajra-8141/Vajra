@@ -170,6 +170,8 @@ export const engine: Engine = {
       hashKeyLeft: unknown ? null : state.hashKeyLeft,
       hashKeyTotal: 63,
       hashKeyHere: state.hashKeyHere,
+      walletKeyHere: true,
+      recoveryPending: false,
       safe: { address: state.safe.address, balance: unknown ? null : eth(state.safe.balance), keyHeld: state.safe.keyHeld },
       recoverySet: unknown ? null : state.recoverySet,
       exit: state.exit,
@@ -339,6 +341,11 @@ export const engine: Engine = {
     log("recovery-set", "Set up your recovery paper", d);
     return { paper: Array.from({ length: 8 }, () => hex(4)).join(" "), ...d };
   },
+  async finishRecovery(onStep) {
+    onStep("Finishing");
+    return done(null);
+  },
+
   async recover(_paper, account, passphrase, onStep) {
     await steps("recover", onStep, ["Checking your paper", "Proving you hold the paper, without showing it", "Making a new key", "Sending by the second way in"], 600);
     s = {
