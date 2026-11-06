@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { hashTypedData, keccak256, toHex } from "viem";
+import { hashTypedData, keccak256, serializeTypedData, toHex } from "viem";
 import { DEVNET, rpc, rpcBatch, setRpcFetch, withTimeout } from "../src/devnet.ts";
 import { type Call, MAX_VERIFY_GAS, STEALTH_LIMITS, dailyTx, dailyTypedData, leafNonceKey, masterTx, maxGas, refusalName, sendAlt, sigHash, stealthTx, walletMessage, withMasterSignature, withTypedSignature } from "../src/frame.ts";
 import { ETH, ops } from "../src/account.ts";
@@ -92,6 +92,15 @@ describe("dailyTypedData", () => {
   it("refuses anything a daily key has no business signing", () => {
     expect(() => typed([ops.freeze()])).toThrow();
     expect(() => typed([ops.spend(ETH, to, 1n), ops.spend(ETH, to, 2n)])).toThrow();
+  });
+
+  it("survives the JSON a wallet gets: the domain goes with it, and the digest does not move", () => {
+    for (const calls of [[ops.spend(ETH, to, 5n)], [ops.executeQueued(3n)]]) {
+      const typed = dailyTypedData(dailyTx({ account, dailyKey: other, nonce: 4n, calls }));
+      const sent = JSON.parse(serializeTypedData(typed as never));
+      expect(sent.domain).toMatchObject({ name: "VAJRA", version: "2", verifyingContract: account });
+      expect(hashTypedData(sent)).toBe(hashTypedData(typed as never));
+    }
   });
 
   it("puts what was shown into the entry's msg", () => {

@@ -154,6 +154,13 @@ const DAILY_FEE_FIELDS = [
 ] as const;
 
 const DAILY_TYPES = {
+  // viem's serializeTypedData drops the domain when this is missing, so a wallet would sign a digest the account never rebuilds.
+  EIP712Domain: [
+    { name: "name", type: "string" },
+    { name: "version", type: "string" },
+    { name: "chainId", type: "uint256" },
+    { name: "verifyingContract", type: "address" },
+  ],
   DailySpend: [{ name: "asset", type: "address" }, { name: "recipient", type: "address" }, { name: "amount", type: "uint256" }, ...DAILY_FEE_FIELDS],
   DailyExecute: [{ name: "id", type: "uint256" }, ...DAILY_FEE_FIELDS],
 } as const;

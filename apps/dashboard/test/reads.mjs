@@ -2,7 +2,7 @@
 import { chromium } from "playwright-core";
 
 const SHOTS = process.env.SHOTS ?? "/tmp";
-const browser = await chromium.launch({ executablePath: "/usr/bin/chromium", args: ["--no-sandbox"] });
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? "/usr/bin/chromium", args: ["--no-sandbox"] });
 for (const route of (process.env.ROUTES ?? "passthrough,tor,nym").split(",")) {
   const context = await browser.newContext({ viewport: { width: 1200, height: 860 } });
   const page = await context.newPage();
