@@ -7,6 +7,8 @@ Everything here was observed on the public devnet (chain 1337) on 2026-11-05, or
 
 ## 1. The alt mempool caps validation at 100,000 gas, staked or not
 
+> Since fixed on the public alt mempool: VERIFY up to 10,000,000 was admitted on 6 November. The canonical mempool still refuses over 100,000.
+
 ERC-8421 BUDGET-010 gives a staked entity 1,000,000 (the landing page says 2,500,000). The deployed sidecar has no such
 budget. `validateStructuralRules` applies one flat cap to the whole prefix, before stake is ever looked up:
 
@@ -29,6 +31,8 @@ runs a 378,879-gas VERIFY frame to success. A VERIFY frame that large has not be
 **Update:** the patch now compiles and runs. A staked 400,000 VERIFY limit is admitted, and a 298,084-gas VERIFY frame mined. See section 7.
 
 ## 2. Every precompile is refused during validation
+
+> Since fixed on the public alt mempool: a Groth16 proof through `0x06` to `0x08` mined there on 6 November, in `docs/evidence/recovery-public-latest.json`.
 
 CALLING-040 allows precompiles `0x01` to `0x11`. The live node has `precompiles: []`, and the check at
 `validators/frameTx.ts:816` treats anything not in that list as undeployed:

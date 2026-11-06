@@ -74,6 +74,8 @@ const LABELS: Record<string, { title: string; what: string; command?: string; fa
       ["Patched sidecar, VERIFY gas", count((r.patched as Raw)?.verifyGas)],
     ],
   },
+  "recovery-public-latest.json": { title: "Recovery by proof, on the public devnet", what: "The whole recovery story, mined through the public alt mempool once it allowed precompiles.", command: "vajra recover", facts: (r) => [["VERIFY gas of a proof", count(r.verifyGas)], ["Failures", count(r.failures)]] },
+  "shield-public-latest.json": { title: "One note through the pool, on the public devnet", what: "One note in and out. The pool held one note, so this proves the path, not any privacy.", command: "vajra shield, then vajra unshield", facts: (r) => [["Failures", count(r.failures)]] },
   "recovery-latest.json": { title: "Recovery by proof, every attack", what: "A Groth16 proof replaces a lost hash key, after a delay the owner can veto.", command: "vajra recover", facts: (r) => [["VERIFY gas of a proof", count(r.verifyGas)], ["Prover time, ms", count(r.proverMs)]] },
   "shielded-latest.json": { title: "The shielded pool, every attack", what: "Notes in with the master key, notes out with no key.", command: "vajra shielded", facts: (r) => [["VERIFY gas of an unshield", count(r.unshieldVerifyGas)], ["Prover time, ms", count(r.proverMs)]] },
   "zk-gas-latest.json": { title: "Gas of the proof paths", what: "Measured with ethrex_simulateFrameTransaction, a fresh proof per sample.", command: "vajra measure-zk", facts: (r) => [["Recovery VERIFY, median", count((r.recoveryVerify as Raw)?.median)], ["Unshield VERIFY, median", count((r.unshieldVerify as Raw)?.median)]] },

@@ -1,7 +1,7 @@
 # Demo runbook
 
 Replaces the demo in spec 03 §7. Its opening beat, the public mempool rejecting a transaction on gas while the alt mempool
-admits it, does not happen on the live devnet: both refuse over 100,000 gas. See `FINDINGS.md`.
+admits it, does not happen on the live devnet any more in that form: the alt mempool now admits a large VERIFY and precompiles, and the canonical mempool still refuses over 100,000. See `FINDINGS.md`.
 
 **The one line:** keep your wallet. We put a bank around it, and the vault key is one a quantum computer can't break.
 
@@ -71,7 +71,7 @@ Moments 1 to 4 are the safe account, 5 is private receiving, 6 and 7 are recover
 | 1:40 | | "So the thief goes after the rules." The attacks: harbor, keys, limits, a second frame paying themselves. Each dies in validation, by name. | `vajra e2e` output, or the proof page |
 | 1:55 | 4 | **The moment.** "The thief keeps a transaction pending, and the public mempool will not take your escape." The same signed bytes go to the alt mempool. Admitted, mined. "That is why this has to exist." | `vajra pin`, split screen |
 | 2:20 | 5 | The track author's request: a stealth payment over ML-KEM, spent with a hash signature and a co-signature, gas paid by a paymaster. | `vajra stealth` |
-| 2:40 | 6 | **The upstream finding, and recovery.** "Everything so far ran on your public devnet. Here is what your deployed sidecar does with a proof." Show it refused at the 100,000 cap. "Here is our patch, which restores your own spec, and you okayed a local sidecar for judging." The same bytes mine, at 298,000 gas. The master key is gone, and a proof queues a new tree behind the same veto. | `vajra compare`, then the recover log |
+| 2:40 | 6 | **The upstream finding, and recovery.** "Everything so far ran on your public devnet, and so does this." The master key is gone, and a Groth16 proof queues a new tree behind the same veto, at 301,552 VERIFY gas, on the public chain. "The canonical mempool refuses this transaction. The alt mempool is the only way it gets in." | the recover log, `recovery-public-latest.json` |
 | 3:10 | 7 | **The rulebook survives inside the shielded world.** A valid unshield, refused because the account is frozen. Escape: the pool lands in the harbor. "Groth16 is not post-quantum, and the anonymity set is tiny, and we will tell you exactly what it does not hide." | `vajra shielded`, steps 6 and 7 |
 | 3:35 | 4 | Press escape for real, and the funds land in the sealed harbor. | Harbor balance |
 | 3:45 | | Say what this does not prove, starting with the bugs review found after every test passed. Close on the one line. | README section |
@@ -114,11 +114,11 @@ Then the same beats with `VAJRA_STACK=local`, and say that it is local. The page
 - **"A thief still gets the daily limit."** A spend under the limit leaves at once, so the alert cannot stop it. That is the price of a wallet that works normally.
 - **"Groth16 is not post-quantum."** The recovery path is weaker against a quantum computer than the key it replaces. v2 is a STARK, and it is not built.
 - **"The pool hides which deposit paid, not that this account paid that recipient."** That is the price of a pool the rulebook can govern.
-- **"Recovery and the pool run locally."** The deployed sidecar refuses them, and the EF said a local sidecar is fine for judging.
+- **"The public run of the pool had one note in it."** That proves the path. It hides nothing until other people use the pool.
 - **"The trusted setup has one contributor, us."**
 - **"We measured, and post-quantum signatures do not have to exceed the budget."** At w=16 the full verification costs about
   90,000 gas and fits under the 100,000 cap. The reason we need your mempool is the blocked exit, not the gas.
-- **"The deployed sidecar caps validation at 100,000 even for staked senders."** ERC-8421 says 1,000,000. We have a patch.
+- **"Paymasters and the attack suites ran on the mirror."** Recovery and the pool ran on public. The canonical mempool still caps a validation prefix at 100,000.
 - **"The blocked escape lasts as long as a thief transaction is pending."** On this idle devnet that is one slot, so the thief
   has to keep sending, at the victim's expense.
 - **"Balances are public, and sending shows your IP to the mempool."** Reads go over the mixnet. STARK recovery is designed, and no STARK proof exists.

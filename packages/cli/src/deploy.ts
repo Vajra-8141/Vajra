@@ -99,7 +99,7 @@ export async function deploy(only?: string) {
     const exitFactory = await create("VajraExitFactory", [exitImplementation]);
     out.v2 = { implementation, factory, exitImplementation, exitFactory, recoveryVerifier, shieldVerifier, poseidon, denomination: DENOMINATION.toString(), noteFee: MAX_PROOF_TX_COST.toString(), workBits: WORK_BITS };
   }
-  // The mirror only, with no switch to change that: the deployed sidecar's flat cap has no room for these.
+  // The mirror only, with no switch to change that: staking five ETH of float each is more than the public deployer should spend on a test.
   if (isLocalStack && want("paymasters")) {
     const quota = await create("QuotaPaymaster", [deployer, DEVNET.stakingRegistry, PAYMASTER_FEE_CAP, ONE_DAY]);
     const usdc = await create("UsdcPaymaster", [deployer, DEVNET.stakingRegistry, PAYMASTER_FEE_CAP, DEVNET.usdc, USDC_PER_ETH]);

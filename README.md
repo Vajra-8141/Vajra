@@ -16,8 +16,8 @@ cancel it. And when you press escape, a thief's pending transaction cannot stop 
 > See [`docs/FINDINGS.md`](docs/FINDINGS.md) sections 8 and 9.
 
 Built on [EIP-8141](https://eips.ethereum.org/EIPS/eip-8141) frame transactions and the ERC-8421 alternative mempool.
-The core runs on the public devnet (chain 1337). Recovery by proof and the shielded pool run on a local mirror of it, because the
-deployed sidecar cannot admit them. **To run all of it yourself, see [`JUDGES.md`](JUDGES.md): one command.**
+Everything in the core, recovery by proof and the shielded pool now run on the public devnet (chain 1337), through the alt mempool. Paymasters and the attack suites run on a local
+mirror of it. **To run all of it yourself, see [`JUDGES.md`](JUDGES.md): one command.**
 
 A transaction admitted by the alt mempool and mined, on the chain as it stands since the reset:
 [`0xc80c…fecb`](https://explorer.altmempool.wtf/tx/0xc80cb5dfdd9778f05c992bb1d90365204599bbd9ce830d44ddba8dae503bfecb). The explorer keeps its history in memory, so the record that lasts is in [`docs/evidence/`](docs/evidence/).
@@ -79,13 +79,13 @@ evidence, on the local mirror and nowhere else.
 | One-transaction move from an EOA | BUILT, LOCAL | `vajra move-e2e`, and from the extension's move page |
 | Passkey before **Pay, it's me** | BUILT, LOCAL | Client-side only: the phone and the local service check it, and **the contracts do not know about it** |
 | Nominee | NOT STARTED | |
-| Recovery by proof, Groth16 v1 | BUILT, LOCAL | `vajra recover`: 12 mined, 24 refused, 0 failures. **Not post-quantum**: see below |
+| Recovery by proof, Groth16 v1 | BUILT, PUBLIC | `vajra recover`: 12 mined, 24 refused, 0 failures, on the public devnet and on the mirror. **Not post-quantum**: see below |
 | Shielded pool, fixed denomination v1 | BUILT, LOCAL | `vajra shielded`: 12 mined, 28 refused, 0 failures. **Does not hide that the account paid the recipient**: see below |
 | STARK recovery and shielded v2 | DESIGNED | spec §9, §10; **no STARK proof exists** |
 | Variable amounts, note-to-note transfers, viewing keys, ERC-8441 note delivery | DESIGNED | spec §10; **not built** |
 
 **The privacy boundary:** dashboard reads are private and the harbor is sealed until used. Balances, rules and the queue are
-public on chain, and sending a transaction shows your IP to the mempool. The shielded pool is local only, and hides which deposit
+public on chain, and sending a transaction shows your IP to the mempool. The shielded pool hides which deposit
 paid a withdrawal, not that the account paid the recipient. The leaf registry is the
 exception to private reads: Arkiv refuses requests from the Nym route, so the dashboard asks before reading it directly, and the
 bridge connects to Arkiv directly, which shows it your IP and key tree.
@@ -98,14 +98,15 @@ public queue as a large spend, so the master key can veto it if the paper was st
 **The pool:** fixed-size notes inside the account, spent with a proof and no key. **The rulebook survives inside the shielded world:** a
 freeze blocks an unshield in validation, an escape drains the pool to the sealed harbor, and the daily key cannot reach it at all.
 
-Both need more validation gas than the flat 100,000 cap, and pairing precompiles, so neither can run on the deployed sidecar. One
-transaction, byte for byte, from a staked account (`vajra compare`, in `docs/evidence/compare-latest.json`):
+Both need more validation gas than 100,000, and pairing precompiles. The canonical mempool refuses them, so the alt mempool is their only route. **On the public devnet, on 6 November:** the whole recovery story mined, 12 transactions and 24 refusals with 0 failures, a proof at 301,552 VERIFY gas ([`0xc06b…c5`](https://explorer.altmempool.wtf/tx/0xc06b44afa41b13237d812c24c3bbd17b106453e02096959f3a4e3e3107eb7cc5), `docs/evidence/recovery-public-latest.json`), and one note went in and came out (`docs/evidence/shield-public-latest.json`). The sidecar's maintainer lifted the cap and allowed precompiles after we reported both.
+
+Before that change, one transaction, byte for byte, from a staked account (`vajra compare`, in `docs/evidence/compare-latest.json`), on the mirror's copy of the old sidecar:
 
     sidecar as deployed:     500000 ... exceeds MAX_VERIFY_GAS 100000
     canonical mempool:       Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS
     sidecar with the patch:  mined, VERIFY 298,084 gas
 
-So they run on a local mirror: the same ethrex and sidecar commits, with [one patch](docs/upstream/). The EF's rulings, in writing: "a local
+The mirror keeps that old sidecar with [one patch](docs/upstream/), so the comparison can still be run. The EF's rulings, in writing: "a local
 sidecar is fine for judging", and on the budgets, "no science behind any of the gas limits". **The allowlist restores the spec's own
 behavior:** CALLING-040 already allows precompiles `0x01` to `0x11`, and BUDGET-010 already gives a staked entity 1,000,000.
 
@@ -344,6 +345,6 @@ staked budget and precompiles.
 5. **A 64-leaf tree is a demo lifetime.** Rotation works. Backing up one-time key state across devices is the known unsolved
    problem of stateful hash signatures.
 6. **Devnet only.** Chain 1337 can reset at any time, and the explorer keeps its history in memory. Recorded evidence is in
-   [`docs/evidence/`](docs/evidence/). Recovery and the pool are on a local chain only, and their evidence cannot be checked on any
+   [`docs/evidence/`](docs/evidence/). Recovery and one note through the pool are on the public devnet. The attack suites and paymasters are on a local chain only, and their evidence cannot be checked on any
    public explorer: run them yourself.
 7. **Quantum timelines are uncertain.** The claim is not that Q-day is close. It is that migration rails have to exist first.

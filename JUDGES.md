@@ -19,15 +19,14 @@ the sidecar `2e22ff0`. The differences, all of them:
 
 | | Public devnet | Local mirror |
 |---|---|---|
-| Sidecar | as deployed | with [`docs/upstream/sidecar-budget-010.patch`](docs/upstream/), which restores BUDGET-010 and CALLING-040. `sidecar-reputation.patch` goes on top only if you ask: `VAJRA_SIDECAR_RULE=1` |
+| Sidecar | as deployed: no validation gas cap, precompiles allowed | with [`docs/upstream/sidecar-budget-010.patch`](docs/upstream/), which restores BUDGET-010 and CALLING-040. `sidecar-reputation.patch` goes on top only if you ask: `VAJRA_SIDECAR_RULE=1` |
 | Chain id | 1337 | 13370, so that a local result cannot pass for a public one |
 | Consensus | Lighthouse, 6 s slots | `stack/miner.mjs` drives the engine API, 2 s slots. Every block is still built and validated by ethrex |
 | Hegota | from epoch 2 | from genesis |
 | USDC | the devnet's | a plain ERC-20 stand-in at the same address |
-| Account for proofs | not deployed | `VajraAccountV2` |
+| Account for proofs | `VajraAccountV2` | `VajraAccountV2` |
 
-Everything the README marks BUILT was recorded on the public devnet, in `docs/evidence/`, some of it before the reset of 2026-11-06. Recovery and the pool run only here, because
-the deployed sidecar cannot admit them. Running a flow here does not touch those records: its result goes to `.vajra-local/evidence/`.
+Everything the README marks BUILT was recorded on the public devnet, in `docs/evidence/`, some of it before the reset of 2026-11-06. Recovery and one note through the pool also ran there on 6 November, once the alt mempool allowed precompiles: `recovery-public-latest.json`, `shield-public-latest.json`. The attack suites, paymasters and the full pool suite run here. Running a flow here does not touch those records: its result goes to `.vajra-local/evidence/`.
 
 On running locally, the EF's words: "a local sidecar is fine for judging". On the gas budgets: "no science behind any of the gas limits".
 
