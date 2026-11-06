@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { FirstRun } from "../../components/checklist";
 import { Stamp } from "../../components/stamp";
 import { Term } from "../../components/term";
+import { NextStep, PageHead } from "../../components/thread";
 import { useAccount } from "../../lib/account";
 import { type ExperimentInfo, type FrameRow, type LabResult, type Lane, labList, runLab } from "../../lib/bridge";
 import { gas } from "../../lib/format";
@@ -154,12 +155,9 @@ export default function MempoolPage() {
 
   return (
     <div className="stack">
-      <div className="hero small">
-        <h1>One transaction, two mempools</h1>
-        <p className="lead">
-          The same signed <Term id="frame-transaction" /> goes to the <Term id="canonical-mempool" /> and the <Term id="alt-mempool" />, side by side, and each answers in its own words. This reuses <code>vajra pin</code> and <code>vajra budget</code>.
-        </p>
-      </div>
+      <PageHead moment={4} because="the thief blocks your exit, so there is a second way in" title="One transaction, two mempools">
+        The same signed <Term id="frame-transaction" /> goes to the <Term id="canonical-mempool" /> and the <Term id="alt-mempool" />, side by side, and each answers in its own words. This reuses <code>vajra pin</code> and <code>vajra budget</code>.
+      </PageHead>
       <FirstRun />
       {health && !demo && <div className="banner warn">These experiments run on the local mirror only{health.demo.reason ? `: ${health.demo.reason}` : ""}.</div>}
       {problem && <div className="banner error">{problem}</div>}
@@ -198,6 +196,7 @@ export default function MempoolPage() {
           </div>
         </div>
       )}
+      <NextStep href="/lifecycle" label="What happened to each transaction" why="Follow every one from new to mined or cancelled, in the sidecar's own records." />
     </div>
   );
 }

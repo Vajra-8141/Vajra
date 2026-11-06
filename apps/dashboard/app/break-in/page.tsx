@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FirstRun } from "../../components/checklist";
 import { Stamp } from "../../components/stamp";
 import { Term } from "../../components/term";
+import { NextStep, PageHead } from "../../components/thread";
 import { useAccount } from "../../lib/account";
 import { type AttackGroup, type AttackInfo, type AttackResult, attackList, runAttack } from "../../lib/bridge";
 import { REFUSALS, short } from "../../lib/format";
@@ -113,12 +114,9 @@ export default function BreakInPage() {
 
   return (
     <div className="stack">
-      <div className="hero small">
-        <h1>Try to break in</h1>
-        <p className="lead">
-          Each button signs a real attack with the stolen <Term id="daily-key" /> and sends it through the bridge to the <Term id="alt-mempool" />. What you see is what the mempool answered. These are the same attacks <code>vajra e2e</code> runs.
-        </p>
-      </div>
+      <PageHead moment={3} because="the hash key outranks the wallet, so the thief goes after the rules" title="Try to break in">
+        Each button signs a real attack with the stolen <Term id="daily-key" /> and sends it through the bridge to the <Term id="alt-mempool" />. What you see is what the mempool answered. These are the same attacks <code>vajra e2e</code> runs.
+      </PageHead>
       <FirstRun />
       {health && !demo && <div className="banner warn">This panel needs the demo signer, which exists on the local mirror only{health.demo.reason ? `: ${health.demo.reason}` : ""}.</div>}
       {problem && <div className="banner error">{problem}</div>}
@@ -164,6 +162,7 @@ export default function BreakInPage() {
           ))}
         </>
       )}
+      <NextStep href="/mempool" label="The thief cannot break the rules, so they block your exit" why="See one signed transaction offered to both mempools." />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { formatEther } from "viem";
 import { DEVNET, type RpcCall, isLocalStack, rpc, rpcBatch } from "@vajra/core";
 import { Stamp, type StampTone } from "../../components/stamp";
 import { Term } from "../../components/term";
+import { NextStep, PageHead } from "../../components/thread";
 import { useAccount } from "../../lib/account";
 import { type RaceResult, runRace } from "../../lib/bridge";
 import { short } from "../../lib/format";
@@ -211,12 +212,9 @@ export default function LifecyclePage() {
 
   return (
     <div className="stack">
-      <div className="hero small">
-        <h1>What happened to each transaction</h1>
-        <p className="lead">
-          New, Submitted, then Mined or Cancelled with a reason. All of this is read live from the <Term id="sidecar" />&apos;s own records, through its <code>skandha_explorer</code> methods. Those records are held in memory, so they begin when the mirror booted.
-        </p>
-      </div>
+      <PageHead moment={4} because="the second way in keeps its own records" title="What happened to each transaction">
+        New, Submitted, then Mined or Cancelled with a reason. All of this is read live from the <Term id="sidecar" />&apos;s own records, through its <code>skandha_explorer</code> methods. Those records are held in memory, so they begin when the mirror booted.
+      </PageHead>
 
       {failed && <div className="banner error">The sidecar did not answer: {failed}. {admissions ? "What is below is the last read." : "Nothing is known about its transactions or reputation right now."}</div>}
       {problem && <div className="banner error">{problem}</div>}
@@ -261,13 +259,14 @@ export default function LifecyclePage() {
             {race.alt.reason ? `: ${race.alt.reason}` : ""}. {race.attempts > 1 ? `It took ${race.attempts} races, and the earlier ones are in the list too.` : ""}
           </p>
         )}
-        {admissions !== null && shown.length === 0 && <p className="sub">Nothing yet. Run the story on the first page and transactions appear here.</p>}
+        {admissions !== null && shown.length === 0 && <p className="sub">Nothing yet. Run the story and transactions appear here.</p>}
         <div className="lives">
           {shown.map((a) => (
             <Row key={a.txHash} a={a} d={details[a.txHash]} />
           ))}
         </div>
       </section>
+      <NextStep href="/proof" label="What the chain actually did" why="Every recorded run, grouped by where it really happened." />
     </div>
   );
 }

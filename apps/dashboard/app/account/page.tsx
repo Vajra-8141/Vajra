@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { type Address, isAddress, parseEther } from "viem";
+import NumberFlow from "@number-flow/react";
+import { type Address, formatEther, isAddress, parseEther } from "viem";
 import {
   type AccountView,
   DEVNET,
@@ -17,8 +18,10 @@ import {
   submit,
 } from "@vajra/core";
 import { FirstRun } from "../../components/checklist";
+import { Lattice } from "../../components/lattice";
 import { OneTimeKeys } from "../../components/leaves";
 import { Term } from "../../components/term";
+import { NextStep } from "../../components/thread";
 import { useAccount } from "../../lib/account";
 import { type BridgeStatus, createOnBridge, demoExecute, demoSpend, master } from "../../lib/bridge";
 import { countdown, eth, explain, short } from "../../lib/format";
@@ -91,6 +94,7 @@ function SignedBy({ daily, master }: { daily: { gas: number; hash: string } | nu
           <span className="tag good">Hash key, the master key</span>
           <div>Winternitz hash key, 2,144 bytes. No curve to break.</div>
           <div className="sub">{master ? `${master.gas.toLocaleString()} gas to verify, ${short(master.hash)}` : "Nothing signed yet"}</div>
+          {master && <Lattice hash={master.hash} />}
         </div>
       </div>
     </section>
@@ -300,7 +304,7 @@ export default function AccountPage() {
         <div className="stack">
           <section className="card" aria-labelledby="balance">
             <h2 id="balance">Balance</h2>
-            <div className="big">{known ? eth(known.balance) : readFailed ? "Unknown" : "…"}</div>
+            <div className="big">{known ? <><NumberFlow value={Number(formatEther(known.balance))} format={{ maximumFractionDigits: 6 }} /> ETH</> : readFailed ? "Unknown" : "…"}</div>
             <div className="sub mono break">{account}</div>
             {known && (
               <>
@@ -320,7 +324,7 @@ export default function AccountPage() {
 
           <section className="card" aria-labelledby="spend">
             <h2 id="spend">Spend with the <Term id="daily-key" /></h2>
-            <div style={{ marginBottom: 10 }}>{connect}</div>
+            <div className="connect">{connect}</div>
             {wallet && known && !isDailyKey && <div className="banner warn">This wallet is not the daily key, {short(known.dailyKey)}.</div>}
             <label>
               To
@@ -353,8 +357,6 @@ export default function AccountPage() {
             )}
           </section>
 
-          <SignedBy daily={lastDaily} master={lastMaster} />
-
           <section className="card" aria-labelledby="queue">
             <h2 id="queue"><Term id="queue">Public queue</Term></h2>
             {pending.length === 0 && <p className="sub">Nothing is waiting.</p>}
@@ -370,11 +372,11 @@ export default function AccountPage() {
                   </div>
                   <div className="actions">
                     {left <= 0 && (
-                      <button disabled={!!busy || (!isDailyKey && !demo) || known?.frozen} onClick={() => (isDailyKey ? execute(item.id) : executeAsDemo(item.id))}>
+                      <button disabled={!!busy || (!isDailyKey && !demo) || known?.frozen} aria-busy={busy === "execute"} onClick={() => (isDailyKey ? execute(item.id) : executeAsDemo(item.id))}>
                         Execute
                       </button>
                     )}
-                    <button className="danger" disabled={!!busy} onClick={() => asMaster(`Veto of item ${item.id}`, { op: "veto", id: item.id.toString() })}>
+                    <button className="arc" disabled={!!busy} onClick={() => asMaster(`Veto of item ${item.id}`, { op: "veto", id: item.id.toString() })}>
                       Veto
                     </button>
                   </div>
@@ -382,6 +384,8 @@ export default function AccountPage() {
               );
             })}
           </section>
+
+          <SignedBy daily={lastDaily} master={lastMaster} />
         </div>
 
         <div className="stack">
@@ -391,7 +395,7 @@ export default function AccountPage() {
             <div className="sub">
               {leaves === null ? "The signer is not connected, so nothing is claimed about its keys." : `one-time keys left of ${ROTATION_LEAF}, plus one reserved for rotation.`} {SIGNER_TEXT[bridge.signer]}
             </div>
-            <div className="actions" style={{ marginTop: 12 }}>
+            <div className="actions">
               {known?.frozen ? (
                 <button disabled={!!busy} onClick={() => asMaster("Unfreeze", { op: "unfreeze" })}>
                   Unfreeze
@@ -413,7 +417,7 @@ export default function AccountPage() {
 
           <section className="card danger" aria-labelledby="escape">
             <h2 id="escape"><Term id="escape">Escape</Term></h2>
-            <p className="sub" style={{ marginTop: 0 }}>
+            <p className="sub">
               Sends everything to your sealed harbor and freezes the account. A stolen daily key cannot stop this, redirect it, or block it from reaching the alt mempool.
             </p>
             {bridge.harbor && (
@@ -445,6 +449,7 @@ export default function AccountPage() {
         </div>
       </div>
 
+      <NextStep href="/story" label="Not sure what to try?" why="The story walks this same account, one moment at a time." />
       <p className="note">
         What is private here: {NETWORKS[network].private ? "your reads, and " : ""}your harbor until you escape. What is not: balances, rules and the queue are public on chain, and transactions leave from this machine directly. Hidden balances are not built. Devnet only, chain {DEVNET.chainId}.
       </p>

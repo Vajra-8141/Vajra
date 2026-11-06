@@ -1,0 +1,81 @@
+/*
+ * The one source of colour, type, space and motion for the dashboard, the extension and the phone.
+ * Nothing outside this file writes a raw colour. See docs/DESIGN-DIRECTION.md.
+ *
+ * The rule that carries the brand: --arc belongs to the hash key. Anything the wallet does is neutral.
+ * Colour on screen means the master key is acting, or a state has changed. Nothing else gets colour.
+ */
+:root {
+  color-scheme: dark;
+
+  /* One base, three surfaces, two hairlines. Indigo ink, not black. */
+  --base: #0a0c1b;
+  --surface-1: #11142a;
+  --surface-2: #181c38;
+  --surface-3: #222748;
+  --line: #262b4a;
+  --line-strong: #3a4068;
+
+  /* Text at 100, 60 and 40. Each clears WCAG AA on every surface above. */
+  --t100: #f3f4fc;
+  --t60: #b0b4cc;
+  --t40: #9a9fbd;
+
+  /* The one accent, for the hash key only. */
+  --arc: #8fa8ff;
+  --arc-soft: #1d2450;
+  --arc-line: #4a5ab0;
+  --on-arc: #0a0c1b;
+  --on-arc-60: #1f2554;
+
+  /* State, and only state. */
+  --ok: #57d9a3;
+  --ok-soft: #10302c;
+  --warn: #f2bd5c;
+  --warn-soft: #33290f;
+  --danger: #ff8585;
+  --danger-soft: #3a1720;
+  --on-state: #0a0c1b;
+
+  --focus: var(--t100);
+  --scrim: #0a0c1bd9;
+
+  --font-ui: "Geist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-code: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Type */
+  --t-display: clamp(2.75rem, 1.4rem + 6vw, 6.5rem);
+  --t-h1: clamp(2rem, 1.55rem + 2vw, 3.25rem);
+  --t-h2: clamp(1.375rem, 1.2rem + 0.8vw, 1.75rem);
+  --t-h3: 1.0625rem;
+  --t-lead: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem);
+  --t-body: 1rem;
+  --t-sm: 0.875rem;
+  --t-xs: 0.8125rem;
+  --t-figure: clamp(2.5rem, 1.9rem + 2.6vw, 3.75rem);
+
+  /* Space, on the 8 point grid with a 4 for tight spots */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 64px;
+  --s9: 96px;
+
+  --r1: 6px;
+  --r2: 10px;
+  --r3: 14px;
+  --r4: 22px;
+  --pill: 999px;
+
+  /* Motion: answers a person, and stops */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --fast: 120ms;
+  --mid: 200ms;
+  --slow: 360ms;
+
+  --touch: 44px;
+}

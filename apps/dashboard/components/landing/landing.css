@@ -1,0 +1,111 @@
+/* The landing route only. Without JavaScript, or with reduced motion, everything here reads in normal flow. `.is-live` adds the scroll story. */
+.land { --progress: 0; position: relative; }
+
+.land-top { position: fixed; inset: 0 0 auto; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: var(--s3); height: 64px; padding: 0 var(--s5); background: var(--scrim); border-bottom: 1px solid var(--line); }
+.land-nav { display: flex; align-items: center; gap: var(--s3); }
+.land-link { display: inline-flex; align-items: center; gap: var(--s2); min-height: var(--touch); padding: 0 var(--s2); font-size: var(--t-sm); color: var(--t60); text-decoration: none; transition: color var(--fast) var(--ease); }
+.land-link:hover { color: var(--t100); }
+.land-progress { position: fixed; top: 63px; left: 0; right: 0; z-index: 31; height: 1px; background: var(--t100); transform: scaleX(var(--progress)); transform-origin: left; }
+
+.land-story { position: relative; }
+.land-stage { position: sticky; top: 0; height: 100svh; margin-bottom: -100svh; pointer-events: none; }
+.land-stage canvas { display: block; width: 100%; height: 100%; }
+
+/* Hero */
+.land-hero { position: relative; display: flex; align-items: center; min-height: 100svh; padding: 96px var(--s5) var(--s7); }
+.land-hero-text { max-width: 760px; margin-left: clamp(0px, 5vw, 96px); }
+.land-hero h1 { font-size: var(--t-display); line-height: 0.98; letter-spacing: -0.045em; font-weight: 500; }
+.land-lead { margin: var(--s5) 0 var(--s6); font-size: clamp(1.25rem, 1.05rem + 0.9vw, 1.75rem); line-height: 1.3; letter-spacing: -0.015em; color: var(--t60); max-width: 26em; }
+.land-cta { min-height: 52px; padding-inline: var(--s5); font-size: var(--t-body); }
+.land-fine, .chap-fine { margin-top: var(--s4); font-size: var(--t-sm); color: var(--t60); max-width: 54ch; }
+.land-fine code { color: var(--t100); }
+.land .actions { gap: var(--s4); }
+
+/* Chapters */
+.chap { position: relative; display: flex; align-items: center; min-height: 130svh; padding: var(--s8) var(--s5); }
+.chap-body { width: min(100%, 520px); margin-left: clamp(0px, 5vw, 96px); padding: var(--s5); background: var(--scrim); border-radius: var(--r3); }
+.chap-n { margin: 0 0 var(--s2); font-size: var(--t-sm); color: var(--t60); }
+.chap h2, .flood-before h2 { font-size: var(--t-h1); line-height: 1.05; letter-spacing: -0.03em; }
+.chap-text { margin-top: var(--s4); color: var(--t60); font-size: var(--t-lead); line-height: 1.5; }
+.chap-text p { margin: 0; }
+.chap-text p.chap-fine { margin-top: var(--s3); font-size: var(--t-sm); line-height: 1.5; }
+.chap-then { margin: var(--s5) 0 0; padding-top: var(--s4); border-top: 1px solid var(--line-strong); color: var(--t100); font-size: var(--t-lead); line-height: 1.4; }
+
+.is-live .chap-body, .is-live .end-inner { opacity: 0.12; transition: opacity var(--slow) var(--ease); }
+.is-live .chap.on .chap-body, .is-live .end.on .end-inner { opacity: 1; }
+
+.art-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); margin: var(--s5) 0 0; }
+.art-row dt { font-size: var(--t-sm); color: var(--t60); }
+.art-row dd { margin: 0; font-size: var(--t-h2); letter-spacing: -0.02em; }
+
+.art-lanes { display: grid; gap: var(--s3); margin-top: var(--s5); font-size: var(--t-sm); }
+.art-lanes > div { display: grid; gap: var(--s1); padding-top: var(--s2); border-top: 1px solid var(--line-strong); }
+.art-lanes span { color: var(--t60); }
+.art-lanes > div:first-child code { color: var(--danger); }
+.art-lanes > div:last-child code { color: var(--arc); }
+
+/* The signature moment */
+.flood { position: relative; }
+.flood-pin { position: relative; }
+.flood-before { position: relative; padding: var(--s8) var(--s5); max-width: 620px; margin-left: clamp(0px, 5vw, 96px); }
+.land-alert { max-width: 360px; margin-top: var(--s5); padding: var(--s4); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r4); }
+.land-alert strong { display: block; font-size: var(--t-h3); font-weight: 500; }
+.land-alert p { margin: var(--s1) 0 var(--s3); font-size: var(--t-sm); color: var(--t60); }
+.land-alert-button { display: flex; align-items: center; justify-content: center; min-height: var(--touch); background: var(--arc); color: var(--on-arc); font-size: var(--t-sm); font-weight: 500; border-radius: var(--r2); }
+
+.flood-fill { background: var(--arc); color: var(--on-arc); }
+.flood-inner { max-width: 1040px; margin: 0 auto; padding: var(--s8) var(--s5); }
+.flood-inner h2 { font-size: var(--t-display); line-height: 0.98; letter-spacing: -0.045em; }
+.flood-lead { margin: var(--s4) 0 var(--s5); font-size: var(--t-lead); max-width: 42ch; line-height: 1.4; color: var(--on-arc-60); }
+.rank { font-size: var(--t-body); }
+.rank th, .rank td { padding: var(--s2) var(--s4) var(--s2) 0; border-bottom: 1px solid var(--on-arc-60); color: var(--on-arc); font-weight: 400; }
+.rank thead th { font-weight: 600; font-size: var(--t-sm); }
+.flood-fill .lattice rect { fill: var(--on-arc); animation: none; }
+.flood-fill .lattice svg { height: 48px; }
+.flood-fill .lattice figcaption { color: var(--on-arc-60); }
+.flood-then { margin: var(--s5) 0 0; font-size: var(--t-lead); max-width: 46ch; }
+
+.is-live .flood { height: 340svh; }
+.is-live .flood-pin { position: sticky; top: 0; height: 100svh; overflow: hidden; display: flex; align-items: center; }
+.is-live .flood-before { padding-block: 0; }
+.is-live .flood-fill { position: absolute; inset: 0; display: flex; align-items: center; overflow: hidden; }
+.is-live .flood-inner { width: 100%; padding-block: 80px var(--s4); }
+
+/* The end */
+.end { position: relative; padding: var(--s9) var(--s5); }
+.end-inner { max-width: 1040px; margin: 0 auto; padding: var(--s6) var(--s5); background: var(--scrim); border-radius: var(--r3); }
+.end h2 { font-size: var(--t-h1); line-height: 1.05; letter-spacing: -0.03em; max-width: 18em; }
+.end-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s6); margin: var(--s6) 0; }
+.end h3 { margin-bottom: var(--s3); }
+.end li { color: var(--t60); }
+.end-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s4); }
+
+.land-foot { position: relative; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--s3) var(--s6); padding: var(--s5); border-top: 1px solid var(--line); background: var(--base); font-size: var(--t-sm); color: var(--t60); }
+.land-foot p { margin: 0; }
+.land-foot nav { display: flex; flex-wrap: wrap; gap: 0 var(--s4); }
+.land-foot a { display: inline-flex; align-items: center; min-height: var(--touch); color: var(--t60); text-decoration: none; }
+.land-foot a:hover { color: var(--t100); }
+.deva { font-family: "Teko Deva", var(--font-ui); font-size: 1.5em; font-weight: 600; color: var(--t100); line-height: 1; }
+
+@media (max-width: 900px) {
+  .land-top { height: 56px; padding: 0 var(--s4); }
+  .land-progress { top: 55px; }
+  .land-link[href="/proof"] { display: none; }
+  .land-hero { align-items: flex-start; padding: 88px var(--s4) var(--s6); }
+  .land-hero-text, .chap-body, .flood-before { margin-left: 0; }
+  .chap { align-items: flex-end; min-height: 120svh; padding: 48svh var(--s4) var(--s6); }
+  .chap-body { padding: var(--s4); }
+  .flood-before { padding-inline: var(--s4); }
+  .land-hero-text { padding: var(--s2); margin: calc(var(--s2) * -1); background: var(--scrim); border-radius: var(--r3); }
+  .is-live .flood-pin { align-items: flex-end; }
+  .is-live .flood-before { width: 100%; padding: var(--s4); padding-bottom: var(--s5); background: var(--scrim); }
+  .is-live .flood-inner { padding-top: 72px; }
+  .flood-inner { padding-inline: var(--s4); }
+  .flood-inner h2 { font-size: clamp(2.5rem, 12vw, 4rem); }
+  .rank { font-size: var(--t-sm); }
+  .rank th, .rank td { padding-right: var(--s2); }
+  .end { padding: var(--s8) var(--s4); }
+  .end-inner { padding: var(--s4); }
+  .end-cols { grid-template-columns: minmax(0, 1fr); gap: var(--s5); }
+  .art-row dd { font-size: var(--t-lead); }
+}

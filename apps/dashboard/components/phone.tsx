@@ -19,7 +19,7 @@ export function Phone({ item, now, busy, onCancel }: { item: QueuedView | null; 
             <p>
               {eth(item.amount)} to <span className="mono">{short(item.recipient)}</span>. {left > 0 ? `It leaves in ${countdown(left)} unless you stop it.` : "The delay is over. It can still be cancelled until someone executes it."}
             </p>
-            <button className="danger armed" disabled={busy} onClick={onCancel}>
+            <button className="arc" disabled={busy} aria-busy={busy} onClick={onCancel}>
               {busy ? "Signing with the hash key…" : "Not me, cancel"}
             </button>
           </div>

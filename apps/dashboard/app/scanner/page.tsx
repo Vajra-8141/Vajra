@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { type Address, formatEther, isAddress } from "viem";
 import { EXPOSURE_TEXT, type Exposure, type ExposureReport, scanAddress } from "@vajra/core";
+import { NextStep, PageHead } from "../../components/thread";
 import { useReads } from "../../lib/reads";
 
 const MAINNET_RPC = "https://ethereum-rpc.publicnode.com";
@@ -34,10 +35,9 @@ export default function ScannerPage() {
 
   return (
     <div className="stack">
-      <div>
-        <h1 className="page-title">Is your key already exposed?</h1>
-        <p className="lead">An address hides its public key until it signs something on chain. After that, a large enough quantum computer can work back to the private key. This checks Ethereum mainnet.</p>
-      </div>
+      <PageHead because="why the master key is made of hashes" title="Is your key already exposed?">
+        An address hides its public key until it signs something on chain. After that, a large enough quantum computer can work back to the private key. This checks Ethereum mainnet.
+      </PageHead>
       <section className="card">
         <label>
           One address, or many separated by spaces or new lines
@@ -47,13 +47,13 @@ export default function ScannerPage() {
         <button className="primary" disabled={busy || status !== "ready" || valid.length === 0} onClick={scan}>
           {busy ? `Checking ${reports.length + 1} of ${valid.length}…` : "Check"}
         </button>
-        <p className="sub">Lookups use the route chosen at the top of the page, because who is checking their exposure is worth hiding too.</p>
+        <p className="sub">Lookups use the route chosen in the menu, because who is checking their exposure is worth hiding too.</p>
       </section>
 
       {single && (
         <section className="card">
           <h2>{EXPOSURE_TEXT[single.verdict].title}</h2>
-          <p style={{ marginTop: 0 }}>{EXPOSURE_TEXT[single.verdict].detail}</p>
+          <p>{EXPOSURE_TEXT[single.verdict].detail}</p>
           {single.nonce !== null && (
             <p className="sub">
               {single.nonce.toString()} transactions sent, {Number(formatEther(single.balance!)).toLocaleString(undefined, { maximumFractionDigits: 4 })} ETH held.
@@ -93,6 +93,7 @@ export default function ScannerPage() {
           </div>
         </section>
       )}
+      <NextStep href="/story" label="Back to the story" why="Your wallet stays. Follow what happens when its key is stolen." />
     </div>
   );
 }

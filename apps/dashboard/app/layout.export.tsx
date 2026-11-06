@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Mark } from "../components/mark";
+import { geist, geistMono } from "./fonts";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -9,19 +11,15 @@ export const metadata: Metadata = {
 /** The root of the static export: see `pnpm export:proof`. No bridge, no wallet, no chain reads. */
 export default function ExportLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
       <body>
-        <header className="top">
-          <div className="top-inner">
-            <span className="mark">
-              <span className="mark-deva" lang="sa">
-                वज्र
-              </span>
-              <span className="mark-latin">VAJRA</span>
-            </span>
-          </div>
+        <header className="top static">
+          <span className="mark">
+            <Mark />
+            VAJRA
+          </span>
         </header>
-        <div className="shell">{children}</div>
+        <div className="shell static">{children}</div>
       </body>
     </html>
   );

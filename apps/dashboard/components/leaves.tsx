@@ -37,7 +37,7 @@ export function OneTimeKeys(props: Props) {
     return (
       <section className="card leaves" aria-labelledby="leaves">
         <h2 id="leaves">One-time keys on Arkiv</h2>
-        <p className="sub" style={{ marginTop: 0 }}>
+        <p className="sub">
           Off on the mirror. Nothing here is published to Arkiv, so there is nothing to read. Next key: {props.nextLeaf === null ? "unknown" : `#${props.nextLeaf}`}.
         </p>
       </section>
@@ -79,7 +79,7 @@ function ArkivKeys({ root, nextLeaf, writer, hardware, ready, directOnly, tick }
   return (
     <section className="card leaves" aria-labelledby="leaves">
       <h2 id="leaves">One-time keys on Arkiv</h2>
-      <p className="sub" style={{ marginTop: 0 }}>
+      <p className="sub">
         A key that signs twice can be forged, so every signature is published here. Your signer reads this before it signs, and any
         other wallet can too.
       </p>
@@ -164,7 +164,7 @@ function ArkivKeys({ root, nextLeaf, writer, hardware, ready, directOnly, tick }
       )}
 
       {!mustAsk && (
-        <div className="actions" style={{ marginTop: 12 }}>
+        <div className="actions">
           <button disabled={state === "reading" || !ready || !root} onClick={() => void read()}>
             {state === "reading" ? "Reading Arkiv" : "Check again"}
           </button>

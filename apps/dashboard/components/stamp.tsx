@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 export type StampTone = "red" | "violet" | "green" | "saffron";
 
-/** The one loud thing in this design: every outcome the chain gives lands as a rubber stamp. `exact` keeps the case of a contract's error name, which is what a reader will search for. */
+/** Every outcome the chain gives lands here, in the chain's own words. `exact` marks a contract's error name, which is what a reader will search for. */
 export function Stamp({ tone, children, sub, still, exact }: { tone: StampTone; children: ReactNode; sub?: ReactNode; still?: boolean; exact?: boolean }) {
   return (
     <span className={`stamp ${tone} ${still ? "still" : ""} ${exact ? "exact" : ""}`}>
