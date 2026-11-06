@@ -1,0 +1,4 @@
+ptau/*.ptau
+build/*/*.r1cs
+build/*/*.sym
+node_modules/

@@ -1,0 +1,15 @@
+{
+  "name": "@vajra/circuits",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Groth16 circuits for recovery and the shielded pool. Pairing-based, so not post-quantum.",
+  "scripts": {
+    "build": "bash scripts/build.sh"
+  },
+  "dependencies": {
+    "circomlib": "2.0.5",
+    "circomlibjs": "0.1.7",
+    "snarkjs": "0.7.5"
+  }
+}

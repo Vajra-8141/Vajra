@@ -18,3 +18,5 @@ apps/dashboard/next-env.d.ts
 apps/dashboard/tsconfig.tsbuildinfo
 # written by next dev
 apps/dashboard/AGENTS.md
+# local mirror: upstream checkouts and chain data, fetched by scripts/stack
+.stack/
