@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { isLocalStack } from "@vajra/core";
 import { Cheque } from "../components/cheque";
 import { FirstRun } from "../components/checklist";
@@ -76,6 +76,15 @@ export default function StoryPage() {
   const pending = latest?.state === 1;
   const cancelled = latest?.state === 3;
   const paidOut = latest?.state === 2;
+
+  // On a phone the alert sits above the steps, and the theft has just scrolled it out of sight. It has to wait for the queued item: with
+  // only a blank cheque the exhibit is display: none, and scrolling to it then does nothing.
+  const showAlert = useRef(false);
+  useEffect(() => {
+    if (!showAlert.current || !pending) return;
+    showAlert.current = false;
+    if (window.matchMedia("(max-width: 1020px)").matches) document.querySelector(".exhibit")?.scrollIntoView({ block: "start" });
+  }, [pending, latest?.id]);
   const emptied = chain !== null && chain.frozen && chain.balance < 10n ** 16n;
 
   const ticks = [
@@ -98,12 +107,11 @@ export default function StoryPage() {
     });
   const steal = () =>
     run("steal", async () => {
+      showAlert.current = true;
       const spent = await demoThief(THEFT);
       setTheft(spent);
       setVeto(null);
       setLastDaily({ gas: spent.verifyGas, hash: spent.hash });
-      // On a phone the alert sits above the steps, and the theft has just scrolled it out of sight.
-      if (window.matchMedia("(max-width: 1020px)").matches) document.querySelector(".exhibit")?.scrollIntoView({ block: "start" });
     });
   const cancel = () =>
     run("cancel", async () => {
