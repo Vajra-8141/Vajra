@@ -92,7 +92,7 @@ withdrawal circuit proves membership without saying which leaf.
 **The root ring is 32 deep.** A proof takes time to reach a block, and the tree moves under it. The EF's guidance is that validity
 resting on fast-changing state leaks reputation, so an unshield may prove against any of the last 32 roots. A root that has left the
 ring gets `RootUnknown`, which is a tier, not an error: the note is fine, and `vajra unshield` proves again. A retry of the same proof
-is the same bytes. `vajra shielded` tests both sides of the edge: mined 30 deposits behind, refused 33 behind.
+is the same bytes. `vajra shielded` tests both sides of the edge: mined 30 deposits behind, refused 32 behind.
 
 **The master key can take the pool.** That is the point of a pool that obeys the rulebook, and it also means this is not trustless: a
 note in someone else's pool is only as good as that account's master key, and anyone paying in should know it.

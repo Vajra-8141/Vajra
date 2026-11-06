@@ -60,7 +60,7 @@ ring: the check walks it, at about 2,200 gas a slot, which is the whole spread. 
 | Shield, the first note, SENDER frame (twenty Poseidon hashes) | 896,305 |
 | Shield, later notes, whole transaction (31 samples) | 965,798 / **986,904** / 1,008,017 |
 
-A proof takes about 80 ms for recovery and about 340 ms for an unshield, on a 16-core x86-64 laptop. Recovery has about 760 constraints and the pool 11,336.
+A proof takes about 80 ms for recovery and about 340 ms for an unshield, on a 16-core x86-64 machine. Recovery has 937 constraints and the pool 11,336.
 
 The note fee on the mirror is 0.005 ETH, out of a 0.1 ETH note. It is the cap on what a proof transaction may cost. At these limits that is about 3 gwei, so
 honest proof transactions cannot be included above that. The fee is immutable, which is fine here and would not be on a network with a real fee market.

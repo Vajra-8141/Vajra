@@ -100,8 +100,8 @@ Say these before anyone asks. [`docs/ZK.md`](docs/ZK.md) has the rest.
 - **The chain still shows that this account paid that recipient.** The pool hides which deposit paid. An outside depositor gets real, small
   unlinkability, and an owner shielding their own balance gets almost none. That is the cost of a pool the rulebook can govern.
 - **Lost master key plus stolen paper means the thief wins.** The veto needs a master key.
-- **Nothing here is audited.** An independent review of the first version found two critical bugs, both reproduced and fixed, and the
-  deployed contract's flaw above.
+- **Nothing here is audited.** An independent review of the first version found two critical bugs, both reproduced, both fixed in V2. One of
+  them is the deployed contract's flaw above, and that one is not fixed on chain.
 
 ## Leaf registry on Arkiv
 
