@@ -44,6 +44,10 @@ button.item { display: grid; gap: var(--s1); padding: var(--s4); text-align: lef
 
 input { width: 100%; min-height: var(--touch); padding: var(--s2) var(--s3); font: 400 var(--t-body) var(--font-ui); color: var(--t100); background: var(--base); border: 1px solid var(--line-strong); border-radius: var(--r2); }
 input::placeholder { color: var(--t40); }
+.field { display: grid; gap: var(--s1); font-size: var(--t-sm); color: var(--t60); }
+/* The key fact first: the balance gets its own line, however many digits it has. */
+.card > .row:first-child:has(#balance) { display: grid; gap: var(--s1); }
+#balance { overflow-wrap: anywhere; }
 [hidden] { display: none !important; }
 
 @media (prefers-reduced-motion: reduce) {

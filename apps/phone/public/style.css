@@ -1,7 +1,6 @@
 @import url("tokens.css");
 @import url("app.css");
 
-/* The key fact first: the balance reads large, as it does on the dashboard. */
-.card > .row:first-child:has(#balance) { display: grid; gap: var(--s1); }
+/* The balance reads large, as it does on the dashboard. */
 #balance { font-size: var(--t-figure); line-height: 1.05; letter-spacing: -0.035em; }
 #amount { font-size: var(--t-figure); line-height: 1.05; letter-spacing: -0.035em; font-weight: 500; }

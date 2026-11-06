@@ -90,6 +90,9 @@ async function move() {
   }
 }
 
+/** These four start with a value, so a placeholder alone would leave them with no name on screen. */
+const labelled = (text: string, input: HTMLInputElement) => h("label", { class: "field" }, text, input);
+
 go.addEventListener("click", () => void move());
 root.replaceChildren(
   h("h1", {}, "Move a wallet into a new VAJRA account"),
@@ -98,10 +101,10 @@ root.replaceChildren(
   key,
   harbor,
   tokens,
-  limit,
-  allowance,
-  delay,
-  cooling,
+  labelled("Daily limit in ETH", limit),
+  labelled("New-payee allowance in ETH", allowance),
+  labelled("Queue delay in seconds", delay),
+  labelled("New-payee cooling in seconds", cooling),
   password,
   h("button", { id: "plan", click: () => void plan() }, "Work out the move"),
   summary,

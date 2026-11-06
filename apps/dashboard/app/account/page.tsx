@@ -294,6 +294,7 @@ export default function AccountPage() {
 
   return (
     <>
+      <h1 className="visually-hidden">Your account</h1>
       {bridge.rootMatches === false && <div className="banner error">ChainStateUnknown: the account's key tree is not this signer's. Nothing will be signed.</div>}
       {known?.frozen && <div className="banner frozen">Frozen. Every daily-key transaction is refused until the master key unfreezes the account.</div>}
       {problem && <div className="banner error">{problem}</div>}
