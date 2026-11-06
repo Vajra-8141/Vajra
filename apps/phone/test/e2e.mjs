@@ -143,7 +143,7 @@ const serviceUp = () => until("the service", () => fetch(`${origin}/api/hello`).
 
 let service = start(["phone"]);
 await serviceUp();
-const pairLink = JSON.parse(readFileSync(join(state, "phone-pair.txt"), "utf8"));
+const pairLink = readFileSync(join(state, "phone-pair.txt"), "utf8").trim();
 check(!service.log.includes(pairLink.split("#pair=")[1]), "the pairing code is not printed");
 
 // --- the browser

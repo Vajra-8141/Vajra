@@ -142,7 +142,8 @@ export function startPhone(o: PhoneOptions): Server {
   const pairHash = hash(pairCode);
   const pairExpires = Date.now() + PAIR_MS;
   const pairedThisRun = new Set<string>();
-  saveJson(pairPath(), `${origin}/#pair=${pairCode}`);
+  mkdirSync(dirname(pairPath()), { recursive: true });
+  writeFileSync(pairPath(), `${origin}/#pair=${pairCode}\n`, { mode: 0o600 });
 
   const challenges = new Challenges();
   const files = staticFiles();

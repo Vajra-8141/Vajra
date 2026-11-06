@@ -51,6 +51,12 @@ Times are from one machine, on a warm mirror.
 | Releasing a queued payment early, and the race that must not pay twice | `vajra pay-e2e` | 40 s | 0 failures |
 | The phone alert, with a local stand-in for Telegram's servers | `vajra watch-e2e` | 1 min | a stranger refused, Pay refused on software, then cancel and pay both land |
 | The phone alert, for real | a bot from @BotFather, `TELEGRAM_BOT_TOKEN` in `.env`, then `vajra watch` | | Tried on Nov 6 with a real bot and a real phone, on the mirror: two **Not me** taps cancelled, one **Pay, it's me** tap paid 0.5 ETH. Pay used the software signer (`--allow-software-pay`). **Not me** also passed on the public devnet |
+| The phone app, in a real browser | `pnpm install`, `pnpm --filter @vajra/phone build`, then `node apps/phone/test/e2e.mjs` | 2 min | 0 failures. Needs Brave or Chrome, set with `CHROMIUM`. The push service and Telegram are local stand-ins here |
+| Web Push, nothing stood in for | `node apps/phone/test/real-push.mjs` | up to 5 min | a notification through Google's push service. Needs Brave and internet |
+| The phone app, by hand | `vajra phone`, then open the link in `.vajra-local/phone-pair.txt` | | Add `--allow-software-pay` for **Pay, it's me** |
+| The extension, in a real browser | `pnpm --filter @vajra/extension build` with `VAJRA_STACK=local`, then `node apps/extension/test/e2e.mjs` | 2 min | 0 failures. The Playwright headless shell cannot load extensions, so this needs Brave or Chrome. By hand: load `apps/extension/dist` unpacked |
+| Encrypted backup, restore, a stale state refused | `vajra backup-e2e`, or `vajra backup --out file`, `vajra restore --in file --check` | 1 min | 0 failures |
+| One-transaction move from an EOA | `vajra move-e2e`, or `vajra move --key-file file --harbor 0x… --tokens 0x…` | 40 s | three frames, one transaction, 0 failures |
 | Gas table | `vajra measure`, `vajra measure-zk` | 2 min each | close to `docs/GAS.md` |
 | A staked VERIFY limit over 100,000 | `vajra budget` | 5 s | 400,000 admitted. The 900,000 line says "fee too low": same nonce, not the cap |
 | Hardware logic | `make -C firmware test emulator`, then the three lines below | 1 min | 143 checks, then 7 mined |

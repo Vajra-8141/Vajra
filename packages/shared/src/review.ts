@@ -78,6 +78,13 @@ async function tokenInfo(asset: Address): Promise<{ symbol: string; decimals: nu
   }
 }
 
+/** The same words the queue uses, for a payment that has not been signed yet. */
+export async function amountText(asset: Address, amount: bigint): Promise<string> {
+  if (asset === ETH) return eth(amount);
+  const info = await tokenInfo(asset);
+  return info ? `${formatUnits(amount, info.decimals)} ${info.symbol}` : `${amount} units of unknown token ${shortAddress(asset)}`;
+}
+
 /** Why each item queued, from its event. The node may refuse a wide log query, and then the reason is unknown. */
 async function queueReasons(account: Address): Promise<Map<string, 0 | 1> | null> {
   try {
