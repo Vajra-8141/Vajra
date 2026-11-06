@@ -78,6 +78,15 @@ const LABELS: Record<string, { title: string; what: string; command?: string; fa
   "shield-public-latest.json": { title: "One note through the pool, on the public devnet", what: "One note in and out. The pool held one note, so this proves the path, not any privacy.", command: "vajra shield, then vajra unshield", facts: (r) => [["Failures", count(r.failures)]] },
   "recovery-latest.json": { title: "Recovery by proof, every attack", what: "A Groth16 proof replaces a lost hash key, after a delay the owner can veto.", command: "vajra recover", facts: (r) => [["VERIFY gas of a proof", count(r.verifyGas)], ["Prover time, ms", count(r.proverMs)]] },
   "shielded-latest.json": { title: "The shielded pool, every attack", what: "Notes in with the master key, notes out with no key.", command: "vajra shielded", facts: (r) => [["VERIFY gas of an unshield", count(r.unshieldVerifyGas)], ["Prover time, ms", count(r.proverMs)]] },
+  "pool-latest.json": {
+    title: "Notes rebuilt from one seed, and what the pool hides",
+    what: "The real commands in folders of their own: every note found again from the seed and the chain after the machine is gone, and the meter read at each stage.",
+    command: "vajra pool-e2e",
+    facts: (r) => [
+      ["Meter readings", count(Array.isArray(r.meter) ? r.meter.length : null)],
+      ["Failures", count(r.failures)],
+    ],
+  },
   "clear-sign-latest.json": { title: "A wallet signing typed data, every attack", what: "A scripted wallet signs the asset, recipient, amount and cost as EIP-712 typed data.", command: "vajra clear-sign" },
   "exit-latest.json": { title: "The second way out, every attack", what: "VajraExit, a sender of its own: an escape mined past a thief's pending transaction.", command: "vajra exit-e2e" },
   "paymaster-latest.json": { title: "Quota and USDC paymasters, every attack", what: "Sponsored daily transactions, with the simulator's predictions held against what the nodes did.", command: "vajra paymaster-e2e" },

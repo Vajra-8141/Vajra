@@ -276,6 +276,9 @@ switch (command) {
   case "unshield":
     await (await import("./shield.ts")).unshieldCommand(rest[0] as Address, { account: flags.account });
     break;
+  case "pool":
+    await (await import("./shield.ts")).poolCommand(rest[0]);
+    break;
   case "notes":
     await (await import("./shield.ts")).notesCommand({ account: flags.account });
     break;
@@ -319,6 +322,7 @@ registry: leaves [root]                 (what Arkiv knows about a key tree; need
 recovery: recover-setup [--delay s] [--out file] | recover-prove --secret file [--out file] | recover --proof file
           recover                        (no flags: the whole story on a fresh account, with every attack)
 pool:     shield [--account a --key-file f] | unshield <recipient> [--account a]  (one note in, one note out)
+          pool [address]                 (what this pool hides, and what no chain can show; needs no key)
           notes [--account a]            (what this machine holds, and what the chain says of it)
           notes-restore [--seed-file f] [--account a] [--gap n]  (every note, rebuilt from the seed and the chain)
           shielded                       (the whole pool on a fresh account, with every attack)
@@ -337,4 +341,4 @@ attacks:  rep-burn [fixed|rule] | escape-solvency [fixed] | proof-spam [fixed] |
 }
 
 if (command !== "bridge" && command !== "phone") await closeDevice();
-if (command?.startsWith("recover") || command?.startsWith("notes") || command === "shield" || command === "unshield") await (await import("./proving.ts")).stopProver();
+if (command?.startsWith("recover") || command?.startsWith("notes") || command === "pool" || command === "shield" || command === "unshield") await (await import("./proving.ts")).stopProver();

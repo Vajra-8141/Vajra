@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { type Address, type Hex, formatEther, getAddress, isAddress, parseAbiItem } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { DEVNET, type FrameTx, LEGACY_GAS_PRICE, RpcError, accountV2Abi, deployments, framesSucceeded, opsV2, publicClient, refusalNameV2, submit, unshieldTx, waitForSuccess, walletFor } from "@vajra/core";
+import { DEVNET, type FrameTx, LEGACY_GAS_PRICE, RpcError, accountV2Abi, deployments, framesSucceeded, opsV2, poolMeter, poolWords, publicClient, readPoolFacts, refusalNameV2, submit, unshieldTx, waitForSuccess, walletFor } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 import { installNoteSeed, localNoteSeed, noteSeed } from "./note-seed.ts";
@@ -118,6 +118,19 @@ const accountOr = (given?: string): Address => {
   return getAddress(given);
 };
 
+/** What the pool hides. It needs no key, so it works on anyone's account. A failed read stops here, and prints no figure. */
+export async function poolCommand(given?: string) {
+  const account = accountOr(given);
+  const facts = await readPoolFacts(account);
+  if (!facts) return console.log(`${account} has no pool`);
+  const words = poolWords(poolMeter(facts));
+  const list = (title: string, lines: string[]) => lines.length && console.log(`\n${title}\n${lines.map((text) => `  ${text}`).join("\n")}`);
+  console.log(words.headline);
+  list("The chain shows", words.shows);
+  list("This read could not find out", words.unknown);
+  list("No chain can show", words.cannotShow);
+}
+
 /** Everything this machine knows about, with the chain's word on each. A failed read stops the command: it does not print as nothing. */
 export async function notesCommand(o: { account?: string } = {}) {
   const account = accountOr(o.account);
@@ -188,6 +201,10 @@ export async function unshieldCommand(recipient: Address, o: { account?: string 
   }
   if (!saved) throw new Error("no unspent note on this machine");
   const note = asNote(saved);
+
+  // Said before the proof, because it is the last moment it can change what you do.
+  const facts = await readPoolFacts(account);
+  if (facts) console.log(poolWords(poolMeter(facts)).headline);
 
   // A note has one mined attempt, and it is spent whatever the recipient does. So ask first: a contract that refuses money costs the note.
   await checkRecipient(recipient);

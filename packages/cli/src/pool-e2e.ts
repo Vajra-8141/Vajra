@@ -1,20 +1,20 @@
 /**
- * The pool as a person lives with it, on the mirror: notes rebuilt from one seed after the machine is gone. The real commands, in folders of
- * their own, against the real chain. Every attack is really sent, and has to die with its name. `vajra shielded` is the pool's own proof
- * and attacks; this is what happens around them.
+ * The pool as a person lives with it, on the mirror: notes rebuilt from one seed after the machine is gone, and a meter that says how little
+ * the pool hides. The real commands, in folders of their own, against the real chain. Every attack is really sent, and has to die with its
+ * name. `vajra shielded` is the pool's own proof and attacks; this is what happens around them.
  */
 import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type Address, type Hex, formatEther, parseEther } from "viem";
+import { type Address, type Hex, formatEther, keccak256, parseEther, toHex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { DEVNET, LEGACY_GAS_PRICE, deployments, isLocalStack, publicClient, unshieldTx, waitForSuccess, walletFor } from "@vajra/core";
+import { DEVNET, LEGACY_GAS_PRICE, deployments, isLocalStack, poolMeter, publicClient, readPoolFacts, unshieldTx, waitForSuccess, walletFor } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 import { noteFromSeed, proveUnshield, stopProver } from "./proving.ts";
 import { denomination, noteFee, poolLeaves, readPool } from "./shield.ts";
-import { check, refusals, refused, tally } from "./zk-run.ts";
+import { check, newAccount, newSigner, refusals, refused, tally } from "./zk-run.ts";
 
 if (!isLocalStack) throw new Error("this run spends notes on purpose: it runs on the mirror only, with VAJRA_STACK=local");
 
@@ -23,6 +23,7 @@ const chainId = DEVNET.chainId;
 const DENOM = denomination();
 const PAID = DENOM - noteFee();
 const dir = mkdtempSync(join(tmpdir(), "vajra-pool-"));
+mkdirSync(join(dir, "anyone"));
 const fresh = () => privateKeyToAccount(generatePrivateKey()).address;
 const deployer = loadOrCreateKey(keyPath("deployer.key"));
 
@@ -79,18 +80,48 @@ async function outsider(name: string) {
 
 const held = (account: Address) => readPool<bigint>(account, "poolHeld");
 
+const readings: { stage: string; state: string; deposits: number; withdrawn: number; left: number; addresses: number | null; said: string }[] = [];
+
+/** What `vajra pool` says, for anyone, with no key and from a folder with nothing in it. */
+async function meter(stage: string, account: Address, want: string) {
+  const run = vajra(join(dir, "anyone"), ["pool", account]);
+  const said = run.stdout.split("\n")[0] ?? "";
+  const { state, deposits, withdrawn, left, addresses } = poolMeter((await readPoolFacts(account))!);
+  readings.push({ stage, state, deposits, withdrawn, left, addresses, said });
+  check(run.status === 0 && said.includes(want), `${stage}: ${said || run.stderr.trim().slice(0, 200)}`);
+  return run.stdout;
+}
+
 console.log("\n1. Notes in, all from one seed");
 const { state: home, account, harbor } = await newHome("home");
 console.log(`  account ${account}`);
 done("the owner shields note 0", home, ["shield"]);
 done("the owner shields note 1", home, ["shield"]);
+await meter("an owner alone in the pool, with two notes", account, "Hides nothing. Every note came from this account");
 const friend = await outsider("friend");
 done("an outsider pays in, from a key and a seed of their own", friend.state, ["shield", "--account", account, "--key-file", friend.keyFile]);
+await meter("one outsider in the pool", account, "Hides little. A withdrawal could have been paid for by any of at most 2 addresses");
 done("the owner shields note 2", home, ["shield"]);
+const odds = await meter("three of four from the owner", account, "at most 2 addresses");
+check(odds.includes("right about 3 times in 4"), "the meter says a guess at the largest depositor is right 3 times in 4");
+check(odds.includes("Whether those addresses are different people") && odds.includes("not that"), "it says what no chain can show, and that the account's payment is not hidden");
 check((await poolLeaves(account)).length === 4, "the pool holds four deposits");
 const paidFirst = fresh();
-done("the owner spends the oldest note", home, ["unshield", paidFirst]);
+const spoke = done("the owner spends the oldest note", home, ["unshield", paidFirst]);
+check(spoke.includes("Hides little."), "the owner is told what the pool hides before the proof is made");
 check((await publicClient.getBalance({ address: paidFirst })) === PAID, `the recipient holds ${formatEther(PAID)} ETH`);
+await meter("after a withdrawal", account, "at most 2 addresses");
+
+console.log("\n1b. A meter must not turn not knowing into a number");
+const dead = spawnSync(process.execPath, [new URL("./main.ts", import.meta.url).pathname, "pool", account], { env: { ...process.env, VAJRA_STATE_DIR: join(dir, "anyone"), VAJRA_LANE: "9" }, encoding: "utf8" });
+check(dead.status !== 0 && !/notes? paid in|Hides|\b0\b notes|has no pool/.test(dead.stdout), `a chain that does not answer gives no figure and no verdict: ${dead.stderr.trim().slice(0, 80)}`);
+const noCode = vajra(join(dir, "anyone"), ["pool", fresh()]);
+check(noCode.stdout.includes("has no pool") && !noCode.stdout.includes("Hides"), "an address with no code has no pool, which is not an empty pool");
+const v1 = await newAccount(deployer, newSigner(), fresh(), fresh(), keccak256(toHex("v1")), parseEther("0.1"), deployments().w16.factory);
+const v1Run = vajra(join(dir, "anyone"), ["pool", v1]);
+check(v1Run.stdout.includes("has no pool"), "a V1 account, which reverts, has no pool, and that is not a failed read");
+const bare = await newHome("bare");
+await meter("a V2 account nobody has paid into", bare.account, "Nothing has been paid in");
 
 console.log("\n2. A failed deposit leaves a gap, and the seed walks over it");
 done("freeze", home, ["freeze"]);
@@ -175,6 +206,7 @@ done("escape", home, ["escape"]);
 check((await publicClient.getBalance({ address: harbor })) >= heldBefore, `the harbor holds what the notes were owed, ${formatEther(heldBefore)} ETH`);
 const swept = done("rebuild after the escape", join(dir, "after-rotation"), ["notes-restore", "--account", account]);
 check(/swept to the harbor/.test(swept) && !/: in the pool/.test(swept), `no note reads as money still in the pool: ${line(swept, /\d+ notes found.*/)}`);
+await meter("after the escape", account, "This pool is closed");
 
 const record = {
   ranAt: new Date().toISOString(),
@@ -186,6 +218,7 @@ const record = {
   denomination: DENOM.toString(),
   failures: tally.failures,
   steps,
+  meter: readings,
   refusals,
 };
 writeFileSync(new URL("../../../docs/evidence/pool-latest.json", import.meta.url), JSON.stringify(record, null, 1) + "\n");

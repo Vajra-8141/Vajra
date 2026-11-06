@@ -1,44 +1,44 @@
 {
- "ranAt": "2026-11-06T20:12:46.148Z",
+ "ranAt": "2026-11-06T20:19:44.947Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
  "chainId": 13370,
  "genesis": "0x74f05f1d3d0589fbf8e763a064aefe6d9941f6ab907cb52993142ede6c23cf3c",
  "implementation": "0x668e5b07b106c3ea01e113830636e19262d4db12",
- "account": "0x106C2EF3a941e3aD0368dAB2CA377bDf1D48332D",
+ "account": "0xf8eAb2977C05573b4e87AF2A72Cc2dAF7b18a769",
  "denomination": "100000000000000000",
  "failures": 0,
  "steps": [
   {
    "step": "the owner shields note 0",
-   "hash": "0x4ba640461dd8e27e56224874f01fdf52b67d53c36d1277cfea8b0c551b479da6"
+   "hash": "0x86a235a7cb5a3bc9dd37c7dc72f58ed3418bae1c0603ac6a654eaf856175a3cc"
   },
   {
    "step": "the owner shields note 1",
-   "hash": "0xe16b2adc1714d1310e6950844a9db4d421a8b2dcced49dc6ea06cf605aa3b0df"
+   "hash": "0x8a280dc1e55ca3820fb6cfc579f29b714d11b9729863412ebf45d187ab861508"
   },
   {
    "step": "an outsider pays in, from a key and a seed of their own",
-   "hash": "0x657f942b051d54bbb47346af6ae083252384536f0f3118b2ada716aa8b4daf1a"
+   "hash": "0x69148f42438b4c282a22f62da86fa77c69b9c559975f1408ec9c0656f32086eb"
   },
   {
    "step": "the owner shields note 2",
-   "hash": "0xfd62468601bf00e001a66b6c6b587d4fde2ceebc04ebb3038cb4b82f5e0f0476"
+   "hash": "0x9570c934a891d4a7b73b58fccce871529411f030447db7a6dc50cbe370079281"
   },
   {
    "step": "the owner spends the oldest note",
-   "hash": "0x561c09d8303d947bf8ac93874691065934067e4d330472cdd358e7e38a52b947"
+   "hash": "0xf567587ef8b90e9e6f570d2da3703c876ebe910c4453ae93ce3de2be5658957e"
   },
   {
    "step": "freeze",
-   "hash": "0xf0a0f582b179bb53d6b388a1a6c200599b408f815fc42170452bdc5107425c3b"
+   "hash": "0x348e9f180de0b409ae2a1376e8b2cb395074662bcf8677818f4683edad71cf59"
   },
   {
    "step": "unfreeze",
-   "hash": "0x041421f9f8a17500f0a598b6869ef3ef6616c11da6fc6f8048c618e7fd63d8fe"
+   "hash": "0x4d8d61118e4cae6370b16b8b6861319d12ad95ced72da65c3a248d1610bef02b"
   },
   {
    "step": "the owner shields again, past the number that failed",
-   "hash": "0xc15ffe51f017125dea7483f2aa614480a3cdb315393a675ed61f286f3b667247"
+   "hash": "0x24764b8c32be900b9a7cd7ac19ea8c6da318682d88583848241f42078b3bc68e"
   },
   {
    "step": "rebuild every note from the seed and the chain",
@@ -46,7 +46,7 @@
   },
   {
    "step": "a rebuilt note is spent from the new machine",
-   "hash": "0x95c156c1d32247e6edb336cb412e8518621f4b7e080792477156d36083d89dcf"
+   "hash": "0x36dbfe64026c0c3d4fa61b4ca9483653fe4e42cbd3c7a69b414ca3a4c48dfe7b"
   },
   {
    "step": "rebuilding again is safe, and sees that spend",
@@ -54,7 +54,7 @@
   },
   {
    "step": "the new machine shields, and carries on from the seed's next number",
-   "hash": "0xeb03a9c81f9d81ece5219aee59aee01d9d1872f004c8fbded08ed74cf51a4351"
+   "hash": "0x48fb7c81aba32370957971bb4ceb9d49c4ed4db560fc8f7352eb830e6e938cc1"
   },
   {
    "step": "another seed",
@@ -70,7 +70,7 @@
   },
   {
    "step": "rotate the master key",
-   "hash": "0xf3825ee681cd9417d1072a1be7f4854354adb134b45350a0942841ba1f2bd850"
+   "hash": "0x4a0ae9d9d96f63895e11317d044e5ac36e9a3f084702b6c8790535dfb6ab6c44"
   },
   {
    "step": "rebuild after the rotation",
@@ -94,11 +94,67 @@
   },
   {
    "step": "escape",
-   "hash": "0x59a796e98d6f91f36069b4b1e2adf518821c781da0833fb2190938ad720889e1"
+   "hash": "0x53def81d585016ab9db34ec9cb1bfced20e9bdbdd5b2b99ef42c107f39935aea"
   },
   {
    "step": "rebuild after the escape",
    "hash": null
+  }
+ ],
+ "meter": [
+  {
+   "stage": "an owner alone in the pool, with two notes",
+   "state": "hides nothing",
+   "deposits": 2,
+   "withdrawn": 0,
+   "left": 2,
+   "addresses": 1,
+   "said": "Hides nothing. Every note came from this account, so a withdrawal is plainly yours."
+  },
+  {
+   "stage": "one outsider in the pool",
+   "state": "hides little",
+   "deposits": 3,
+   "withdrawn": 0,
+   "left": 3,
+   "addresses": 2,
+   "said": "Hides little. A withdrawal could have been paid for by any of at most 2 addresses."
+  },
+  {
+   "stage": "three of four from the owner",
+   "state": "hides little",
+   "deposits": 4,
+   "withdrawn": 0,
+   "left": 4,
+   "addresses": 2,
+   "said": "Hides little. A withdrawal could have been paid for by any of at most 2 addresses."
+  },
+  {
+   "stage": "after a withdrawal",
+   "state": "hides little",
+   "deposits": 4,
+   "withdrawn": 1,
+   "left": 3,
+   "addresses": 2,
+   "said": "Hides little. A withdrawal could have been paid for by any of at most 2 addresses."
+  },
+  {
+   "stage": "a V2 account nobody has paid into",
+   "state": "empty",
+   "deposits": 0,
+   "withdrawn": 0,
+   "left": 0,
+   "addresses": 0,
+   "said": "Nothing has been paid in, so there is nothing to hide among."
+  },
+  {
+   "stage": "after the escape",
+   "state": "closed",
+   "deposits": 6,
+   "withdrawn": 2,
+   "left": 4,
+   "addresses": 2,
+   "said": "This pool is closed. An escape took what it held to the harbor, and no note can be spent."
   }
  ],
  "refusals": [
