@@ -90,7 +90,6 @@ try {
   // Things only a browser can prove: proofs on the device, and the stealth keys.
   await route(p, "/protection");
   await p.getByRole("heading", { name: "Protection" }).waitFor();
-  await p.locator('[data-step="freeze"] .step-head').click();
   await p.getByRole("button", { name: "Freeze now" }).waitFor({ timeout: 20000 });
   await tap(p, "Freeze now");
   await sheet(p, "Freeze");
@@ -99,7 +98,6 @@ try {
   await p.getByText("Frozen", { exact: true }).first().waitFor({ timeout: 30000 });
   await laptop.shot("04b-frozen");
   await route(p, "/protection");
-  await p.locator('[data-step="freeze"] .step-head').click();
   await p.getByRole("button", { name: "Unfreeze", exact: true }).click();
   await sheet(p, "Unfreeze");
   await closeSheet(p);

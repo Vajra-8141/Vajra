@@ -145,6 +145,7 @@ async function full(size, name, ua) {
   await page.evaluate(() => (location.hash = "/protection"));
   await page.getByRole("heading", { name: "Protection" }).waitFor();
   await shot("20-protection");
+  await page.locator('[data-step="alerts"] .step-head').click();
   const pushBtn = page.getByRole("button", { name: "Use push" });
   await page.evaluate(() => (window.__fakeFail = "enablePush"));
   await pushBtn.click();
@@ -189,11 +190,13 @@ async function full(size, name, ua) {
   await confirmAndFinish(page, "Unfreeze");
 
   // Second way out
+  await page.locator('[data-step="exit"] .step-head').click();
   await page.getByRole("button", { name: "Set up second way out" }).waitFor();
   await tap(page, "Set up second way out");
   await confirmAndFinish(page, "Set it up");
 
   // Paper
+  await page.locator('[data-step="paper"] .step-head').click();
   await tap(page, "Make my paper", "link");
   await pause(page, 200);
   await shot("31-paper-intro");
@@ -210,6 +213,7 @@ async function full(size, name, ua) {
   await tap(page, "Back to Protection", "link");
 
   // Move
+  await page.locator('[data-step="move"] .step-head').click();
   await tap(page, "Move it to my phone", "link");
   await tap(page, "Show the QR code");
   await page.getByRole("img", { name: /moves your hash key/ }).waitFor();
@@ -224,7 +228,6 @@ async function full(size, name, ua) {
   await page.getByRole("checkbox").check();
   await tap(page, "It's on my phone");
   await page.getByRole("heading", { name: "Protection" }).waitFor({ timeout: 6000 });
-  await page.getByText("Every step is done.").waitFor();
   await shot("34-protection-all-done");
 
   // With the hash key gone, hash key actions explain where it went

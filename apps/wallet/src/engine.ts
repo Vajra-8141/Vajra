@@ -90,6 +90,8 @@ interface Secrets {
   mine: string[];
   /** A recovery that has landed and not finished, so a reload can pick it up. */
   recovering?: { id: string; executeAfter: number } | null;
+  /** Something only this wallet knows was added after the last backup. */
+  backupStale?: boolean;
   /** Activity, carried in the backup so a restored device still knows what was done. */
   historyCopy?: HistoryItem[];
 }
@@ -447,6 +449,7 @@ export const engine: Engine = {
   async backup() {
     const s = need();
     s.secrets.backedUp = true;
+    s.secrets.backupStale = false;
     s.secrets.historyCopy = history();
     await persist();
     return JSON.stringify(stored()!.sealed);
@@ -503,6 +506,7 @@ export const engine: Engine = {
       privatePayments,
       alerts: alerts ?? { telegram: false, push: false },
       backedUp: s.backedUp,
+      backupStale: !!s.backupStale,
       history: history(),
       chainTime: block ? Number(block.timestamp) : null,
     };
@@ -789,6 +793,7 @@ export const engine: Engine = {
     const root = treeOf(seed).root;
     const exit = s.exit?.address ?? (await api<{ exit: Address }>("/api/exit", { account: s.account, root, epochSalt })).exit;
     s.exit = { address: exit, seed };
+    s.backupStale = true;
     await persist();
     const done = await master([opsV2.setExit(exit)], onStep);
     record("exit-set", "Second way out is ready", done.hash);
@@ -818,6 +823,7 @@ export const engine: Engine = {
     const commitment = noteCommitment(note);
     const saved = { id: commitment.toString().slice(0, 12), secret: note.secret.toString(), nullifierSeed: note.nullifierSeed.toString(), commitment: commitment.toString(), leaf: -1, spent: false };
     s.notes.push(saved);
+    s.backupStale = true;
     await persist();
     const done = await master([opsV2.shield(commitment, BigInt(v2.denomination))], onStep);
     saved.leaf = (await poolLeaves(s.account)).indexOf(commitment);

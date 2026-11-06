@@ -257,6 +257,18 @@ input[type="range"]::-moz-range-thumb { width: 28px; height: 28px; border-radius
 .how li { counter-increment: how; display: grid; grid-template-columns: 22px 1fr; gap: var(--s2); color: var(--t60); }
 .how li::before { content: counter(how); font-variant-numeric: tabular-nums; color: var(--t40); }
 .step-body { display: grid; gap: var(--s3); padding: 0 0 var(--s5) 39px; animation: line var(--mid) var(--ease) both; }
+.sos { display: grid; gap: var(--s3); padding: var(--s4); background: var(--surface-1); border: 1px solid var(--line); border-radius: 14px; }
+.sos h2, .practice h2 { font-size: var(--t-h3); }
+.sos-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+.safety { display: grid; margin: 0; padding: 0; list-style: none; }
+.safety .step { border-bottom: 1px solid var(--line); }
+.safety .step::before, .safety .step::after { display: none; }
+.safety .step-head { align-items: center; justify-content: space-between; }
+.safety .step-head .chev { flex: none; color: var(--t40); transition: transform var(--fast) var(--ease); }
+.safety .is-open .step-head .chev { transform: rotate(90deg); }
+.safety .step-body { padding-left: 0; }
+.safe-on { color: var(--ok); }
+.practice { display: grid; gap: var(--s3); padding: var(--s4); border: 1px solid var(--line); border-radius: 14px; }
 .emergency { display: grid; gap: var(--s3); padding-top: var(--s4); border-top: 1px solid var(--line); }
 
 .paper { padding: var(--s5) var(--s4); font-family: var(--font-code); font-size: 1.125rem; line-height: 1.6; text-align: center; overflow-wrap: anywhere; font-variant-numeric: normal; background: var(--surface-1); border: 1px solid var(--line-strong); border-radius: var(--r3); -webkit-user-select: all; user-select: all; }

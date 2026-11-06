@@ -95,6 +95,8 @@ export interface Snapshot {
   privatePayments: PrivatePayment[];
   alerts: { telegram: boolean; push: boolean };
   backedUp: boolean;
+  /** Something was added since the last backup, so that file would lose it. */
+  backupStale: boolean;
   history: HistoryItem[];
   /** Latest chain time in unix seconds, which countdowns must use instead of the device clock. */
   chainTime: number | null;

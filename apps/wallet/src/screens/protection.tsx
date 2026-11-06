@@ -1,4 +1,4 @@
-/** The backbone: one checklist in story order. Each row names a danger, then the fix, and each fix raises the next danger. */
+/** What is safe, what to do about it, and what to press if something is wrong. The wallet's real state decides what comes first. */
 import { useState, type ReactNode } from "react";
 import type { Done, Snapshot } from "../engine-types";
 import { engine } from "../wallet";
@@ -9,103 +9,170 @@ interface Row {
   id: string;
   title: string;
   danger: string;
+  status: string;
   how: string[];
   done: boolean;
 }
 
 export function rows(s: Snapshot): Row[] {
-  const did = (k: string) => s.history.some((h) => h.kind === k);
   return [
     {
-      id: "backup",
-      title: "Save a backup",
-      danger: "If this device breaks, your wallet could go with it.",
-      how: ["You save one locked file.", "Only your passphrase can open it.", "On a new device, tap Restore and pick that file."],
-      done: s.backedUp,
-    },
-    {
       id: "alerts",
-      title: "Get warned",
+      title: "Alerts",
+      status: s.alerts.telegram && s.alerts.push ? "Telegram and push are on" : s.alerts.telegram ? "Telegram is on" : s.alerts.push ? "Push is on" : "Off",
       danger: "A thief won't tell you they've started.",
       how: ["Link Telegram, or turn on push alerts.", "If a big payment starts, you get a message within seconds.", "You then have until the countdown ends to stop it."],
       done: s.alerts.telegram || s.alerts.push,
     },
     {
-      id: "drill",
-      title: "Practice a theft",
-      danger: "Your first time shouldn't be a real theft.",
-      how: ["The app plays the thief and tries to take more than your limit. This is a real attempt on the chain.", "The payment gets stuck in a public countdown.", "You tap Not me. Your hash key cancels it, and your money stays."],
-      done: did("cancelled"),
-    },
-    {
-      id: "freeze",
-      title: "Freeze and unfreeze",
-      danger: "Sometimes something feels wrong, but you can't see what.",
-      how: ["Tap Freeze. Your wallet key stops, so nothing can be sent.", "Your hash key keeps working.", "Tap Unfreeze when you feel safe."],
-      done: did("frozen") && did("unfreeze") && s.frozen === false,
-    },
-    {
-      id: "exit",
-      title: "Second way out",
-      danger: "You might need to run when your wallet is blocked, or your hash key is gone.",
-      how: ["The app makes a small helper account with its own key and its own money.", "The helper can only do one thing: move everything to your safe.", "If your wallet is blocked or you lose your phone, use it from the Escape screen."],
-      done: s.exit !== null,
+      id: "backup",
+      title: "Backup",
+      status: !s.backedUp ? "Not saved" : s.backupStale ? "Out of date" : "Saved",
+      danger: "If this device breaks, your wallet could go with it.",
+      how: ["You save one locked file.", "Only your passphrase can open it.", "On a new device, tap Restore and pick that file."],
+      done: s.backedUp && !s.backupStale,
     },
     {
       id: "paper",
       title: "Recovery paper",
+      status: s.recoverySet === null ? "Unknown" : s.recoverySet ? "Set" : "Not set",
       danger: "You could lose your device and your backup together.",
       how: ["The app shows a secret code once. Write it on paper.", "On a new device, type the code and your wallet address.", "It waits in public first, so you can cancel it if someone stole your paper."],
       done: s.recoverySet === true,
     },
     {
+      id: "exit",
+      title: "Second way out",
+      status: s.exit ? (s.exit.reserve === null ? "Ready" : `Ready, with ${eth(s.exit.reserve)} ETH`) : "Not set up",
+      danger: "You might need to run when your wallet is blocked, or your hash key is gone.",
+      how: ["The app makes a small helper account with its own key and its own money.", "The helper can only do one thing: move everything to your safe.", "If your wallet is blocked or you lose your phone, use it from the Escape screen."],
+      done: s.exit !== null,
+    },
+    {
       id: "move",
-      title: "Move the hash key to your phone",
+      title: "Hash key",
+      status: !s.hashKeyHere ? "On your phone" : s.hashKeyLeft === null ? "On this device" : `On this device, ${s.hashKeyLeft} uses left`,
       danger: "If both keys are on one device, one theft gets both.",
       how: ["Scan a QR code with your phone, and type your passphrase there.", "This device keeps spending. Your phone becomes the guard.", "If a theft starts, your phone is where you tap Not me."],
-      done: !s.hashKeyHere,
+      done: !s.hashKeyHere || !s.walletKeyHere,
     },
   ];
 }
-export const nextStep = (s: Snapshot) => rows(s).find((r) => !r.done) ?? null;
+
+export interface Suggestion {
+  id: string;
+  title: string;
+  danger: string;
+  /** Where it goes. Without one, it opens that row. */
+  href?: string;
+}
+
+/** One thing worth doing next, read from the wallet as it is now. */
+export function nextStep(s: Snapshot): Suggestion | null {
+  if (s.escaped) return null;
+  const practised = s.history.some((h) => h.kind === "cancelled");
+  if (!s.alerts.telegram && !s.alerts.push) return { id: "alerts", title: "Turn on alerts", danger: "Right now a theft would stay quiet until you opened this app." };
+  if (s.backupStale) return { id: "backup", title: "Save a new backup", danger: "Your last backup is missing something you added since." };
+  if (s.hashKeyLeft !== null && s.hashKeyLeft <= 8) return { id: "rotate", title: "Replace your hash key soon", danger: `It has ${s.hashKeyLeft} uses left.`, href: "#/settings" };
+  if (!practised && s.walletKeyHere) return { id: "drill", title: "Practice a theft", danger: "Your first time shouldn't be a real theft.", href: "#/drill" };
+  if (s.recoverySet === false) return { id: "paper", title: "Make a recovery paper", danger: "If you lose this device and your backup, the paper still gets your wallet back." };
+  if (!s.exit && s.hashKeyHere) return { id: "exit", title: "Set up a second way out", danger: "It still gets your money out if your wallet is blocked." };
+  if (s.hashKeyHere && s.walletKeyHere) return { id: "move", title: "Move your hash key to your phone", danger: "Both keys are on this device, so one theft could get both." };
+  return null;
+}
 
 export function Protection() {
   return (
     <WithSnap>
-      {(s) => <Checklist s={s} />}
+      {(s) => <Safety s={s} />}
     </WithSnap>
   );
 }
 
-function Checklist({ s }: { s: Snapshot }) {
+function FreezeButton({ s }: { s: Snapshot }) {
+  const { hash } = useTasks();
+  const freeze = () => void hash({ what: "Freeze your wallet", detail: "Your wallet key can't send anything until you unfreeze. Your hash key still works.", confirm: "Freeze" }, { title: "Freezing", run: (x) => engine.freeze(x), result: (d) => ({ title: "Frozen", body: "Your wallet key is stopped. Nothing can be sent until you unfreeze.", done: d, signed: true }) });
+  const unfreeze = () => void hash({ what: "Unfreeze your wallet", detail: "Your wallet key can spend again.", confirm: "Unfreeze" }, { title: "Unfreezing", run: (x) => engine.unfreeze(x), result: (d) => ({ title: "Unfrozen", body: "Your wallet key works again.", done: d, signed: true }) });
+  return s.frozen ? (
+    <button className="btn arc" onClick={unfreeze}>
+      Unfreeze
+    </button>
+  ) : (
+    <button className="btn arc" onClick={freeze}>
+      Freeze now
+    </button>
+  );
+}
+
+function Safety({ s }: { s: Snapshot }) {
   const all = rows(s);
-  const count = all.filter((r) => r.done).length;
-  const first = all.find((r) => !r.done)?.id ?? null;
-  const [picked, setPicked] = useState<string | null | undefined>(undefined);
-  const open = picked === undefined ? first : picked;
+  const [open, setOpen] = useState<string | null>(null);
+  const tip = nextStep(s);
+  const practised = s.history.some((h) => h.kind === "cancelled");
+  const waiting = s.queue ?? [];
   return (
     <section className="screen">
       <header className="screen-head">
         <h1>Protection</h1>
       </header>
-      <p className="lead">Your wallet has two keys. The wallet key spends small amounts. The hash key can stop anything. These steps set up your safety, one at a time.</p>
-      <div className="progress">
-        <p>{count === all.length ? "Every step is done." : `${count} of ${all.length} done`}</p>
-        <div className="meter" role="img" aria-label={`${count} of ${all.length} steps done`}>
-          <i style={{ width: `${(count / all.length) * 100}%` }} />
-        </div>
+      <p className="lead">The wallet key spends small amounts. The hash key can stop anything.</p>
+
+      {waiting.map((item) => (
+        <QueueCard key={item.id} item={item} snap={s} />
+      ))}
+
+      <div className="sos">
+        <h2>Something wrong?</h2>
+        {s.escaped ? (
+          <a className="btn" href="#/safe">
+            Open your safe
+          </a>
+        ) : (
+          <>
+            <p className="t60 small">Freeze stops all spending until you lift it. Escape moves everything to your safe, and you can't undo it.</p>
+            <div className="sos-actions">
+              <FreezeButton s={s} />
+              <a className="btn" href="#/escape" data-testid="escape-link">
+                Escape
+              </a>
+            </div>
+          </>
+        )}
       </div>
-      <ol className="thread">
-        {all.map((r, i) => {
+
+      {tip && (
+        <a
+          className="nextup"
+          href={tip.href ?? "#/protection"}
+          onClick={(e) => {
+            if (tip.href) return;
+            e.preventDefault();
+            setOpen(tip.id);
+          }}
+        >
+          <div>
+            <small>Suggested for you</small>
+            <strong>{tip.title}</strong>
+            <p className="t60 small">{tip.danger}</p>
+          </div>
+          <Chevron />
+        </a>
+      )}
+
+      <div className="group-head">
+        <h2>Your safety</h2>
+      </div>
+      <ul className="safety">
+        {all.map((r) => {
           const isOpen = open === r.id;
           return (
             <li key={r.id} className={`step ${r.done ? "is-done" : ""} ${isOpen ? "is-open" : ""}`} data-step={r.id}>
-              <button className="step-head" aria-expanded={isOpen} onClick={() => setPicked(isOpen ? null : r.id)}>
-                <span className="node">{r.done ? <Tick small /> : i + 1}</span>
+              <button className="step-head" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : r.id)}>
                 <span className="step-text">
                   <strong>{r.title}</strong>
-                  {!isOpen && <small>{r.done ? "Done" : r.danger}</small>}
+                  <small className={r.done ? "safe-on" : ""}>{r.status}</small>
                 </span>
+                <Chevron />
               </button>
               {isOpen && (
                 <div className="step-body">
@@ -121,43 +188,33 @@ function Checklist({ s }: { s: Snapshot }) {
             </li>
           );
         })}
-      </ol>
-      <div className="emergency">
-        <div>
-          <h2>Escape</h2>
-          <p className="t60 small">For a real emergency. This moves all your money to your safe, and you can't undo it.</p>
+      </ul>
+
+      {!s.escaped && s.walletKeyHere && (
+        <div className="practice">
+          <div>
+            <h2>Practice a theft</h2>
+            <p className="t60 small">Rob yourself with a real attempt on the chain, then stop it. It takes about a minute.</p>
+          </div>
+          <a className="btn primary" href="#/drill">
+            {practised ? "Practice again" : "Start the practice"}
+          </a>
         </div>
-        <a className="btn" href="#/escape" data-testid="escape-link">
-          {s.escaped ? "See what happened" : "Open Escape"}
-        </a>
-      </div>
+      )}
     </section>
   );
 }
+
+const Chevron = () => (
+  <svg className="chev" viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="m8 5 5 5-5 5" />
+  </svg>
+);
 
 function RowAction({ id, s, done }: { id: string; s: Snapshot; done: boolean }) {
   const { hash } = useTasks();
   if (id === "backup") return <BackupAgain done={done} />;
   if (id === "alerts") return <Alerts s={s} />;
-  if (id === "drill")
-    return (
-      <a className="btn primary" href="#/drill">
-        {done ? "Practice again" : "Start the practice"}
-      </a>
-    );
-  if (id === "freeze") {
-    const freeze = () => void hash({ what: "Freeze your wallet", detail: "Your wallet key can't send anything until you unfreeze. Your hash key still works.", confirm: "Freeze" }, { title: "Freezing", run: (x) => engine.freeze(x), result: (d) => ({ title: "Frozen", body: "Your wallet key is stopped. Now lift it, so you've seen both halves.", done: d, signed: true }) });
-    const unfreeze = () => void hash({ what: "Unfreeze your wallet", detail: "Your wallet key can spend again.", confirm: "Unfreeze" }, { title: "Unfreezing", run: (x) => engine.unfreeze(x), result: (d) => ({ title: "Unfrozen", body: "Your wallet key works again.", done: d, signed: true }) });
-    return s.frozen ? (
-      <button className="btn arc" onClick={unfreeze}>
-        Unfreeze
-      </button>
-    ) : (
-      <button className="btn arc" onClick={freeze}>
-        Freeze now
-      </button>
-    );
-  }
   if (id === "exit")
     return s.exit ? (
       <dl className="facts">
