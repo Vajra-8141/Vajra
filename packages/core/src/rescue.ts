@@ -12,7 +12,7 @@
  * Runs in a browser and in Node.
  */
 import * as lib from "@forshtat/hegota-support/tx";
-import { type Address, type Hex, decodeErrorResult, decodeFunctionData, encodeFunctionData, getAddress, hexToBytes, parseAbiItem, zeroAddress } from "viem";
+import { type Address, type Hex, decodeErrorResult, decodeFunctionData, encodeFunctionData, getAddress, hexToBytes, parseAbiItem, toEventSelector, zeroAddress } from "viem";
 import { type QueuedView, harborCommitment, ops, readAccount, signExitTx } from "./account.ts";
 import { publicClient } from "./chain.ts";
 import { DEVNET, RpcError, genesisHash, rpcBatch, sleep, withTimeout } from "./devnet.ts";
@@ -62,8 +62,8 @@ export const defaultMargin = (queueDelay: number) => Math.min(Math.floor(queueDe
  * here and cannot be raised later, and a frame that runs out still spends the nonce key, so this errs high. Unused gas comes back.
  *
  * `SWEEP_GAS` bounds execution and not state gas, which is one pool for the frame, and a transfer that succeeds keeps what it spent. The V2 in
- * this repo pays the harbor first, so a token can only fail its own transfer. The V2 on the public devnet sweeps tokens first, where a token
- * can halt the frame, and three new slots a token are allowed for: see docs/FINDINGS.md section 23.
+ * this repo pays the harbor first, so inside this budget a token can only fail its own transfer and starve the tokens after it. The V2 on the
+ * public devnet sweeps tokens first, where a token can halt the frame, and three new slots a token are allowed for: see docs/FINDINGS.md section 23.
  */
 export function rescueCall(harbor: Address, harborSalt: Hex, tokens: number, extra: Address[] = []): Call {
   const call = ops.escape(harbor, harborSalt, extra);
@@ -132,7 +132,7 @@ export function parseRescue(text: string): Rescue {
 export type RescueCheck =
   | { state: "ready"; reserve: bigint; maxCost: bigint; verifyGas: number; totalGas: number }
   /** `copy` when what landed is not these bytes: a padded copy does the same job, under another hash. */
-  | { state: "sent"; hash: Hex; block: number; succeeded: boolean; copy: boolean }
+  | { state: "sent"; hash: Hex; block: number; succeeded: boolean; copy: boolean; leftBehind: Address[] }
   /** `burns` when sending it would mine, fail and spend the nonce key for nothing. Anything else dies at the door, so it costs nothing to try. */
   | { state: "broken"; reason: string; burns: boolean }
   | { state: "unknown"; reason: string };
@@ -140,8 +140,16 @@ export type RescueCheck =
 /** The one thing that holds a rescue back. Everything else is worth a try: nothing else can stop this now. */
 export const wouldBurn = (check: RescueCheck | null) => check?.state === "broken" && check.burns;
 
-/** A read that failed says nothing, so it must not wipe out what a good read knew: that sending this would burn its key. */
-export const keepBurn = (now: RescueCheck, before: RescueCheck | null): RescueCheck => (now.state === "unknown" && wouldBurn(before) ? before! : now);
+/** Only a clear answer ends a known burn. A read that failed or was refused says nothing, and must not turn "this would burn its key" into a send. */
+export const keepBurn = (now: RescueCheck, before: RescueCheck | null): RescueCheck => (wouldBurn(before) && now.state !== "ready" && now.state !== "sent" && !wouldBurn(now) ? before! : now);
+
+const SWEEP_FAILED = toEventSelector("SweepFailed(address)");
+
+/** What a landed escape could not move. The frame succeeds either way, so "rescued" alone would hide it. The zero address is the ETH: the harbor refused it. */
+export function leftBehind(receipt: FrameReceipt): Address[] {
+  const logs = receipt.frameReceipts.flatMap((frame) => frame.logs as { topics?: Hex[] }[]);
+  return logs.filter((log) => log.topics?.[0] === SWEEP_FAILED).map((log) => getAddress(`0x${log.topics![1]!.slice(26)}`));
+}
 
 /** The node's refusal, in the exit's own words when it has them. */
 function refusal(message: string): string {
@@ -176,7 +184,7 @@ export async function checkRescue(r: Rescue): Promise<RescueCheck> {
   try {
     reset = (await genesisHash()) !== r.genesis;
     const receipt = await receiptOf(r.hash);
-    if (receipt) return { state: "sent", hash: r.hash, block: Number(BigInt(receipt.blockNumber)), succeeded: framesSucceeded(receipt), copy: false };
+    if (receipt) return { state: "sent", hash: r.hash, block: Number(BigInt(receipt.blockNumber)), succeeded: framesSucceeded(receipt), copy: false, leftBehind: leftBehind(receipt) };
 
     const read = <T>(functionName: string) => publicClient.readContract({ address: r.account, abi: accountV2Abi as never, functionName } as never) as Promise<T>;
     const [named, commitment, reserve, root] = await Promise.all([
@@ -204,7 +212,10 @@ export async function checkRescue(r: Rescue): Promise<RescueCheck> {
       // A copy with the same signature and different padding has another hash and did the job. Another transaction on the same leaf, which a
       // restored signer could sign, spent the same key and moved nothing, and only the chain can tell them apart.
       const landed = await escapeLanded(r);
-      if (landed) return { state: "sent", ...landed, succeeded: true, copy: true };
+      if (landed) {
+        const copy = await receiptOf(landed.hash);
+        return { state: "sent", ...landed, succeeded: true, copy: true, leftBehind: copy ? leftBehind(copy) : [] };
+      }
       return { state: "broken", burns: false, reason: "Its one-time key was spent by another transaction, and nothing reached the harbor. Ask the owner for a new one." };
     }
     if (failure) return { state: "broken", burns: false, reason: `It would be refused: ${failure}` };
@@ -236,10 +247,23 @@ export interface RescueDue {
 const QUEUE_PAGE = 100;
 /** Blocks are seconds apart. Past this, the node has stopped, or fallen behind, and a queue it shows as quiet may not be. */
 const STALE_SECONDS = 120;
-/** How long a head can sit still before this stops trusting its clock. */
+/** How far the chain can fall behind time elapsed here before this stops trusting its clock. */
 const STALLED_SECONDS = 30;
-/** The head last seen to change, and when, by this machine's clock. */
-let head: { hash: Hex; at: number } | null = null;
+
+/**
+ * The chain's time, for a node that has stopped or is crawling. It shows the same time left while a theft matures on the real chain, so this
+ * compares time passed on the chain with time elapsed here since the first read. Elapsed time is a monotonic clock, so a wrong date or a step of
+ * the system clock changes nothing. It only ever adds what has really elapsed, so it cannot run ahead of the real chain.
+ */
+export function chainClock(elapsed: () => number = () => performance.now() / 1000) {
+  let anchor: { chain: number; at: number } | null = null;
+  return (chain: number) => {
+    const at = elapsed();
+    if (!anchor || chain < anchor.chain) anchor = { chain, at };
+    const behind = Math.floor(at - anchor.at - (chain - anchor.chain));
+    return behind > STALLED_SECONDS ? chain + behind : chain;
+  };
+}
 
 /** On a frozen account only a recovery can leave. A recovery has no recipient, so only those are asked about, in pages: a flood outlives a freeze. */
 async function recoveriesAmong(account: Address, items: QueuedView[]): Promise<QueuedView[]> {
@@ -263,17 +287,13 @@ async function recoveriesAmong(account: Address, items: QueuedView[]): Promise<Q
  * A freeze stops a spend from maturing and does not stop a recovery, so on a frozen account only a recovery counts. Throws if the chain
  * cannot be read: an unknown queue must never look like an empty one.
  */
-export async function rescueDue(r: Rescue, margin: number = r.marginSeconds): Promise<RescueDue> {
+export async function rescueDue(r: Rescue, margin: number = r.marginSeconds, clock: (chain: number) => number = (chain) => chain): Promise<RescueDue> {
   const [view, block, delay] = await Promise.all([
     readAccount(r.account),
     publicClient.getBlock(),
     publicClient.readContract({ address: r.account, abi: accountV2Abi as never, functionName: "queueDelay" } as never) as Promise<bigint>,
   ]);
-  // A head that stops moving stops the chain's clock with it, and a theft on the real chain does not wait for this node. So time spent stuck
-  // counts, measured as time elapsed here, which a wrong date on this machine does not change.
-  if (head?.hash !== block.hash) head = { hash: block.hash!, at: Date.now() };
-  const stalled = Math.floor((Date.now() - head.at) / 1000);
-  const now = Number(block.timestamp) + (stalled > STALLED_SECONDS ? stalled : 0);
+  const now = clock(Number(block.timestamp));
   // Not signed, so it can be anything. Nothing at all fires when the thief can already collect, and as long as the delay fires before the owner can answer.
   const queueDelay = Number(delay);
   const usable = Number.isSafeInteger(margin) && margin > 0 && margin < queueDelay ? margin : defaultMargin(queueDelay);

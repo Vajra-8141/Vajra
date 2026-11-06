@@ -25,6 +25,8 @@ contract Fighter {
 contract Witness {
     address immutable harbor;
     uint256 public harborHeld;
+    bool public poolClosedThen;
+    bool public swept;
 
     constructor(address harbor_) {
         harbor = harbor_;
@@ -36,6 +38,8 @@ contract Witness {
 
     function transfer(address, uint256) external returns (bool) {
         harborHeld = harbor.balance;
+        poolClosedThen = VajraAccountV2(payable(msg.sender)).poolClosed();
+        swept = true;
         return true;
     }
 }
@@ -43,8 +47,14 @@ contract Witness {
 /// A harbor that notes what the frame had left when the value reached it.
 contract Meter {
     uint256 public seen;
+    bool burns;
+
+    function burnEverything() external {
+        burns = true;
+    }
 
     receive() external payable {
+        while (burns) {}
         seen = gasleft();
     }
 }
@@ -171,7 +181,23 @@ contract EscapeAfterRescueTest is Test {
         vm.prank(address(account));
         account.escape(payable(address(meter)), HARBOR_SALT, tokens);
         assertEq(token.harborHeld(), 5 ether, "the ETH was there when the token was called");
-        assertTrue(account.poolClosed(), "and the pool had closed");
+        assertTrue(token.poolClosedThen(), "and the pool had already closed");
+    }
+
+    /// The harbor is the owner's own, and paid first it would otherwise get nearly all the gas. Bounded, one that burns it all fails its own payment,
+    /// and the frame still freezes the account and sweeps the tokens, as it did when tokens went first.
+    function test_aHarborThatBurnsItsGasCannotStopTheRest() public {
+        meter.burnEverything();
+        Witness token = new Witness(address(meter));
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(new Fighter());
+        tokens[1] = address(token);
+        vm.prank(address(account));
+        account.escape{gas: 700_000 + 600_000 * 2}(payable(address(meter)), HARBOR_SALT, tokens);
+        assertTrue(account.frozen(), "the frame ran to the end");
+        assertTrue(token.swept(), "and the token after the fighter was swept");
+        assertEq(address(account).balance, 5 ether, "the harbor took nothing, so the money is still here");
+        assertFalse(account.poolClosed(), "and the pool stays open for it");
     }
 
     /// `rescueCall` signs 700,000 and 600,000 a token. Gas cannot be raised after signing, so a frame with tokens fighting as hard as they can must

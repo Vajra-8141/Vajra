@@ -834,7 +834,9 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     ///
     /// ETH goes first and the tokens after it. `SWEEP_GAS` bounds what a token can burn and not the state gas it can spend, which is one
     /// pool for the frame, and a transfer that succeeds keeps what it spent. Swept first, a token could leave too little for a fresh harbor
-    /// and the pool closing, halt the frame, and cost the ETH and a rescue's one-time key. Swept last, all it can do is fail its own transfer.
+    /// and the pool closing, halt the frame, and cost the ETH and a rescue's one-time key. Swept last, inside the gas that was signed for, it
+    /// can fail its own transfer and starve the tokens after it, and nothing else. The harbor's call is bounded the same way, and copies nothing
+    /// back: the harbor is the owner's own, and it still must not spend what the tokens were signed for.
     ///
     /// A token that refuses to transfer must not be able to block the exit, so failures are reported and skipped.
     ///
@@ -847,7 +849,11 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         s.frozen = true;
         emit FrozenSet(true);
 
-        (bool sent,) = harbor.call{value: address(this).balance}("");
+        uint256 amount = address(this).balance;
+        bool sent;
+        assembly ("memory-safe") {
+            sent := call(SWEEP_GAS, harbor, amount, 0, 0, 0, 0)
+        }
         if (!sent) emit SweepFailed(address(0));
         // V2: `balance` included the pool, so the notes have been paid to the harbor. A note must not be able to claim anything
         // that arrives later, so the pool closes for good. If the harbor refused, the money is still here and so are the notes.

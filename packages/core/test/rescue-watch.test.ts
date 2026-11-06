@@ -7,12 +7,15 @@ import { type Hex, encodeEventTopics, encodeFunctionResult, decodeFunctionData, 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MasterSigner,
+  type RescueCheck,
   WOTS_W16,
+  chainClock,
   accountV2Abi,
   checkRescue,
   exitAbi,
   harborCommitment,
   keepBurn,
+  leftBehind,
   memoryStore,
   parseRescue,
   rescueDue,
@@ -465,10 +468,12 @@ describe("what a failed read means at the moment it matters", () => {
   });
 
   // One flaked read used to turn a known burn into unknown, and unknown goes.
-  it("remembers a burn through a read that failed, and lets a good read end it", () => {
+  it("remembers a burn through any answer that is not clear, and lets a clear one end it", () => {
     expect(keepBurn(unknown, burns)).toBe(burns);
+    expect(keepBurn(free, burns)).toBe(burns);
     expect(keepBurn(ready, burns)).toBe(ready);
-    expect(keepBurn(free, burns)).toBe(free);
+    const sent: RescueCheck = { state: "sent", hash: `0x${"11".repeat(32)}`, block: 1, succeeded: true, copy: false, leftBehind: [] };
+    expect(keepBurn(sent, burns)).toBe(sent);
     expect(keepBurn(unknown, ready)).toBe(unknown);
     expect(keepBurn(unknown, null)).toBe(unknown);
   });
@@ -502,48 +507,73 @@ describe("a node that does not answer", () => {
   });
 });
 
-describe("a head that has stopped moving", () => {
-  /** Two reads of one chain, this many seconds apart by this machine's clock. */
-  async function readsApart(seconds: number, w: World) {
-    const started = Date.now();
-    const clock = vi.spyOn(Date, "now").mockReturnValue(started);
-    try {
-      serve(w);
-      const first = await rescueDue(aRescue().rescue);
-      clock.mockReturnValue(started + seconds * 1000);
-      return { first, later: await rescueDue(aRescue().rescue) };
-    } finally {
-      clock.mockRestore();
-    }
+describe("a chain that has fallen behind", () => {
+  /** A clock for one watcher, with time here moved by hand. */
+  function watcher() {
+    let here = 0;
+    return { clock: chainClock(() => here), pass: (seconds: number) => (here += seconds) };
   }
 
   // A node stuck at one block showed the item, and the same time left, for ever, while the theft matured on the real chain.
   it("does not stop the clock: the rescue still goes", async () => {
-    const { first, later } = await readsApart(3600, world({ items: 1, executeAfter: () => 1100n, now: 1000n }));
+    const { clock, pass } = watcher();
+    serve(world({ items: 1, executeAfter: () => 1100n, now: 1000n }));
+    const first = await rescueDue(aRescue().rescue, undefined, clock);
     expect(first.sendIn).toBe(85);
     expect(first.due).toBe(false);
+    pass(3600);
+    const later = await rescueDue(aRescue().rescue, undefined, clock);
     expect(later.due).toBe(true);
     expect(timeToSend({ check: null, due: later, lastSendAt: null })).toBe(true);
   });
 
-  it("does not count a gap between blocks", async () => {
-    const { later } = await readsApart(20, world({ items: 1, executeAfter: () => 1100n, now: 1000n }));
-    expect(later.sendIn).toBe(85);
+  // Counting from the last new block would let each one wipe out the stall: two seconds of chain for every 25 here never looks stuck.
+  it("counts a node that crawls", () => {
+    const { clock, pass } = watcher();
+    let chain = 1000;
+    clock(chain);
+    let seen = 0;
+    for (let i = 0; i < 400; i++) {
+      pass(25);
+      chain += 2;
+      seen = clock(chain);
+    }
+    expect(seen).toBe(1000 + 400 * 25);
   });
 
-  it("starts counting again when the head moves", async () => {
-    const w = world({ items: 1, executeAfter: () => 1100n, now: 1000n });
-    const started = Date.now();
-    const clock = vi.spyOn(Date, "now").mockReturnValue(started);
+  it("does not count a gap between blocks", () => {
+    const { clock, pass } = watcher();
+    clock(1000);
+    pass(20);
+    expect(clock(1000)).toBe(1000);
+  });
+
+  it("never runs ahead of the time that really passed, and lets a chain catch up", () => {
+    const { clock, pass } = watcher();
+    clock(1000);
+    pass(100);
+    expect(clock(1000)).toBe(1100);
+    expect(clock(1100)).toBe(1100);
+    pass(5);
+    expect(clock(1300)).toBe(1300);
+  });
+
+  it("starts again on a chain that went back", () => {
+    const { clock, pass } = watcher();
+    clock(5000);
+    pass(100);
+    expect(clock(1000)).toBe(1000);
+  });
+
+  // The system clock can step. A rescue fired early on a healthy chain, by a date that moved, is the failure this rules out.
+  it("takes no notice of the date on this machine", () => {
+    const clock = chainClock();
+    clock(1000);
+    const date = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 20 * 86_400_000);
     try {
-      serve(w);
-      await rescueDue(aRescue().rescue);
-      clock.mockReturnValue(started + 60_000);
-      w.head = keccak256(toHex("the next block"));
-      w.now = 1060n;
-      expect((await rescueDue(aRescue().rescue)).sendIn).toBe(25);
+      expect(clock(1000)).toBe(1000);
     } finally {
-      clock.mockRestore();
+      date.mockRestore();
     }
   });
 
@@ -558,5 +588,21 @@ describe("a head that has stopped moving", () => {
   it("is quiet on a healthy chain", async () => {
     serve(world({ now: BigInt(Math.floor(Date.now() / 1000)) }));
     expect((await rescueDue(aRescue().rescue)).staleBy).toBe(0);
+  });
+});
+
+describe("what a landed escape left behind", () => {
+  const SWEEP_FAILED = keccak256(toHex("SweepFailed(address)"));
+  const failed = (asset: string) => ({ topics: [SWEEP_FAILED, `0x${asset.slice(2).padStart(64, "0")}`] });
+  const receipt = (logs: unknown[]) => ({ status: "0x1", blockNumber: "0x2a", gasUsed: "0x1", frameReceipts: [{ status: "0x1", gasUsed: "0x1", stateGasUsed: "0x0", logs: [] }, { status: "0x1", gasUsed: "0x1", stateGasUsed: "0x0", logs }] }) as never;
+
+  it("names each asset that did not move, the ETH as the zero address", () => {
+    expect(leftBehind(receipt([{ topics: [keccak256(toHex("Escaped(address)"))] }]))).toEqual([]);
+    expect(leftBehind(receipt([failed(payee), failed(zeroAddress)]))).toEqual([payee, zeroAddress]);
+  });
+
+  it("is in what the tool says of a rescue that landed", async () => {
+    serve(world({ receipt: receipt([failed(payee)]) }));
+    expect(await checkRescue(aRescue().rescue)).toMatchObject({ state: "sent", leftBehind: [payee] });
   });
 });

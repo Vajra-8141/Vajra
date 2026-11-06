@@ -1,7 +1,7 @@
 "use client";
 
 import { type ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
-import { type QueuedView, type Rescue, type RescueCheck, type RescueDue, ETH, RescueInvalid, checkRescue, isLocalStack, keepBurn, parseRescue, publicClient, rescueDue, sendAtFrom, sendRescue, timeToSend, wouldBurn } from "@vajra/core";
+import { type QueuedView, type Rescue, type RescueCheck, type RescueDue, ETH, RescueInvalid, chainClock, checkRescue, isLocalStack, keepBurn, parseRescue, publicClient, rescueDue, sendAtFrom, sendRescue, timeToSend, wouldBurn } from "@vajra/core";
 import { Lattice } from "../../components/lattice";
 import { Stamp } from "../../components/stamp";
 import { Term } from "../../components/term";
@@ -68,6 +68,7 @@ export default function NomineePage() {
   const inFlight = useRef(false);
   const lastSendAt = useRef<number | null>(null);
   const lastCheck = useRef<RescueCheck | null>(null);
+  const clock = useRef(chainClock());
 
   const load = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -79,6 +80,7 @@ export default function NomineePage() {
     setArmed(false);
     lastSendAt.current = null;
     lastCheck.current = null;
+    clock.current = chainClock();
     try {
       setRescue(parseRescue(await file.text()));
       setInvalid(null);
@@ -120,7 +122,7 @@ export default function NomineePage() {
       }
       let next: RescueDue | null = null;
       try {
-        next = await rescueDue(rescue);
+        next = await rescueDue(rescue, undefined, clock.current);
         if (!live) return;
         setDue(next);
         setReadFailed(null);
@@ -219,6 +221,11 @@ export default function NomineePage() {
                 <p>
                   {harborHolds !== null ? `The safe address holds ${eth(harborHolds)}. ` : "What the safe address holds is unknown. "}Signed by the hash key, in advance{sent.block ? `, and mined in block ${sent.block}` : ""}.{sent.copy ? " A copy of this transaction landed, with different padding." : ""}
                 </p>
+              )}
+              {sent.leftBehind.length > 0 && (
+                <div className="banner warn" role="alert" data-left-behind>
+                  It did not move everything: {sent.leftBehind.map((asset) => (asset === NOBODY ? "the ETH, which the safe address refused" : short(asset))).join(", ")}. Tell the owner.
+                </div>
               )}
               <p className="sub mono break">{sent.hash}</p>
               <Lattice hash={sent.hash} label="A picture of how a hash key picks its chains, drawn from this transaction's hash. It is not the signature." />

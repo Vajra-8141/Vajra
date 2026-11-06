@@ -578,8 +578,10 @@ console.log("\n14. A token that spends the frame's state gas, swept before the h
  * which leaves too little for a fresh harbor and the pool closing. Eleven bytes of init code, then 43 of runtime, told apart by calldata size.
  */
 const STATE_SPENDING_TOKEN = "0x602b80600b6000396000f336602414602057600160015560016002556001600355600160045560016005555b600160005260206000f3";
-const placeToken = async () => {
-  const hash = await walletFor(deployer).sendTransaction({ data: STATE_SPENDING_TOKEN as Hex, gas: 1_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" });
+/** The same, writing one slot, so that what halts the frame above is shown to be the state gas and nothing else about a token. */
+const ONE_SLOT_TOKEN = "0x601780600b6000396000f336602414600c5760016001555b600160005260206000f3";
+const placeToken = async (data: string = STATE_SPENDING_TOKEN) => {
+  const hash = await walletFor(deployer).sendTransaction({ data: data as Hex, gas: 1_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" });
   return (await waitForSuccess(hash, "placing the token")).contractAddress!;
 };
 const swept = async (who: Owner) => {
@@ -589,13 +591,18 @@ const swept = async (who: Owner) => {
   evidence.push({ step: `A token that spends the frame's state gas: ${who.name}`, hash: landing.hash, block: Number(BigInt(landing.receipt.blockNumber)), verifyGas: Number(BigInt(landing.receipt.frameReceipts[0]!.gasUsed)), totalGas: Number(BigInt(landing.receipt.gasUsed)), attempts: landing.attempts });
   return { landing, harborHolds, ok: framesSucceeded(landing.receipt), stateGas: Number(BigInt(frame.stateGasUsed)) };
 };
-const firstOrder = await ownerOf("tokens swept first, as on the public devnet", { factory: await preFixV2Factory(deployer, "VajraAccountV2.pre-section-26"), tokens: [await placeToken()] });
+const oldBytes = await preFixV2Factory(deployer, "VajraAccountV2.pre-section-26");
+const control = await swept(await ownerOf("tokens swept first, with a token that writes one slot", { factory: oldBytes, tokens: [await placeToken(ONE_SLOT_TOKEN)] }));
+check(control.ok && control.harborHolds > parseEther("1.9"), `before, the control: the same bytes and a token that writes one slot, and the harbor holds ${formatEther(control.harborHolds)} ETH`);
+const firstOrder = await ownerOf("tokens swept first, as on the public devnet", { factory: oldBytes, tokens: [await placeToken()] });
 const firstResult = await swept(firstOrder);
 check(!firstResult.ok && firstResult.harborHolds === 0n, `before: the frame halted, the harbor holds nothing, and the rescue's one-time key is spent. State gas used: ${firstResult.stateGas}`);
-const lastOrder = await ownerOf("tokens swept last", { tokens: [await placeToken()] });
+const eaten = await placeToken();
+const lastOrder = await ownerOf("tokens swept last", { tokens: [eaten] });
 const lastResult = await swept(lastOrder);
-check(lastResult.ok && lastResult.harborHolds > parseEther("1.9"), `after: the same token, and the harbor holds ${formatEther(lastResult.harborHolds)} ETH. State gas used: ${lastResult.stateGas}`);
-check(((await checkRescue(lastOrder.rescue)).state) === "sent", "and the tool says it landed");
+check(lastResult.ok && lastResult.harborHolds > parseEther("1.9") && lastResult.stateGas === 281_520, `after: the same token, the harbor holds ${formatEther(lastResult.harborHolds)} ETH, and the frame spent exactly a fresh harbor and the pool closing: ${lastResult.stateGas} state gas`);
+const told = await checkRescue(lastOrder.rescue);
+check(told.state === "sent" && told.leftBehind.length === 1 && told.leftBehind[0]!.toLowerCase() === eaten.toLowerCase(), "and the tool says it landed, and that the token did not move");
 
 const result = {
   ranAt: new Date().toISOString(),

@@ -7,7 +7,7 @@
  */
 import { randomBytes } from "node:crypto";
 import { copyFileSync, existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { type Address, encodeFunctionData, formatEther, getAddress, parseGwei } from "viem";
+import { type Address, encodeFunctionData, formatEther, getAddress, parseGwei, zeroAddress } from "viem";
 import {
   DEFAULT_FEES,
   ETH,
@@ -17,12 +17,14 @@ import {
   WOTS_W16,
   accountState,
   accountV2Abi,
+  chainClock,
   checkRescue,
   defaultMargin,
   exitAbi,
   framesSucceeded,
   genesisHash,
   keepBurn,
+  leftBehind,
   parseRescue,
   publicClient,
   rescueDue,
@@ -116,6 +118,11 @@ export async function nomineeCheck(path: string) {
   process.exitCode = check.state === "ready" ? 0 : 1;
 }
 
+/** The frame succeeds either way, so this is the only place anyone hears of it. */
+function sayLeftBehind(left: readonly Address[]) {
+  if (left.length) console.log(`IT DID NOT MOVE EVERYTHING: ${left.map((asset) => (asset === zeroAddress ? "the ETH, which the harbor refused" : asset)).join(", ")}. Tell the owner`);
+}
+
 /** Holds no key: it reads the file and the chain, and sends the same bytes. Stops when the rescue has landed. */
 export async function nomineeWatch(o: { rescue: string; margin?: string; interval?: string }) {
   const rescue = parseRescue(readFileSync(o.rescue, "utf8"));
@@ -135,6 +142,7 @@ export async function nomineeWatch(o: { rescue: string; margin?: string; interva
   let stale = false;
   let health: RescueCheck | null = null;
   let lastSendAt: number | null = null;
+  const clock = chainClock();
   for (;;) {
     let due: RescueDue | null = null;
     try {
@@ -142,6 +150,7 @@ export async function nomineeWatch(o: { rescue: string; margin?: string; interva
       if (health.state === "sent") {
         if (health.succeeded) {
           console.log(`already sent${health.copy ? ", by a copy" : ""}: ${health.hash}, block ${health.block}`);
+          sayLeftBehind(health.leftBehind);
           return;
         }
         console.log(`THE RESCUE MINED AND A FRAME FAILED: ${health.hash}. Nothing moved, and it cannot be sent again. Tell the owner`);
@@ -150,7 +159,7 @@ export async function nomineeWatch(o: { rescue: string; margin?: string; interva
       }
       once(health.state === "ready" ? `the rescue is ready, and would work now` : `the rescue is ${health.state}: ${health.reason}`);
 
-      due = await rescueDue(rescue, margin);
+      due = await rescueDue(rescue, margin, clock);
       lastSendAt = sendAtFrom(due);
       if (due.staleBy && !stale) console.log(`this node's newest block is ${due.staleBy} seconds old, so a quiet queue here may not be quiet`);
       stale = due.staleBy > 0;
@@ -171,6 +180,7 @@ export async function nomineeWatch(o: { rescue: string; margin?: string; interva
         if (framesSucceeded(receipt)) {
           const through = route === "either" ? "one of the two mempools" : `the ${route} mempool`;
           console.log(`rescued: ${hash}, block ${Number(BigInt(receipt.blockNumber))}, through ${through}. The harbor holds ${formatEther(await publicClient.getBalance({ address: rescue.harbor }))} ETH`);
+          sayLeftBehind(leftBehind(receipt));
           return;
         }
         console.log(`THE RESCUE MINED AND A FRAME FAILED: ${hash}`);
