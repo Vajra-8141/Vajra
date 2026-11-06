@@ -4,7 +4,9 @@
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { type Address, formatEther, parseAbiItem } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { DEVNET, type FrameTx, RpcError, accountV2Abi, deployments, framesSucceeded, opsV2, publicClient, refusalNameV2, submit, unshieldTx } from "@vajra/core";
+import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 import { type Note, newNote, noteCommitment, proveUnshield } from "./proving.ts";
 import { requireWallet, runCalls } from "./wallet.ts";
@@ -59,6 +61,21 @@ export async function shieldCommand() {
   console.log(`the amount and this deposit are public. So is any later withdrawal: what stays hidden is which deposit paid for it`);
 }
 
+/**
+ * A plain address always takes a payment. A contract might not, so trial it, from an address with money: the node will not run a call
+ * from the account, which has code, or one from an empty address. A check that could not run is not a pass, and stops the same way.
+ */
+async function checkRecipient(recipient: Address) {
+  if (!(await publicClient.getCode({ address: recipient }))) return;
+  const funder = privateKeyToAccount(loadOrCreateKey(keyPath("deployer.key"))).address;
+  const trial = await publicClient.call({ account: funder, to: recipient, value: denomination() - noteFee() }).then(
+    () => null,
+    (error: Error) => error.message,
+  );
+  if (trial === null) return;
+  throw new Error(/reverted/i.test(trial) ? `${recipient} refuses a plain payment, and the note would be lost: pick another recipient` : `could not check that ${recipient} takes a payment, so the note was not spent: ${trial}`);
+}
+
 /** Spends the oldest unspent note. No key signs this. */
 export async function unshieldCommand(recipient: Address) {
   const { account } = requireWallet();
@@ -68,9 +85,7 @@ export async function unshieldCommand(recipient: Address) {
   const note: Note = { secret: BigInt(saved.secret), nullifierSeed: BigInt(saved.nullifierSeed) };
 
   // A note has one mined attempt, and it is spent whatever the recipient does. So ask first: a contract that refuses money costs the note.
-  await publicClient.call({ account, to: recipient, value: denomination() - noteFee() }).catch(() => {
-    throw new Error(`${recipient} refuses a plain payment, and the note would be lost: pick another recipient`);
-  });
+  await checkRecipient(recipient);
 
   // A stale root is a tier, not an error: the note is fine, and a fresh proof against a newer root will do. Retrying the same
   // proof is always the same bytes, which `submit` does on its own.

@@ -1,0 +1,26 @@
+{
+  "ranAt": "2026-11-06T14:26:16.828703Z",
+  "stack": "public devnet: https://altmempool.forshtat.com/rpc",
+  "chainId": 1337,
+  "implementation": "0x40446c9915b889b82c06f9ad6a6c4aae63b98335",
+  "account": "0xD9668DA6F94BE9e610dA9E90faD251Ba476620Ed",
+  "denomination": "10000000000000000",
+  "noteFee": "5000000000000000",
+  "mined": [
+    {
+      "step": "shield",
+      "hash": "0x784435c266e9f69afdd223ed8ca1a579bea31679cc118f3d4233f32fde6c7d36",
+      "block": 4754,
+      "totalGas": 3297012
+    },
+    {
+      "step": "unshield",
+      "hash": "0x25a80ea405ffcc6179402ee119ca26b54fc394adcc073d0b357576191139dc67",
+      "block": 4771,
+      "totalGas": 429522,
+      "verifyGas": 287225
+    }
+  ],
+  "failures": 0,
+  "note": "One note in and out with `vajra shield` and `vajra unshield`. The pool held one note, so this proves the path, not any privacy."
+}

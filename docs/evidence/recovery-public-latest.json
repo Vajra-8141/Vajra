@@ -1,0 +1,208 @@
+{
+  "ranAt": "2026-11-06T14:23:02.206Z",
+  "stack": "public devnet: https://altmempool.forshtat.com/rpc",
+  "chainId": 1337,
+  "genesis": "0x2ad3f67b059fbde111ad7af27cfb4955d997351579612237ca0318937a5bae7a",
+  "verifier": "0xe8ffe0ed6714efc45e5987bf05585e1bc2d88f81",
+  "implementation": "0x40446c9915b889b82c06f9ad6a6c4aae63b98335",
+  "account": "0xB7F759ff5aE942F70409D0C59472d55Dc6a17D2D",
+  "proverMs": 311,
+  "verifyGas": 301552,
+  "failures": 0,
+  "mined": [
+    {
+      "step": "set recovery",
+      "hash": "0x7a011abf10d1c896ec13328e4316ec2edd649cb18a455df94aecb0c3f3c8820f",
+      "block": 4689,
+      "verifyGas": 91126,
+      "totalGas": 480794,
+      "attempts": 2
+    },
+    {
+      "step": "queue recovery",
+      "hash": "0xb834e2105147ded2af45ab76f584190c1db3204b01a03b4f5f97c9123a338c5b",
+      "block": 4694,
+      "verifyGas": 301552,
+      "totalGas": 1100189,
+      "attempts": 1
+    },
+    {
+      "step": "install root",
+      "hash": "0xc50f89c97cb27e10697cc85de24340b9b6bb0bc0a9fbfd7ad175a7873a83f43f",
+      "block": 4699,
+      "verifyGas": 0,
+      "totalGas": 53645,
+      "attempts": 1
+    },
+    {
+      "step": "freeze, signed by the NEW tree",
+      "hash": "0x979fdb161cc8aaac66707f990ac96b914d1402d049ef2da171c8538ef61bf872",
+      "block": 4704,
+      "verifyGas": 92626,
+      "totalGas": 167418,
+      "attempts": 1
+    },
+    {
+      "step": "unfreeze, signed by the NEW tree",
+      "hash": "0x86a6535aa950500dcd4a6a6948ee9ae818ac6a2e34e258da5028b059a1596e66",
+      "block": 4709,
+      "verifyGas": 89965,
+      "totalGas": 167418,
+      "attempts": 1
+    },
+    {
+      "step": "set recovery on the second account",
+      "hash": "0x337acd78cea44d355fd289836933a70a5f0cba27f79ab8644f7e3b22eaa1f5d2",
+      "block": 4724,
+      "verifyGas": 87433,
+      "totalGas": 477077,
+      "attempts": 2
+    },
+    {
+      "step": "thief queues a root, with a stolen paper",
+      "hash": "0xc06b44afa41b13237d812c24c3bbd17b106453e02096959f3a4e3e3107eb7cc5",
+      "block": 4727,
+      "verifyGas": 301552,
+      "totalGas": 1100177,
+      "attempts": 1
+    },
+    {
+      "step": "owner vetoes it",
+      "hash": "0xdc54a65dbe6e383ae8fb98b94184ce759b185032e6a4dd5f55a174d626e8c438",
+      "block": 4729,
+      "verifyGas": 92908,
+      "totalGas": 169466,
+      "attempts": 1
+    },
+    {
+      "step": "a new paper, after the old one was used",
+      "hash": "0x1ae0cbb30775e4488bbbe9842b140e44ebd2aa18207cc130eeca3808998323a9",
+      "block": 4731,
+      "verifyGas": 92695,
+      "totalGas": 276547,
+      "attempts": 1
+    },
+    {
+      "step": "rotate the key tree",
+      "hash": "0x80b98f0c69461abafc3184ead96272e89f6ca9a2372c55d483f9b8ee55f45b5a",
+      "block": 4734,
+      "verifyGas": 95883,
+      "totalGas": 169466,
+      "attempts": 1
+    },
+    {
+      "step": "recovery with an unused paper, after a rotation",
+      "hash": "0xa7a325afa01a845629fcaaf6e35fbc75d196bf111967b226ef4e5517c772830f",
+      "block": 4739,
+      "verifyGas": 301552,
+      "totalGas": 1002269,
+      "attempts": 1
+    },
+    {
+      "step": "the rotated tree sets the next paper",
+      "hash": "0x41d89623c66d944d4595d648e04177b785c4d76388a17b4e79c2f1c0fc31f41d",
+      "block": 4741,
+      "verifyGas": 93121,
+      "totalGas": 276829,
+      "attempts": 1
+    }
+  ],
+  "refusals": [
+    {
+      "attack": "A proof, before any commitment is set",
+      "refusal": "RecoveryNotSet"
+    },
+    {
+      "attack": "A proof with a guessed ticket, which must die for a hash and not a pairing",
+      "refusal": "RecoveryGateInvalid"
+    },
+    {
+      "attack": "Daily key changes the commitment",
+      "refusal": "EscapeKeyOutranks"
+    },
+    {
+      "attack": "Daily key queues a root with no proof",
+      "refusal": "EscapeKeyOutranks"
+    },
+    {
+      "attack": "Daily key burns a master leaf's nonce key",
+      "refusal": "DailyNonceKeyInvalid"
+    },
+    {
+      "attack": "Daily key burns the recovery's nonce key",
+      "refusal": "DailyNonceKeyInvalid"
+    },
+    {
+      "attack": "A corrupted proof",
+      "refusal": "RecoveryProofInvalid"
+    },
+    {
+      "attack": "A proof from the wrong secret",
+      "refusal": "RecoveryProofInvalid"
+    },
+    {
+      "attack": "A seen proof, moved onto the attacker's root",
+      "refusal": "RecoveryProofInvalid"
+    },
+    {
+      "attack": "A proof made for another account",
+      "refusal": "RecoveryProofInvalid"
+    },
+    {
+      "attack": "A proof made for another chain",
+      "refusal": "RecoveryProofInvalid"
+    },
+    {
+      "attack": "A proof from another epoch",
+      "refusal": "RecoveryProofInvalid"
+    },
+    {
+      "attack": "A seen proof, with a frame added that pays the attacker",
+      "refusal": "ProofTxShapeInvalid"
+    },
+    {
+      "attack": "A seen proof, resent with a huge fee to burn the balance",
+      "refusal": "ProofTxCostExceeded"
+    },
+    {
+      "attack": "A seen proof, resent with too little execution gas, to kill it",
+      "refusal": "ProofTxShapeInvalid"
+    },
+    {
+      "attack": "A seen proof, resent with too little state gas, to kill it",
+      "refusal": "ProofTxShapeInvalid"
+    },
+    {
+      "attack": "A seen proof, on a nonce key of the attacker's choosing",
+      "refusal": "ProofTxShapeInvalid"
+    },
+    {
+      "attack": "The same proof, replayed on the next nonce",
+      "refusal": "NullifierSpent"
+    },
+    {
+      "attack": "Installing before the delay",
+      "refusal": "QueuedPendingTimelock"
+    },
+    {
+      "attack": "A signature from the lost tree",
+      "refusal": "NonceKeyNotBoundToLeaf"
+    },
+    {
+      "attack": "Installing a vetoed root",
+      "refusal": "RecoveryVetoed"
+    },
+    {
+      "attack": "The thief tries again with the same paper",
+      "refusal": "NullifierSpent"
+    },
+    {
+      "attack": "A used ticket, on a fresh nullifier, with a proof that cannot pass",
+      "refusal": "RecoveryGateInvalid"
+    },
+    {
+      "attack": "A used paper, set again",
+      "refusal": "RecoveryAlreadyUsed, in the SENDER frame"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import * as lib from "@forshtat/hegota-support/tx";
 import {
   DEVNET,
+  isLocalStack,
   ETH,
   type FlatProof,
   LEGACY_GAS_PRICE,
@@ -192,7 +193,7 @@ writeFileSync(
   JSON.stringify(
     {
       ranAt: new Date().toISOString(),
-      stack: "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch",
+      stack: isLocalStack ? "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch" : `public devnet: ${DEVNET.mempool}`,
       chainId: DEVNET.chainId,
       genesis: deployments().genesis,
       verifier: v2.recoveryVerifier,
