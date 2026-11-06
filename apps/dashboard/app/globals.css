@@ -77,6 +77,7 @@ ul li + li { margin-top: var(--s2); }
 .hero { padding: var(--s6) 0 var(--s5); max-width: 860px; }
 .hero h1 { font-size: var(--t-h1); }
 .hero.small { padding-bottom: 0; }
+.hero.small + .plain { margin-top: var(--s5); }
 .because { display: inline-block; margin-bottom: var(--s3); font-size: var(--t-sm); color: var(--t60); text-decoration: none; }
 .because:hover { color: var(--t100); }
 .because::first-letter { text-transform: uppercase; }

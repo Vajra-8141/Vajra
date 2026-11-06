@@ -89,6 +89,17 @@ const LABELS: Record<string, { title: string; what: string; command?: string; fa
   "rep-burn-fixed-latest.json": { title: "The way round a banned account", what: "The same attack, then escape, veto and recovery from the exit.", command: "vajra rep-burn fixed" },
   "rep-burn-sidecar-rule-latest.json": { title: "The same attack on the proposed sidecar rule", what: "With docs/upstream/sidecar-reputation.patch on the sidecar.", command: "vajra rep-burn rule" },
   "zk-gas-latest.json": { title: "Gas of the proof paths", what: "Measured with ethrex_simulateFrameTransaction, a fresh proof per sample.", command: "vajra measure-zk", facts: (r) => [["Recovery VERIFY, median", count((r.recoveryVerify as Raw)?.median)], ["Unshield VERIFY, median", count((r.unshieldVerify as Raw)?.median)]] },
+  "nominee-latest.json": {
+    title: "A rescue signed in advance, sent when nobody answers",
+    what: "A real process with no key holds one transaction the hash key signed earlier. It moves everything to the harbor if a queued item is still waiting near the end, and every attack on it is sent for real.",
+    command: "vajra nominee-e2e",
+    facts: (r) => [
+      ["VERIFY gas of the rescue", count((r.rescueGas as Raw)?.verify)],
+      ["The most it can cost, ETH", text((r.rescueGas as Raw)?.maxCostEth)],
+      ["Seconds to spare when it landed", count(r.secondsLeftWhenTheRescueLanded)],
+      ["Failures", count(r.failures)],
+    ],
+  },
   "leansphincs-gas-latest.json": {
     title: "leanSphincs-S beside the hash key",
     what: "A benchmark, and no account relies on it: a hash key with no leaves to run out of, through a real VERIFY frame and both mempools, with every attack on that path.",

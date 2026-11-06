@@ -293,6 +293,9 @@ export function Story({ facts }: { facts: ThreadFacts }) {
                   <p>
                     <q>Not me, cancel</q> asks the <Term id="bridge" /> for a <Term id="veto" />, signed by the hash key with one <Term id="one-time-key" />.
                   </p>
+                  <Link className="quiet" href="/nominee">
+                    And if you are not there to answer
+                  </Link>
                   {paidOut && <p className="result bad">The delay ran out and this one was executed. Steal again to try once more.</p>}
                   {latest?.state === 1 && Number(latest.executeAfter) <= now && <p className="result">The delay is over and nobody has executed it. You can still cancel it.</p>}
                   {cancelled && veto && (

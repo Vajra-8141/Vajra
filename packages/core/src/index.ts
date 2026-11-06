@@ -9,3 +9,4 @@ export * from "./exposure.ts";
 export * from "./zk.ts";
 export * from "./paymaster.ts";
 export * from "./admission.ts";
+export * from "./rescue.ts";

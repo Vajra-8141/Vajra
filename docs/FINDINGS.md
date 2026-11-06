@@ -95,6 +95,7 @@ bounded by its balance. With no pending transaction, the canonical mempool admit
 | 04 §4 | Each rule is one validation check | TIMESTAMP is banned in every mempool and VERIFY is static, so the rulebook runs in the SENDER frame. VERIFY enforces who may act and the shape of the transaction |
 | 04 §3 | Nonce key = leaf index | Derived from root and leaf, or a rotated tree would collide with the keys the old tree used |
 | 04 §5 | 3 checksum chains at w=256 | 2 are enough: see GAS.md |
+| 04 §4 | Nominee: a claim key, an inactivity timer, a 30-day veto | A rescue signed in advance, held by someone with no key, set off by an unanswered queue item. A thief's daily-key use would have kept an inactivity timer alive, and it needs no contract change. See section 23 |
 | 03 §9 | No faucet, gateway is `altmempool.forshtat.com` | A faucet exists when funded; `altmempoolgateway.forshtat.com` also exists, and the miner's sidecar is the reliable one |
 
 ## 6. Two traps the specs do not mention, both closed
@@ -453,25 +454,71 @@ A benchmark, on the mirror, of a hash key with no leaves to run out of. `vajra s
 
 **The length check closes one open hole, on this path.** Section 15 left the signature blob's padding open, because the check did not fit. It fits here on the linear nonce: `validateExit` reads the length, and a padded copy dies with `SignatureLengthInvalid`. `VajraAccountV2` and `VajraExit` keep that hole.
 
-**The bench sender is not a whole exit.** It cannot take its reserve back, so that money is stranded. It cannot replace its key, so a leaked key means a new clone and a new reserve. It cannot carry a recovery, so a banned owner who lost the master key has no way round through it, which section 12 says `VajraExit` gives. It has been reviewed once, and that review found section 21 and the claims corrected above. The fixes have had no second review.
+**The bench sender is not a whole exit.** It cannot take its reserve back, so that money is stranded. It cannot replace its key, so a leaked key means a new clone and a new reserve. It cannot carry a recovery, so a banned owner who lost the master key has no way round through it, which section 12 says `VajraExit` gives. It has been reviewed once, and that review found section 21 and the claims corrected above.
 
-**Against V2 as a second master key.** A clean one takes a new path in `VajraAccountV2`, which is a contract change and a public redeploy, and V2's code is 23,178 bytes against the 24,576 limit on contract size. Whether that limit applies on this fork has not been checked. The back way in section 21 is a hole to close, not a route to use.
+**What was decided, on 2026-11-07.** leanSphincs-S is to become the exit's key, and not a second master key in V2. A second master key takes a new path in `VajraAccountV2`, which is a contract change and a public redeploy for a third kind of key, and V2's code is near the 24,576 limit on contract size. Whether that limit applies on this fork has not been checked. **The exit contract that decision needs is not built.**
 
-## 21. A named exit can replace the master tree, if nothing holds it back
+## 21. A named exit could replace the master tree, if nothing held it back
 
-Found by the independent review of section 20, then reproduced on the real client. **A design limit, and it needs a master signature on the wrong address.** Not fixed: the fix is a contract change.
+Found by the independent review of section 20, then reproduced on the real client. **A design limit, and it needed a master signature on the wrong address. Fixed in the source. It reaches the public devnet with the next redeploy, which has not happened,** so the V2 deployed there still has it.
 
-`queueRecovery` is `onlySelfOrExit`, and it checks no proof. The proof is checked in VERIFY, and only a proof transaction's VERIFY. The account relies on the exit to refuse the selector in its walk, and `VajraExit` does. `setExit` takes any address, so a contract named with no such walk can call `queueRecovery` with a root it chose. With no paper set the delay is 0, so `executeQueued` installs that root in the same transaction, and a freeze does not stop a recovery.
+`queueRecovery` is `onlySelfOrExit`, and it checks no proof. The proof is checked in VERIFY, and only a proof transaction's VERIFY. The account relied on the exit to refuse the selector in its walk, and `VajraExit` does. But `setExit` took any address, so a contract named with no such walk could call `queueRecovery` with a root it chose. With no paper set the delay is 0, so `executeQueued` installed that root in the same transaction, and a freeze does not stop a recovery.
 
-On the mirror (`vajra sphincs-bench`, step 8), a V2 account names a bench sender with no walk, and that sender's key signs `[VERIFY, queueRecovery(root, 1), executeQueued(id)]`. Mined, with no proof and no paper, and the account's master tree is the new root. **It was not run on the public devnet,** where V2 has the same code.
+On the mirror, against the bytes before the fix, kept in `artifacts/VajraAccountV2.pre-section-21.json` (`vajra sphincs-bench`, step 8): a V2 account names a bench sender with no walk, and that sender's key signs `[VERIFY, queueRecovery(root, 1), executeQueued(id)]`. Mined, with no proof and no paper, and the account's master tree is the new root. **It was not run on the public devnet.**
 
-**Who can reach this.** Only the master key can call `setExit`, and the master key can do anything anyway. So this is about a mistake or a phished signature, and about what we hand a second key. Outside this bench, every client path that names an exit in this repository names a clone of `VajraExit`.
+**Who could reach this.** Only the master key can call `setExit`, and the master key can do anything anyway. So this is about a mistake or a phished signature, and about what we hand a second key. Outside this bench, every client path that names an exit in this repository names a clone of `VajraExit`.
 
-**With a paper set**, from the code, not run: the same call spends the paper. The gate closes and the commitment is marked used, so the owner's real recovery is gone, and the root waits out the delay in the queue. The master key can veto it, and an owner who lost the master key cannot.
+**The fix is two checks:**
 
-**The fixes we propose, for the next redeploy, and neither is built:**
+- `queueRecovery` refuses when no commitment is set, with `RecoveryNotSet`. No honest recovery reaches it in that state, since `_checkRecovery` refuses first. That closes the one-transaction replacement.
+- `setExit` asks the contract for its `account()` and refuses another answer, with `ExitNotForThisAccount`. That catches naming the wrong clone. Zero still turns the route off, and an address with no code is refused.
 
-- `queueRecovery` refuses when no commitment is set. No honest recovery reaches it in that state, since `_checkRecovery` refuses first. That closes the one-transaction replacement.
-- `setExit` asks the contract for its `account()` and refuses another answer. That catches naming the wrong clone, and it does not stop a contract written to lie.
+**What is left.** A contract written to lie passes the second check. With a paper set it can still spend that paper: the gate closes and the commitment is marked used, so the owner's real recovery is gone, and the root waits out the delay, where the master key can cancel it and an owner who lost the master key cannot. `test_aLyingExit_canStillSpendAPaperThatIsSet_andTheRootHasToWait` holds this as a limit. Only the master key can name such a contract.
 
 **The lesson is the one in section 19.** Naming a contract is a real grant, and this one was wider than the three functions `VajraExit` allows. The list lived in the exit, where the account cannot see it.
+
+## 22. A thief could hide a queued payment from every alert
+
+Found while building the nominee, then reproduced on the real client. **Real, with only the daily key. Fixed in the client: the contracts did not change.** A client not yet updated, such as a hosted dashboard, still has it.
+
+The phone alert, the push service, the extension, the bridge and the dashboard's alarm all read the queue through `readAccount`, which read the newest 12 items. `validateDaily` lets a daily transaction carry many `spend` frames. So a thief puts the theft first and a dozen more behind it, in one transaction, and the theft is never in what any of them reads. No alert, no red page, and no row in the queue. It matures in silence, and anyone can execute it.
+
+On the mirror, with only the daily key: 13 items queued in one transaction, 6,075,706 gas, and a reader saw items 1 to 12. **It was not run on the public devnet.** The story page said "The thief cannot hide it." That was true of the chain and false of everything that read it, which is how section 9 happened too.
+
+**What bounds it.** The cost cap. Thirteen frames take about 6.1 million gas at the least, so under a 0.01 ETH `maxDailyTxCost` this works at a fee up to about 1.6 gwei, which is arithmetic and not a run. Its VERIFY limit is over the canonical cap, so it goes through the alt mempool, on a staked account. Fewer frames do not hide anything: it takes twelve behind it. Spread over several transactions, a reader that polls between them has already seen the first.
+
+**The fix.** `readAccount` now reads every item that may still be waiting, and the newest 12 for show. Every reader goes through it, so none of them had to change. `vajra watch-e2e` sends the real attack and the alert names the thief's address, thirteen items back. `vajra nominee-e2e` sends it and the rescue lands ahead of it. `packages/core/test/queue-read.test.ts` holds the reader to it.
+
+**What is left.** Each poll reads every waiting item, so a thief who queues thousands makes reads slower. Each one needs a veto, or an escape, which ends them all. A spend under the limit does not queue at all, as before.
+
+## 23. The nominee: a rescue signed in advance
+
+Built on the mirror. `vajra nominee-e2e`, `apps/dashboard/test/nominee.mjs`, `docs/evidence/nominee-latest.json`. **It was not run on the public devnet. It needs no contract change,** so it should work on the V2 deployed there, and that is reasoning and not a run.
+
+**The gap.** A theft has to wait in public, and you get asked. If you are asleep or on a plane, the item matures and the thief takes it. Everything built so far needed you to be there.
+
+**What it is.** The exit's key signs one transaction in advance: `escape`, from the exit. The owner hands the bytes to someone they trust, who holds no key. `vajra nominee-watch`, or the **Your nominee** page, reads the queue. An answer ends an item: cancelled, or paid. So an item still waiting when the margin is reached means nobody answered, and the rescue goes. The margin is a quarter of the delay, at most an hour.
+
+**Why it needs frame transactions.** On an ordinary account a transaction signed in advance waits on the next nonce, so the owner's next transaction kills it, and so does a thief's. Here it sits on a nonce key of its own, on a sender of its own, and section 8's check keeps the daily key off both. The signature hash holds every frame and the fee, so the holder can change none of them. And the exit pays, so a thief's pending transaction, a ban and an empty account do not reach it: section 12.
+
+**What the run shows,** with a 60-second delay and a 15-second margin, and a real process that starts with an empty folder and leaves it empty:
+
+- The owner answers both ways, **Not me** and **Pay, it's me**. Past the time those items would have left, nothing was sent.
+- Nobody answers, with a thief sending a transaction every second. The rescue lands with seconds to spare, the harbor holds the money, the thief's collection dies with `AccountFrozen`, and the thief has nothing.
+- A theft hidden behind a dozen more, as in section 22, on an account short of ETH, holding tokens. The rescue lands ahead of it, all 25 tokens reach the harbor, and the exit pays.
+- A stolen paper on a frozen account. A freeze stops a payment, so nothing goes for that. It does not stop a recovery, so the proof sets the switch off, and the money reaches the harbor before the thief's key tree can.
+- The owner moves the harbor and forgets. The tool says it would fail, and the watcher says so and does not send it, because a mined failure would spend the nonce key for nothing.
+- The owner replaces the exit's tree. Every rescue signed under it dies, and a new one works.
+
+**What the holder can do.** Send it early, which moves everything to the harbor and freezes the account: disruption, and no theft. Refuse, or be offline, in which case nothing happens, so give it to two people. Learn the harbor, which is in the bytes, so a rescue unseals it for them. Pad a copy, the hole in section 15: 8 KB cost the reserve about 0.001 ETH, and the money still went to the harbor.
+
+**What it does not do:**
+
+- **It cannot tell the owner from a thief.** A real payment left unanswered sets it off, so every queued payment needs an answer. **Pay, it's me** on a phone needs the hardware signer or `--allow-software-pay`, so without one of those, answering yes means a terminal.
+- **A spend under the limit does not queue,** so it never sets this off. A thief with an absent owner gets a day's limit each day.
+- **It needs the exit,** set up and funded before the thief arrives. The exit is software only today.
+- **Its fee and gas were fixed at signing.** If the base fee stays over its cap it cannot land, and a higher cap needs more reserve. If tokens are added later it can run out of gas. The tool simulates it and says so, and a holder cannot fix it: the owner signs a new one.
+- **The watcher has to be running,** and the page only watches while it is open. The holder has no way to reach the owner when a rescue breaks: nothing here tells the owner.
+- **A leaf is revealed and stays out in the world.** The exit's tree is not in the Arkiv registry, so a restored signer state could sign that leaf again, and two signatures from one leaf let someone forge a third. The exit's key can only reach `veto`, `freeze` and `escape` to the sealed harbor, so that forgery cannot steal. A stateless exit key, as section 20 decided, ends this. It is not built.
+- **It is not a will.** The money goes to the harbor. A claim that pays the nominee would be inheritance, with no thief in it, and it would blur the one story, so it is not built. An owner can choose a harbor their family could reach.
+

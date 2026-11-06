@@ -55,6 +55,8 @@ Times are from one machine, on a warm mirror.
 | A wallet signing typed data, and every attack on it | `vajra clear-sign` | 25 s | 4 mined, 18 refused, 0 failures, with a scripted wallet |
 | A second way out, on your own account | `vajra exit-setup`, then `vajra exit` | 20 s each | the harbor holds the balance |
 | A stealth payer taking the money back, and the fix | `vajra stealth-theft`, then `vajra stealth-theft fixed` | 1 min | 25 of 25 taken, then `CoSignerRequired` and 0 taken |
+| A nominee: a rescue signed in advance, sent when nobody answers, and every attack on it | `vajra nominee-e2e` | 8 min | 23 mined, 17 refused, 0 failures. Holds no key: a real process with an empty folder, which it leaves empty |
+| The same, on your own account | `vajra exit-setup --reserve 0.03`, `vajra nominee-setup --out rescue.json`, `vajra nominee-watch --rescue rescue.json` in its own terminal, then `vajra thief 0.6` and answer nothing | 2 min | the harbor holds the balance, and the watcher stops by itself. It ends the demo account: `make judge` starts again |
 | The dashboard, on the mirror | `make dashboard`, then http://localhost:3000 and **Start the demo** | 30 s | the theft as six steps, with no wallet to set up. See below |
 | Quota and USDC paymasters, and every attack | `vajra paymaster-e2e` | 6 min | 15 mined, 50 refused, canonical refused 51 of 51, 66 predictions checked, on V2, 0 failures |
 | Why a transaction went the way it did | `vajra explain 0xHash` | 1 s | state, frames, both verdicts, the sidecar's rules. Unknown stays unknown |
@@ -96,6 +98,7 @@ Tests that need no chain:
 | The story, `/story` | Pay, steal, get the alert, cancel, and try to replace the hash key |
 | Try to break in | 17 real attacks through the bridge, each with its named refusal and the node's raw error. The same attacks `vajra e2e` builds, from `packages/cli/src/attacks.ts` |
 | Mempools | One signed transaction to the canonical and alt mempools side by side, with raw errors and gas per frame. Reuses `vajra pin` and `vajra budget` |
+| Your nominee | Load a rescue file, with no wallet. It says whether the rescue would work, what is waiting, and when it goes, and sends it by itself or by hand. `apps/dashboard/test/nominee.mjs` drives it, 0 failures |
 | Lifecycle | New, Submitted, then Mined or Cancelled with a reason, and reputation, from the sidecar's `skandha_explorer` methods |
 | Proof | Every file in `docs/evidence/`, grouped by where it really ran |
 
