@@ -1,0 +1,4 @@
+# the fake-engine build, for screenshots only
+dist-fake/
+# screenshots from test/ui.mjs, regenerated on every run
+test/shots/
