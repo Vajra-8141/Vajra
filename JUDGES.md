@@ -72,7 +72,7 @@ Times are from one machine, on a warm mirror.
 | Encrypted backup, restore, a stale state refused | `vajra backup-e2e`, or `vajra backup --out file`, `vajra restore --in file --check` | 1 min | 0 failures |
 | One-transaction move from an EOA | `vajra move-e2e`, or `vajra move --key-file file --harbor 0x… --tokens 0x…` | 40 s | three frames, one transaction, 0 failures |
 | Gas table | `vajra measure`, `vajra measure-zk` | 2 min each | close to `docs/GAS.md` |
-| leanSphincs-S, a hash key with no leaves, beside the one we use | `vajra sphincs-bench` | 9 min | 19 mined, 53 refused, 0 failures, with its numbers close to `docs/GAS.md`. `SAMPLES=4` makes it 5 min. A benchmark: no account relies on it. One mined transaction shows a flaw on purpose: `docs/FINDINGS.md` section 21 |
+| leanSphincs-S, a hash key with no leaves, beside the one we use | `vajra sphincs-bench` | 9 min | 19 mined, 54 refused, 0 failures, with its numbers close to `docs/GAS.md`. `SAMPLES=4` makes it 5 min. A benchmark: no account relies on it. One mined transaction shows a flaw on purpose: `docs/FINDINGS.md` section 21 |
 | A staked VERIFY limit over 100,000 | `vajra budget` | 5 s | 400,000 admitted. The 900,000 line says "fee too low": same nonce, not the cap |
 | Hardware logic | `make -C firmware test emulator`, then the three lines below | 1 min | 143 checks, then 7 mined |
 | Leaf registry | the `curl` under [Run a query](README.md#leaf-registry-on-arkiv) in the README | 1 s | the public Arkiv testnet, no install, no key |
