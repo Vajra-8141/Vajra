@@ -17,4 +17,4 @@ export async function ask<T>(message: Record<string, unknown>): Promise<T> {
   return reply.value as T;
 }
 
-export const field = (id: string, placeholder: string, type = "text") => h("input", { id, placeholder, type, autocomplete: "off", spellcheck: "false" }) as HTMLInputElement;
+export const field = (id: string, placeholder: string, type = "text") => h("input", { id, placeholder, "aria-label": placeholder, type, autocomplete: "off", spellcheck: "false" }) as HTMLInputElement;

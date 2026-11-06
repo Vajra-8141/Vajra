@@ -7,6 +7,7 @@ const dist = new URL("./dist/", import.meta.url).pathname;
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 cpSync(new URL("./public/", import.meta.url).pathname, dist, { recursive: true });
+cpSync(new URL("../../packages/shared/ui/", import.meta.url).pathname, dist, { recursive: true });
 await build({ entryPoints: { app: "src/app.ts", sw: "src/sw.ts" }, bundle: true, format: "iife", target: "es2022", outdir: dist, absWorkingDir: new URL(".", import.meta.url).pathname });
 
 const crcTable = Array.from({ length: 256 }, (_, n) => {
@@ -28,14 +29,14 @@ const chunk = (type, data) => {
   return out;
 };
 
-/** A dark square with an amber diamond, inside the safe zone of a maskable icon. */
+/** An ink square with a diamond in the hash key's colour, inside the safe zone of a maskable icon. */
 function icon(size) {
   const rows = [];
   for (let y = 0; y < size; y++) {
     const row = Buffer.alloc(1 + size * 3);
     for (let x = 0; x < size; x++) {
       const inside = Math.abs(x - size / 2) + Math.abs(y - size / 2) < size * 0.3;
-      row.set(inside ? [0xf2, 0xb6, 0x32] : [0x0c, 0x0e, 0x11], 1 + x * 3);
+      row.set(inside ? [0x8f, 0xa8, 0xff] : [0x0a, 0x0c, 0x1b], 1 + x * 3);
     }
     rows.push(row);
   }

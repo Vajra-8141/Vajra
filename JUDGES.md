@@ -55,7 +55,7 @@ Times are from one machine, on a warm mirror.
 | A wallet signing typed data, and every attack on it | `vajra clear-sign` | 25 s | 4 mined, 18 refused, 0 failures, with a scripted wallet |
 | A second way out, on your own account | `vajra exit-setup`, then `vajra exit` | 20 s each | the harbor holds the balance |
 | A stealth payer taking the money back, and the fix | `vajra stealth-theft`, then `vajra stealth-theft fixed` | 1 min | 25 of 25 taken, then `CoSignerRequired` and 0 taken |
-| The dashboard, on the mirror | `make dashboard`, then http://localhost:3000 | 30 s | the theft as six steps, with no wallet to set up. See below |
+| The dashboard, on the mirror | `make dashboard`, then http://localhost:3000 and **Start the demo** | 30 s | the theft as six steps, with no wallet to set up. See below |
 | Quota and USDC paymasters, and every attack | `vajra paymaster-e2e` | 6 min | 15 mined, 50 refused, canonical refused 51 of 51, 66 predictions checked, on V2, 0 failures |
 | Why a transaction went the way it did | `vajra explain 0xHash` | 1 s | state, frames, both verdicts, the sidecar's rules. Unknown stays unknown |
 | The SDK, every action | `node packages/sdk/examples/mirror.ts`, with `VAJRA_STACK=local` | 30 s | a spend, a queue, a veto |
@@ -88,11 +88,11 @@ Tests that need no chain:
 
 ## The dashboard, with no wallet
 
-`make dashboard` opens on the theft as numbered steps. Each tick comes from the chain or the mempool, and every term has a tooltip. If something is not running, the page shows a checklist with the next command instead of an error, and it clears by itself.
+`make dashboard` opens on a landing page. **Start the demo** goes to `/story`: the theft as numbered steps. Each tick comes from the chain or the mempool, and every term has a tooltip. If something is not running, the page shows a checklist with the next command instead of an error, and it clears by itself.
 
 | Page | What it does |
 |---|---|
-| The theft | The story: pay, steal, get the alert, cancel, and try to replace the hash key |
+| The story, `/story` | Pay, steal, get the alert, cancel, and try to replace the hash key |
 | Try to break in | 17 real attacks through the bridge, each with its named refusal and the node's raw error. The same attacks `vajra e2e` builds, from `packages/cli/src/attacks.ts` |
 | Mempools | One signed transaction to the canonical and alt mempools side by side, with raw errors and gas per frame. Reuses `vajra pin` and `vajra budget` |
 | Lifecycle | New, Submitted, then Mined or Cancelled with a reason, and reputation, from the sidecar's `skandha_explorer` methods |

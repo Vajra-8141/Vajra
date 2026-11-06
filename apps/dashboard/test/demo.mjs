@@ -29,7 +29,7 @@ const step = (n) => page.locator(`[data-step="${n}"]`);
 const ticked = (n) => step(n).evaluate((el) => el.classList.contains("done"));
 
 // Start from a known place: a new account, through the page's own button.
-await page.goto(`${BASE}/`);
+await page.goto(`${BASE}/story`);
 await page.getByRole("heading", { name: /stole your wallet key/ }).waitFor({ timeout: 90_000 });
 check(await until(() => step(1).isVisible()), "the page opens on the story");
 await page.getByRole("button", { name: "Start over with a new account" }).click();
@@ -133,7 +133,7 @@ await page.waitForTimeout(300);
 await shot("08-lifecycle", false);
 
 // Clear the queue this test left behind, then check the end of the story: the escape, and going again.
-await page.goto(`${BASE}/`);
+await page.goto(`${BASE}/story`);
 await page.getByRole("button", { name: "Not me, cancel" }).click();
 await until(() => ticked(5));
 await page.getByRole("button", { name: "Escape to harbor" }).click();
@@ -150,7 +150,7 @@ await shot("09-proof", false);
 
 // Phone width: the theft and the tap, then every page.
 await page.setViewportSize({ width: 390, height: 844 });
-await page.goto(`${BASE}/`);
+await page.goto(`${BASE}/story`);
 await step(1).waitFor({ timeout: 60_000 });
 check(await until(async () => (await step(1).evaluate((el) => el.getBoundingClientRect().top)) < 900 && !(await page.locator(".cheque").isVisible())), "on a phone, no blank cheque stands in front of the steps");
 await page.getByRole("button", { name: /Steal 0.5 ETH/ }).click();
@@ -161,7 +161,7 @@ await page.getByRole("button", { name: "Not me, cancel" }).click();
 check(await until(() => ticked(5)), "one tap cancels it at phone width");
 await page.waitForTimeout(400);
 await shot("11-phone-cancelled", false);
-for (const [path, name] of [["/", null], ["/account", null], ["/break-in", null], ["/mempool", null], ["/lifecycle", null], ["/scanner", null], ["/proof", null]]) {
+for (const [path, name] of [["/", null], ["/story", null], ["/account", null], ["/break-in", null], ["/mempool", null], ["/lifecycle", null], ["/scanner", null], ["/proof", null]]) {
   await page.goto(`${BASE}${path}`);
   await page.waitForTimeout(2500);
   check(await noOverflow(), `no horizontal scroll at phone width on ${path}`);

@@ -31,7 +31,7 @@ await page.route("**/*", (route) => {
   return route.abort();
 });
 
-await page.goto(`${BASE}/`);
+await page.goto(`${BASE}/story`);
 await page.getByRole("heading", { name: /stole your wallet key/ }).waitFor({ timeout: 90_000 });
 await page.waitForTimeout(3000);
 const body = await page.locator("body").textContent();

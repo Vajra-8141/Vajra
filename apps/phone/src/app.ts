@@ -174,7 +174,7 @@ function reviewScreen(item: Item | undefined, id: string) {
 
   const payOff = !state!.payAllowed;
   const needsPasskey = !state!.passkey;
-  const name = h("input", { id: "label", placeholder: "Name this address", value: item.label ?? "" }) as HTMLInputElement;
+  const name = h("input", { id: "label", placeholder: "Name this address", "aria-label": "Name this address", value: item.label ?? "" }) as HTMLInputElement;
   return [
     header(),
     mirrorBanner(),

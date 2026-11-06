@@ -22,7 +22,7 @@ const until = async (test, ms = 30_000) => {
   return false;
 };
 
-await page.goto(`${BASE}/`);
+await page.goto(`${BASE}/story`);
 const list = page.locator(".firstrun");
 check(await until(() => list.isVisible()), "with the bridge stopped, the page shows the checklist");
 const text = await list.textContent();
@@ -36,7 +36,7 @@ for (const path of ["/account", "/break-in", "/mempool"]) {
   check(await until(() => list.isVisible()), `${path} gives the same next step`);
 }
 
-await page.goto(`${BASE}/`);
+await page.goto(`${BASE}/story`);
 await until(() => list.isVisible());
 const bridge = spawn("node", ["packages/cli/src/main.ts", "bridge"], { cwd: root, env: { ...process.env, VAJRA_STACK: "local" }, stdio: "ignore" });
 check(await until(async () => (await page.locator(".firstrun").count()) === 0 && (await page.locator('[data-step="1"]').isVisible())), "the list clears by itself once the bridge starts, with no reload");
@@ -44,7 +44,7 @@ bridge.kill();
 
 const blocked = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 for (const port of [18545 + LANE * 100, 14337 + LANE * 100, 8787 + LANE * 100]) await blocked.route(`http://127.0.0.1:${port}/**`, (route) => route.abort());
-await blocked.goto(`${BASE}/`);
+await blocked.goto(`${BASE}/story`);
 await blocked.locator('[data-check="chain"].todo').waitFor({ timeout: 30_000 });
 check((await blocked.locator(".firstrun").textContent()).includes("make judge"), "with nothing running, the first step is make judge");
 check((await blocked.locator(".firstrun .command").count()) === 1, "and only the first open line shows a command");

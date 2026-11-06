@@ -8,6 +8,7 @@ const dist = `${here}dist/`;
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 cpSync(`${here}public/`, dist, { recursive: true });
+cpSync(`${here}../../packages/shared/ui/`, dist, { recursive: true });
 
 const stack = JSON.stringify(process.env.VAJRA_STACK ?? "");
 const lane = JSON.stringify(process.env.VAJRA_LANE ?? "0");

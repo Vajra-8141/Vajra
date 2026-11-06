@@ -92,7 +92,7 @@ Both signed the same account, on the same chain.
 
 ## If something breaks
 
-**MetaMask fails:** `vajra spend 0xAddress 0.0001` from a terminal, and say the wallet would sign the same thing. On the mirror, the first page runs the whole story with the demo signer and needs no wallet. Say that it is a demo signer.
+**MetaMask fails:** `vajra spend 0xAddress 0.0001` from a terminal, and say the wallet would sign the same thing. On the mirror, `/story` runs the whole story with the demo signer and needs no wallet. Say that it is a demo signer.
 
 **The alert does not arrive:** the laptop beep and the red page come from the dashboard, which reads the same queue. Use the **Veto** button in the queue list, and say what you are doing. Check terminal 3 afterwards.
 

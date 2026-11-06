@@ -1,0 +1,51 @@
+/* What the extension and the phone share. Same tokens as the dashboard, plain CSS, no libraries. See docs/DESIGN-DIRECTION.md. */
+@font-face { font-family: "Geist"; src: url("fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Geist Mono"; src: url("fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--base); color: var(--t100); }
+body { font: 400 var(--t-body)/1.5 var(--font-ui); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+main { max-width: 480px; margin: 0 auto; padding: max(var(--s4), env(safe-area-inset-top)) var(--s4) var(--s7); display: grid; gap: var(--s3); }
+h1, h2, p { margin: 0; }
+h1 { font-size: 1.625rem; line-height: 1.2; font-weight: 500; letter-spacing: -0.025em; }
+h2 { font-size: var(--t-xs); font-weight: 400; color: var(--t60); }
+a { color: var(--t100); text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.top { display: flex; justify-content: space-between; align-items: center; min-height: var(--touch); }
+.mark { display: inline-flex; align-items: center; gap: var(--s2); font-weight: 600; letter-spacing: 0.14em; }
+.mark::before { content: ""; width: 18px; height: 18px; background: var(--arc); mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1c4 3.500 5 7.500 1.600 11C17 15.500 16 19.500 12 23 8 19.500 7 15.500 10.400 12 7 8.500 8 4.500 12 1Z'/%3E%3C/svg%3E") center / contain no-repeat; }
+.banner { padding: var(--s2) var(--s3); font-size: var(--t-xs); color: var(--warn); background: var(--warn-soft); border-radius: var(--r2); }
+.card { display: grid; gap: var(--s2); min-width: 0; padding: var(--s4); background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r3); }
+.row { display: flex; justify-content: space-between; gap: var(--s3); align-items: baseline; }
+.big { font-size: 1.25rem; font-weight: 500; letter-spacing: -0.02em; }
+.muted { color: var(--t60); font-size: var(--t-sm); }
+.mono { font-family: var(--font-code); font-size: var(--t-xs); overflow-wrap: anywhere; }
+.unknown { color: var(--warn); }
+.done { color: var(--ok); }
+.card.done { background: var(--arc-soft); border-color: var(--arc-line); color: var(--t100); }
+
+.warn { padding: var(--s3); font-size: var(--t-sm); border-radius: var(--r2); }
+.warn.danger { color: var(--danger); background: var(--danger-soft); }
+.warn.caution { color: var(--warn); background: var(--warn-soft); }
+
+button { width: 100%; min-height: 48px; padding: 10px var(--s4); font: 500 var(--t-body)/1.2 var(--font-ui); color: var(--t100); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r2); cursor: pointer; transition: background var(--fast) var(--ease), transform var(--fast) var(--ease); }
+button:hover:not(:disabled) { background: var(--surface-3); }
+button:active:not(:disabled) { transform: translateY(1px); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.primary, button.go { background: var(--t100); color: var(--base); border-color: var(--t100); }
+button.primary:hover:not(:disabled), button.go:hover:not(:disabled) { background: var(--t60); border-color: var(--t60); }
+/* Cancelling is the hash key's act, so it wears the hash key's colour. */
+button.stop { background: var(--arc); color: var(--on-arc); border-color: var(--arc); }
+button.stop:hover:not(:disabled) { background: var(--t100); border-color: var(--t100); }
+button.link { width: auto; min-height: var(--touch); padding: var(--s2) 0; background: none; border: 0; color: var(--t60); font-weight: 400; font-size: var(--t-sm); text-align: left; justify-self: start; }
+button.link:hover:not(:disabled) { background: none; color: var(--t100); }
+button.item { display: grid; gap: var(--s1); padding: var(--s4); text-align: left; font-weight: 400; background: var(--surface-1); border-color: var(--line); }
+
+input { width: 100%; min-height: var(--touch); padding: var(--s2) var(--s3); font: 400 var(--t-body) var(--font-ui); color: var(--t100); background: var(--base); border: 1px solid var(--line-strong); border-radius: var(--r2); }
+input::placeholder { color: var(--t40); }
+[hidden] { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 1ms !important; }
+}
