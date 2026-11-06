@@ -79,6 +79,7 @@ ul li + li { margin-top: var(--s2); }
 .hero.small { padding-bottom: 0; }
 .because { display: inline-block; margin-bottom: var(--s3); font-size: var(--t-sm); color: var(--t60); text-decoration: none; }
 .because:hover { color: var(--t100); }
+.because::first-letter { text-transform: uppercase; }
 .lead { font-size: var(--t-lead); line-height: 1.5; color: var(--t60); max-width: 66ch; margin: var(--s4) 0 0; }
 .page-title { font-size: var(--t-h1); margin-bottom: var(--s3); }
 .sub { color: var(--t60); font-size: var(--t-sm); }

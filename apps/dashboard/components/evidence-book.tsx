@@ -40,8 +40,8 @@ function Record({ record, Live }: { record: EvidenceRecord; Live?: ComponentType
                 </tr>
               </thead>
               <tbody>
-                {record.transactions.map((t) => (
-                  <tr key={`${t.step}${t.hash}`}>
+                {record.transactions.map((t, i) => (
+                  <tr key={`${i}${t.hash}`}>
                     <td>{t.step}</td>
                     <td className="mono">{shortHash(t.hash)}</td>
                     <td className="num">{t.verifyGas === null ? "not recorded" : t.verifyGas.toLocaleString("en-US")}</td>
