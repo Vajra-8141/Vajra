@@ -262,7 +262,7 @@ export function Home() {
                 <div>
                   <small>Your wallet is fully protected</small>
                   <strong>Private pool</strong>
-                  <p className="t60 small">Every payment here is public. The pool breaks the link between where money came from and where it goes.</p>
+                  <p className="t60 small">Every note looks the same. A payout shows a note paid, without showing which one.</p>
                 </div>
                 <Chevron />
               </a>

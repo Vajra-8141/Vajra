@@ -157,7 +157,7 @@ export function Receive() {
               <p className="t60 small center">Anyone who has this can see your balance. If that matters, use Private.</p>
             </>
           ) : (
-            <PrivateReceive account={s.account} />
+            <PrivateReceive safe={s.safe.address} />
           )
         }
       </WithSnap>
@@ -165,7 +165,7 @@ export function Receive() {
   );
 }
 
-function PrivateReceive({ account }: { account: Address }) {
+function PrivateReceive({ safe }: { safe: Address }) {
   const { run } = useTasks();
   const [code, setCode] = useState<string | null>(null);
   const [bad, setBad] = useState<unknown>(null);
@@ -229,8 +229,8 @@ function PrivateReceive({ account }: { account: Address }) {
                   onClick={() =>
                     void run({
                       title: "Claiming",
-                      run: (s) => engine.claimPrivate(p.id, account, s),
-                      result: (d) => ({ title: "Claimed", body: `${eth(p.amount)} ETH is in your wallet.`, done: d }),
+                      run: (s) => engine.claimPrivate(p.id, safe, s),
+                      result: (d) => ({ title: "Claimed", body: `${eth(p.amount)} ETH is in your safe, not this wallet, so nothing public ties it to you.`, done: d }),
                     }).then((d) => {
                       if (d) scan();
                     })
@@ -252,8 +252,8 @@ export function Pool() {
   const [spending, setSpending] = useState<string | null>(null);
   const [to, setTo] = useState("");
   return (
-    <Screen title="Private pool" back="/" lead="Everything on a public chain can be traced. The pool breaks the trail between where money came from and where it goes.">
-      <p className="honest">Your deposit is public, and so is the withdrawal. Only the link between them is hidden, and it hides better when more people use the pool.</p>
+    <Screen title="Private pool" back="/" lead="Every note in the pool looks the same. When one pays out, nobody can tell which deposit it came from.">
+      <p className="honest">Deposits and payouts are public, and a payout still shows it came from this wallet. What stays hidden is which note paid. That hides more as this wallet holds more notes.</p>
       <WithSnap>
         {(s) => {
           const live = s.notes.filter((n) => !n.spent);
@@ -288,7 +288,7 @@ export function Pool() {
                             className="btn primary"
                             disabled={!isAddr(to)}
                             onClick={() =>
-                              void run({ title: "Paying out", run: (x) => engine.unshield(n.id, to as Address, x), result: (d) => ({ title: "Paid out", body: <>{eth(n.payout)} ETH went to <span className="mono">{short(to)}</span>, with no public link to your deposit.</>, done: d }) }).then((d) => {
+                              void run({ title: "Paying out", run: (x) => engine.unshield(n.id, to as Address, x), result: (d) => ({ title: "Paid out", body: <>{eth(n.payout)} ETH went to <span className="mono">{short(to)}</span>. A proof showed a note paid, without showing which.</>, done: d }) }).then((d) => {
                                 if (d) {
                                   setSpending(null);
                                   setTo("");
