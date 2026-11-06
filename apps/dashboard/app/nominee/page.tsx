@@ -1,7 +1,7 @@
 "use client";
 
 import { type ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
-import { type QueuedView, type Rescue, type RescueCheck, type RescueDue, ETH, RescueInvalid, checkRescue, isLocalStack, parseRescue, publicClient, rescueDue, sendRescue } from "@vajra/core";
+import { type QueuedView, type Rescue, type RescueCheck, type RescueDue, ETH, RescueInvalid, checkRescue, isLocalStack, parseRescue, publicClient, rescueDue, sendAtFrom, sendRescue, timeToSend, wouldBurn } from "@vajra/core";
 import { Lattice } from "../../components/lattice";
 import { Stamp } from "../../components/stamp";
 import { Term } from "../../components/term";
@@ -13,6 +13,9 @@ import { NETWORKS, useReads } from "../../lib/reads";
 const POLL_MS = isLocalStack ? 2_000 : 8_000;
 
 const NOBODY = "0x0000000000000000000000000000000000000000";
+
+/** A thief can queue thousands, and a page that tried to draw them would stop answering. The oldest come first, and those are the ones that matter. */
+const SHOWN = 20;
 
 /** A recovery sits in the queue with no recipient, and the new root where a spend's amount would be. */
 const describe = (item: QueuedView) => {
@@ -37,6 +40,12 @@ function Health({ check, read }: { check: RescueCheck | null; read: string | nul
     );
   if (check.state === "sent") return null;
   if (check.state === "unknown") return <div className="banner warn" data-health="unknown">Unknown: {check.reason}</div>;
+  if (!check.burns)
+    return (
+      <div className="banner warn" role="alert" data-health="doubtful">
+        This rescue may not work. Trying costs nothing, so it will still go if time runs out. {check.reason}
+      </div>
+    );
   return (
     <div className="banner error" role="alert" data-health="broken">
       This rescue would fail, so it will not be sent. {check.reason}
@@ -57,6 +66,7 @@ export default function NomineePage() {
   const [sendFailed, setSendFailed] = useState<string | null>(null);
   const [harborHolds, setHarborHolds] = useState<bigint | null>(null);
   const inFlight = useRef(false);
+  const lastSendAt = useRef<number | null>(null);
 
   const load = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -66,6 +76,7 @@ export default function NomineePage() {
     setHarborHolds(null);
     setSendFailed(null);
     setArmed(false);
+    lastSendAt.current = null;
     try {
       setRescue(parseRescue(await file.text()));
       setInvalid(null);
@@ -104,16 +115,18 @@ export default function NomineePage() {
         if (live) setHarborHolds(held);
         return;
       }
+      let next: RescueDue | null = null;
       try {
-        const next = await rescueDue(rescue);
+        next = await rescueDue(rescue);
         if (!live) return;
         setDue(next);
         setReadFailed(null);
-        // Broken means it is known to fail, and a failed frame spends the nonce key for nothing. Anything else is worth a try: nothing else can stop this now.
-        if (next.due && auto && health.state !== "broken") void send(rescue);
+        lastSendAt.current = sendAtFrom(next);
       } catch (error) {
         if (live) setReadFailed((error as Error).message.slice(0, 200));
       }
+      // Only a rescue known to burn its nonce key holds back, and a read that failed is not an answer: see `timeToSend`.
+      if (live && auto && timeToSend({ check: health, due: next, lastSendAt: lastSendAt.current })) void send(rescue);
       timer = setTimeout(poll, POLL_MS);
     };
     void poll();
@@ -180,11 +193,16 @@ export default function NomineePage() {
               </div>
               <div>
                 <dt>It goes</dt>
-                <dd>{countdown(rescue.marginSeconds)} before anything waiting would leave</dd>
+                <dd>{countdown(due?.margin ?? rescue.marginSeconds)} before anything waiting would leave. The file sets this, and it is not signed.</dd>
               </div>
             </dl>
-            <p className="sub">Holding this, you can send the owner's money to the owner's safe address and nowhere else, and you now know where that is.</p>
+            <p className="sub">Holding this, you can send the owner's money to the owner's safe address and nowhere else, and you now know where that is. Until the node has answered, all of this is only what the file says.</p>
             <Health check={check} read={readFailed} />
+            {!!due?.staleBy && (
+              <div className="banner warn" data-stale>
+                This node's newest block is {countdown(due.staleBy)} old, so what it shows may be out of date.
+              </div>
+            )}
           </section>
 
           {sent ? (
@@ -196,11 +214,11 @@ export default function NomineePage() {
                 </div>
               ) : (
                 <p>
-                  {harborHolds !== null ? `The safe address holds ${eth(harborHolds)}. ` : "What the safe address holds is unknown. "}Signed by the hash key, in advance{sent.block ? `, and mined in block ${sent.block}` : ""}.{sent.hash ? "" : " A copy of this transaction landed, with different padding."}
+                  {harborHolds !== null ? `The safe address holds ${eth(harborHolds)}. ` : "What the safe address holds is unknown. "}Signed by the hash key, in advance{sent.block ? `, and mined in block ${sent.block}` : ""}.{sent.copy ? " A copy of this transaction landed, with different padding." : ""}
                 </p>
               )}
-              {sent.hash && <p className="sub mono break">{sent.hash}</p>}
-              {sent.hash && <Lattice hash={sent.hash} label="A picture of how a hash key picks its chains, drawn from this transaction's hash. It is not the signature." />}
+              <p className="sub mono break">{sent.hash}</p>
+              <Lattice hash={sent.hash} label="A picture of how a hash key picks its chains, drawn from this transaction's hash. It is not the signature." />
             </section>
           ) : (
             <section className="plain" data-watching>
@@ -213,12 +231,13 @@ export default function NomineePage() {
                 </p>
               ) : (
                 <>
-                  {due.waiting.map((item) => (
+                  {due.waiting.slice(0, SHOWN).map((item) => (
                     <div className="item" key={item.id.toString()} data-waiting={item.id.toString()}>
                       <span>{describe(item)}</span>
                       <span className="sub">{countdown(Number(item.executeAfter) - due.now)}</span>
                     </div>
                   ))}
+                  {due.waiting.length > SHOWN && <p className="sub">And {due.waiting.length - SHOWN} more.</p>}
                   <p className="banner warn" role="status">
                     {due.due ? "Nobody answered." : `Nobody has answered yet. The rescue goes in ${countdown(due.sendIn ?? 0)}.`}
                   </p>
@@ -231,17 +250,17 @@ export default function NomineePage() {
               </label>
               <p className="actions">
                 {armed ? (
-                  <button className="arc" disabled={sending || check?.state === "broken"} onClick={() => rescue && void send(rescue)} data-send>
+                  <button className="arc" disabled={sending || wouldBurn(check)} onClick={() => rescue && void send(rescue)} data-send>
                     {sending ? "Sending" : "Move everything to safety, now"}
                   </button>
                 ) : (
-                  <button disabled={sending || check?.state === "broken"} onClick={() => setArmed(true)} data-arm>
+                  <button disabled={sending || wouldBurn(check)} onClick={() => setArmed(true)} data-arm>
                     {sending ? "Sending" : "Send the rescue myself"}
                   </button>
                 )}
                 {armed && !sending && <button onClick={() => setArmed(false)}>Keep waiting</button>}
               </p>
-              {armed && <p className="sub">This freezes the account, for good, and moves everything to the safe address. It cannot be undone. Nothing is lost by it, and the owner has to start again from there.</p>}
+              {armed && <p className="sub">This freezes the account and moves everything to the safe address. It cannot be undone: the money stays at the safe address, and only the owner's hash key can unfreeze the account. If the account has a pool, it closes for good, and everyone's notes in it go to the safe address too.</p>}
               {sendFailed && (
                 <div className="banner error" role="alert" data-send-failed>
                   It did not go through, and this page will keep trying while it is open. {sendFailed}
@@ -264,6 +283,8 @@ export default function NomineePage() {
           <li>A spend under the daily limit leaves at once, so it never waits here. A thief still gets a day's limit, each day, until you come back.</li>
           <li>It cannot tell you from a thief. A real payment of yours that you leave unanswered sets it off too, so every queued payment needs an answer.</li>
           <li>If the owner changes the safe address or the exit's keys, this file stops working, and they have to sign a new one.</li>
+          <li>A recovery of the owner's own sets it off too. They have lost the key that could answer, so the money goes to the safe address first.</li>
+          <li>If the chain stops answering once something is waiting, this sends when the last good read said to, without knowing whether the owner has answered since. A rescue nobody needed costs a frozen account. A theft costs everything.</li>
         </ul>
       </section>
 
