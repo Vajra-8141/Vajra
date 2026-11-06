@@ -35,6 +35,7 @@ import {
 import { fileStore } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 import { theRegistry } from "./registry.ts";
+import { installNoteSeed, localNoteSeed } from "./note-seed.ts";
 import { withSignerLock } from "./signer-lock.ts";
 import { type Wallet, loadWallet } from "./wallet.ts";
 
@@ -60,6 +61,8 @@ export interface BackupContents {
   /** A rotation that was started and not finished. */
   nextSigner: SignerState | null;
   root: Hex;
+  /** What every note comes from. A backup made before notes had a seed has none. */
+  noteSeed?: Hex | null;
 }
 
 function deriveKey(passphrase: string, kdf: BackupFile["kdf"]): Promise<Buffer> {
@@ -240,6 +243,7 @@ export async function backupCommand(flags: Record<string, string>) {
       signer,
       nextSigner: fileStore(keyPath("signer.next.json")).load() ?? null,
       root: new MasterSigner(WOTS_W16, memoryStore(structuredClone(signer)), () => new Uint8Array()).root,
+      noteSeed: localNoteSeed(),
     } satisfies BackupContents;
   });
   const { proof } = await proveRestore(contents);
@@ -273,6 +277,8 @@ export async function restoreCommand(flags: Record<string, string>) {
     fileStore(signerPath).save(signer);
     if (contents.nextSigner) fileStore(keyPath("signer.next.json")).save(contents.nextSigner);
     writeFileSync(keyPath("wallet.json"), JSON.stringify(contents.wallet, null, 1), { mode: 0o600 });
+    if (contents.noteSeed) installNoteSeed(contents.noteSeed);
   });
   console.log(`restored to ${dirname(keyPath("signer.json"))}`);
+  if (contents.noteSeed) console.log("note seed restored: `vajra notes-restore` finds your notes on the chain");
 }

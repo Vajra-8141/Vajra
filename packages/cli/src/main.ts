@@ -267,11 +267,20 @@ switch (command) {
   case "shielded":
     await import("./shielded.ts");
     break;
+  case "pool-e2e":
+    await import("./pool-e2e.ts");
+    break;
   case "shield":
-    await (await import("./shield.ts")).shieldCommand();
+    await (await import("./shield.ts")).shieldCommand({ account: flags.account as Address | undefined, keyFile: flags["key-file"] });
     break;
   case "unshield":
-    await (await import("./shield.ts")).unshieldCommand(rest[0] as Address);
+    await (await import("./shield.ts")).unshieldCommand(rest[0] as Address, { account: flags.account });
+    break;
+  case "notes":
+    await (await import("./shield.ts")).notesCommand({ account: flags.account });
+    break;
+  case "notes-restore":
+    await (await import("./shield.ts")).notesRestoreCommand({ seedFile: flags["seed-file"], account: flags.account, gap: flags.gap });
     break;
   case "recover-setup": {
     const { recoverSetup } = await import("./recovery.ts");
@@ -309,8 +318,11 @@ signer:   device | device wipe          (VAJRA_SIGNER=device keeps the master ke
 registry: leaves [root]                 (what Arkiv knows about a key tree; needs no keys)
 recovery: recover-setup [--delay s] [--out file] | recover-prove --secret file [--out file] | recover --proof file
           recover                        (no flags: the whole story on a fresh account, with every attack)
-pool:     shield | unshield <recipient>  (one note in, one note out)
+pool:     shield [--account a --key-file f] | unshield <recipient> [--account a]  (one note in, one note out)
+          notes [--account a]            (what this machine holds, and what the chain says of it)
+          notes-restore [--seed-file f] [--account a] [--gap n]  (every note, rebuilt from the seed and the chain)
           shielded                       (the whole pool on a fresh account, with every attack)
+          pool-e2e                       (notes rebuilt after the machine is gone, with every attack; the mirror only)
           compare                        (the same proof, offered to the sidecar as deployed and as patched)
           measure-zk                     (the gas rows for proofs)
           sphincs-bench                  (leanSphincs-S beside the hash key: gas, size, both mempools, every attack)
@@ -325,4 +337,4 @@ attacks:  rep-burn [fixed|rule] | escape-solvency [fixed] | proof-spam [fixed] |
 }
 
 if (command !== "bridge" && command !== "phone") await closeDevice();
-if (command?.startsWith("recover") || command === "shield" || command === "unshield") await (await import("./proving.ts")).stopProver();
+if (command?.startsWith("recover") || command?.startsWith("notes") || command === "shield" || command === "unshield") await (await import("./proving.ts")).stopProver();

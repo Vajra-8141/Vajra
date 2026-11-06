@@ -1,0 +1,126 @@
+{
+ "ranAt": "2026-11-06T20:12:46.148Z",
+ "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
+ "chainId": 13370,
+ "genesis": "0x74f05f1d3d0589fbf8e763a064aefe6d9941f6ab907cb52993142ede6c23cf3c",
+ "implementation": "0x668e5b07b106c3ea01e113830636e19262d4db12",
+ "account": "0x106C2EF3a941e3aD0368dAB2CA377bDf1D48332D",
+ "denomination": "100000000000000000",
+ "failures": 0,
+ "steps": [
+  {
+   "step": "the owner shields note 0",
+   "hash": "0x4ba640461dd8e27e56224874f01fdf52b67d53c36d1277cfea8b0c551b479da6"
+  },
+  {
+   "step": "the owner shields note 1",
+   "hash": "0xe16b2adc1714d1310e6950844a9db4d421a8b2dcced49dc6ea06cf605aa3b0df"
+  },
+  {
+   "step": "an outsider pays in, from a key and a seed of their own",
+   "hash": "0x657f942b051d54bbb47346af6ae083252384536f0f3118b2ada716aa8b4daf1a"
+  },
+  {
+   "step": "the owner shields note 2",
+   "hash": "0xfd62468601bf00e001a66b6c6b587d4fde2ceebc04ebb3038cb4b82f5e0f0476"
+  },
+  {
+   "step": "the owner spends the oldest note",
+   "hash": "0x561c09d8303d947bf8ac93874691065934067e4d330472cdd358e7e38a52b947"
+  },
+  {
+   "step": "freeze",
+   "hash": "0xf0a0f582b179bb53d6b388a1a6c200599b408f815fc42170452bdc5107425c3b"
+  },
+  {
+   "step": "unfreeze",
+   "hash": "0x041421f9f8a17500f0a598b6869ef3ef6616c11da6fc6f8048c618e7fd63d8fe"
+  },
+  {
+   "step": "the owner shields again, past the number that failed",
+   "hash": "0xc15ffe51f017125dea7483f2aa614480a3cdb315393a675ed61f286f3b667247"
+  },
+  {
+   "step": "rebuild every note from the seed and the chain",
+   "hash": null
+  },
+  {
+   "step": "a rebuilt note is spent from the new machine",
+   "hash": "0x95c156c1d32247e6edb336cb412e8518621f4b7e080792477156d36083d89dcf"
+  },
+  {
+   "step": "rebuilding again is safe, and sees that spend",
+   "hash": null
+  },
+  {
+   "step": "the new machine shields, and carries on from the seed's next number",
+   "hash": "0xeb03a9c81f9d81ece5219aee59aee01d9d1872f004c8fbded08ed74cf51a4351"
+  },
+  {
+   "step": "another seed",
+   "hash": null
+  },
+  {
+   "step": "the outsider's seed finds the outsider's note and no other",
+   "hash": null
+  },
+  {
+   "step": "the right seed, on another account",
+   "hash": null
+  },
+  {
+   "step": "rotate the master key",
+   "hash": "0xf3825ee681cd9417d1072a1be7f4854354adb134b45350a0942841ba1f2bd850"
+  },
+  {
+   "step": "rebuild after the rotation",
+   "hash": null
+  },
+  {
+   "step": "back up",
+   "hash": null
+  },
+  {
+   "step": "restore on a fresh machine",
+   "hash": null
+  },
+  {
+   "step": "rebuild from what the backup restored",
+   "hash": null
+  },
+  {
+   "step": "rebuild over a file holding an older note",
+   "hash": null
+  },
+  {
+   "step": "escape",
+   "hash": "0x59a796e98d6f91f36069b4b1e2adf518821c781da0833fb2190938ad720889e1"
+  },
+  {
+   "step": "rebuild after the escape",
+   "hash": null
+  }
+ ],
+ "refusals": [
+  {
+   "attack": "A deposit while frozen",
+   "refusal": "a frame failed"
+  },
+  {
+   "attack": "Spending with no notes on this machine",
+   "refusal": "no unspent note on this machine"
+  },
+  {
+   "attack": "A restore over a different seed on this machine",
+   "refusal": "a different note seed is already"
+  },
+  {
+   "attack": "A paper that is not a seed",
+   "refusal": "that is not a note seed"
+  },
+  {
+   "attack": "A rebuilt note the chain has seen spent, sent again",
+   "refusal": "NullifierSpent"
+  }
+ ]
+}

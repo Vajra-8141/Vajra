@@ -1,29 +1,38 @@
 /**
- * The shielded pool as a user runs it. Notes live in a file on this machine, and whoever has that file can spend them, so it
- * is as sensitive as a key. A note is not derived from the master seed yet: viewing keys and note delivery are designed only.
+ * The shielded pool as a user runs it. Every note comes from one seed, so a stolen or wiped machine does not take the notes with it:
+ * the seed and the account are enough to find them all again on the chain. See note-seed.ts.
+ *
+ * notes.json is only a cache of what the seed and the chain already say, except for a note made before there was a seed.
  */
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { type Address, formatEther, parseAbiItem } from "viem";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { type Address, type Hex, formatEther, getAddress, isAddress, parseAbiItem } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { DEVNET, type FrameTx, RpcError, accountV2Abi, deployments, framesSucceeded, opsV2, publicClient, refusalNameV2, submit, unshieldTx } from "@vajra/core";
+import { DEVNET, type FrameTx, LEGACY_GAS_PRICE, RpcError, accountV2Abi, deployments, framesSucceeded, opsV2, publicClient, refusalNameV2, submit, unshieldTx, waitForSuccess, walletFor } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
-import { type Note, newNote, noteCommitment, proveUnshield } from "./proving.ts";
-import { requireWallet, runCalls } from "./wallet.ts";
+import { installNoteSeed, localNoteSeed, noteSeed } from "./note-seed.ts";
+import { type Note, SEED_GAP, noteCommitment, noteFromSeed, noteNullifier, notesInPool, proveUnshield } from "./proving.ts";
+import { loadWallet, requireWallet, runCalls } from "./wallet.ts";
 
 const notesPath = keyPath("notes.json");
 
-interface SavedNote {
+export interface SavedNote {
   account: Address;
   secret: string;
   nullifierSeed: string;
   commitment: string;
   leaf: number;
   spent: boolean;
+  /** Its number under the seed. A note made before there was a seed has none, and this file is its only copy. */
+  index?: number;
 }
 
-const loadNotes = (): SavedNote[] => (existsSync(notesPath) ? (JSON.parse(readFileSync(notesPath, "utf8")) as SavedNote[]) : []);
-const saveNotes = (notes: SavedNote[]) => writeFileSync(notesPath, JSON.stringify(notes, null, 1) + "\n", { mode: 0o600 });
+export const loadNotes = (): SavedNote[] => (existsSync(notesPath) ? (JSON.parse(readFileSync(notesPath, "utf8")) as SavedNote[]) : []);
+const saveNotes = (notes: SavedNote[]) => {
+  mkdirSync(dirname(notesPath), { recursive: true });
+  writeFileSync(notesPath, JSON.stringify(notes, null, 1) + "\n", { mode: 0o600 });
+};
 
 export const denomination = () => BigInt(deployments().v2!.denomination);
 /** What a note gives up on the way out, to pay for its own transaction. */
@@ -45,20 +54,109 @@ export async function poolLeaves(account: Address): Promise<bigint[]> {
 export const readPool = <T>(account: Address, functionName: string, args: unknown[] = []) =>
   publicClient.readContract({ address: account, abi: accountV2Abi as never, functionName, args } as never) as Promise<T>;
 
-/** One note, paid for by the account, with the master key. The note is saved before it is paid for. */
-export async function shieldCommand() {
-  const { account } = requireWallet();
-  const note = newNote();
-  const commitment = await noteCommitment(note);
+const toSaved = (account: Address, note: Note, commitment: bigint, leaf: number, index: number): SavedNote => ({
+  account,
+  secret: note.secret.toString(),
+  nullifierSeed: note.nullifierSeed.toString(),
+  commitment: commitment.toString(),
+  leaf,
+  spent: false,
+  index,
+});
+
+/**
+ * The seed's next unused note. A number already tried is never tried again, even if it seems to have failed: a deposit that lands late would
+ * then be a second copy of one note, and the second copy could never be spent. The pool is read too, for a seed used on another machine.
+ */
+async function nextNote(seed: Hex, account: Address, notes: SavedNote[]) {
+  const pool = new Set(await poolLeaves(account));
+  let index = Math.max(-1, ...notes.filter((n) => n.account === account && n.index !== undefined).map((n) => n.index!)) + 1;
+  for (;; index++) {
+    const note = noteFromSeed(seed, account, DEVNET.chainId, index);
+    const commitment = await noteCommitment(note);
+    if (!pool.has(commitment)) return { note, commitment, index };
+  }
+}
+
+/** One note, with the note saved before it is paid for. The account pays with the master key, or anyone pays from a key of their own. */
+export async function shieldCommand(o: { account?: Address; keyFile?: string } = {}) {
+  const account = o.account ?? requireWallet().account;
   const notes = loadNotes();
-  const saved: SavedNote = { account, secret: note.secret.toString(), nullifierSeed: note.nullifierSeed.toString(), commitment: commitment.toString(), leaf: -1, spent: false };
+  const { note, commitment, index } = await nextNote(noteSeed(), account, notes);
+  const saved = toSaved(account, note, commitment, -1, index);
   saveNotes([...notes, saved]);
-  const result = await runCalls([opsV2.shield(commitment, denomination())], "shield", console.log);
+  const hash = o.keyFile ? await depositFrom(o.keyFile, account, commitment) : (await runCalls([opsV2.shield(commitment, denomination())], "shield", console.log)).hash;
   const leaves = await poolLeaves(account);
   saved.leaf = leaves.indexOf(commitment);
   saveNotes([...notes, saved]);
-  console.log(`mined ${result.hash}\nnote at leaf ${saved.leaf}, ${formatEther(denomination())} ETH, ${leaves.length} in the pool`);
+  console.log(`mined ${hash}\nnote ${index} at leaf ${saved.leaf}, ${formatEther(denomination())} ETH, ${leaves.length} in the pool`);
   console.log(`the amount and this deposit are public. So is any later withdrawal: what stays hidden is which deposit paid for it`);
+}
+
+/** An outsider's deposit: an ordinary transaction, so the sender's address is on the chain beside the note. */
+async function depositFrom(keyFile: string, account: Address, commitment: bigint): Promise<Hex> {
+  const key = readFileSync(keyFile, "utf8").trim() as Hex;
+  const hash = await walletFor(key).writeContract({ address: account, abi: accountV2Abi as never, functionName: "shield", args: [commitment], value: denomination(), gas: 8_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy", chain: undefined } as never);
+  await waitForSuccess(hash, "the deposit");
+  return hash;
+}
+
+/** What the chain says of a note, whatever this machine remembers. */
+export type NoteStatus = "in the pool" | "spent" | "swept to the harbor";
+
+export async function noteStatus(account: Address, note: Note): Promise<NoteStatus> {
+  const [spent, closed] = await Promise.all([readPool<boolean>(account, "noteSpent", [await noteNullifier(note)]), readPool<boolean>(account, "poolClosed")]);
+  if (spent) return "spent";
+  return closed ? "swept to the harbor" : "in the pool";
+}
+
+const asNote = (saved: SavedNote): Note => ({ secret: BigInt(saved.secret), nullifierSeed: BigInt(saved.nullifierSeed) });
+
+const accountOr = (given?: string): Address => {
+  if (given === undefined) return requireWallet().account;
+  if (!isAddress(given, { strict: false })) throw new Error("--account is not an address");
+  return getAddress(given);
+};
+
+/** Everything this machine knows about, with the chain's word on each. A failed read stops the command: it does not print as nothing. */
+export async function notesCommand(o: { account?: string } = {}) {
+  const account = accountOr(o.account);
+  const notes = loadNotes().filter((n) => n.account === account);
+  if (!notes.length) return console.log(`no notes on this machine for ${account}. That says nothing about the chain: \`vajra notes-restore\` looks there`);
+  for (const saved of notes) console.log(`note ${saved.index ?? "without a seed"}, leaf ${saved.leaf < 0 ? "unknown" : saved.leaf}: ${await noteStatus(account, asNote(saved))}`);
+}
+
+/**
+ * Finds every note of a seed on the chain and writes it down. It only ever adds: a note already in the file stays, and that matters for a
+ * note made before there was a seed, because nothing else holds it.
+ */
+export async function notesRestoreCommand(o: { seedFile?: string; account?: string; gap?: string }) {
+  const account = o.account === undefined && !loadWallet() ? null : accountOr(o.account);
+  if (!account) throw new Error("no account here: name it with --account <address>");
+  const seed = (o.seedFile ? readFileSync(o.seedFile, "utf8").trim() : localNoteSeed()) as Hex | null;
+  if (!seed) throw new Error("no note seed on this machine: name it with --seed-file <file>");
+  installNoteSeed(seed);
+
+  const leaves = await poolLeaves(account);
+  const gap = o.gap === undefined ? SEED_GAP : Number(o.gap);
+  if (!Number.isInteger(gap) || gap < 1) throw new Error("--gap is a whole number");
+  const found = await notesInPool(seed, account, DEVNET.chainId, leaves, gap);
+  const notes = loadNotes();
+  const counts = new Map<NoteStatus, number>();
+  for (const f of found) {
+    const status = await noteStatus(account, f.note);
+    counts.set(status, (counts.get(status) ?? 0) + 1);
+    console.log(`note ${f.index}, leaf ${f.leaf}: ${status}`);
+    const known = notes.find((n) => n.account === account && n.commitment === f.commitment.toString());
+    const saved = known ?? toSaved(account, f.note, f.commitment, f.leaf, f.index);
+    saved.leaf = f.leaf;
+    saved.spent = status === "spent";
+    if (!known) notes.push(saved);
+  }
+  saveNotes(notes);
+  const summary = [...counts].map(([status, count]) => `${count} ${status}`).join(", ");
+  console.log(`${found.length} notes found in ${leaves.length} deposits${found.length ? `: ${summary}` : ""}`);
+  console.log(`a run of ${gap} numbers with no deposit ended the search, so a note past a longer gap would not be found: raise --gap to look further`);
 }
 
 /**
@@ -77,12 +175,19 @@ async function checkRecipient(recipient: Address) {
 }
 
 /** Spends the oldest unspent note. No key signs this. */
-export async function unshieldCommand(recipient: Address) {
-  const { account } = requireWallet();
+export async function unshieldCommand(recipient: Address, o: { account?: string } = {}) {
+  const account = accountOr(o.account);
   const notes = loadNotes();
-  const saved = notes.find((n) => n.account === account && !n.spent && n.leaf >= 0);
+  // The chain decides, not the file: a process that stopped after the block and before the save would otherwise offer a spent note.
+  let saved: SavedNote | undefined;
+  for (const candidate of notes.filter((n) => n.account === account && !n.spent && n.leaf >= 0)) {
+    if ((await noteStatus(account, asNote(candidate))) === "in the pool") {
+      saved = candidate;
+      break;
+    }
+  }
   if (!saved) throw new Error("no unspent note on this machine");
-  const note: Note = { secret: BigInt(saved.secret), nullifierSeed: BigInt(saved.nullifierSeed) };
+  const note = asNote(saved);
 
   // A note has one mined attempt, and it is spent whatever the recipient does. So ask first: a contract that refuses money costs the note.
   await checkRecipient(recipient);
