@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run",
+    "test": "VAJRA_STACK= VAJRA_LANE= vitest run",
     "typecheck": "tsc --noEmit",
     "vajra": "node src/main.ts"
   },
