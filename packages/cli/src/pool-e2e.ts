@@ -311,11 +311,12 @@ console.log("\n9. On the bytes before this change, a refused payment fell where 
 const before = await thiefAccount("before", await preFixV2Factory(deployer, "VajraAccountV2.pre-section-26"), parseEther("0.2"));
 const oldNote = await depositNote("before: a note, with the master key", before);
 const oldRefuser = await deployRefuser(deployer);
+const oldFree = await free(before.address);
 await mined("before: the note is paid to a contract that refuses it", sendNote(before.address, await proofOf(before.address, oldNote.note, oldNote.leaf, oldRefuser)));
 check((await held(before.address)) === 0n, "before: nothing is held for it, and the holder has lost it");
 const oldLoot = fresh();
 await mined("before: the thief spends the note's money with the daily key", await before.thief([ops.spend(ETH, oldLoot, parseEther("0.15"))]));
-check((await publicClient.getBalance({ address: oldLoot })) === parseEther("0.15"), "before: the thief holds 0.15 ETH, and 0.1 ETH of it was the note's");
+check((await publicClient.getBalance({ address: oldLoot })) === parseEther("0.15") && parseEther("0.15") > oldFree, `before: the thief holds 0.15 ETH, and only ${formatEther(oldFree)} ETH was free before the note failed`);
 
 console.log("\n10. Now the same thing stays held");
 const after = await thiefAccount("after", deployments().v2!.factory, parseEther("0.2"));
@@ -462,17 +463,24 @@ const hostile: { name: string; to: Address }[] = [
   { name: "a recipient that reverts with 450,000 bytes", to: await place(REVERT_BOMB) },
   { name: "a recipient that eats the frame's state gas", to: await place(STATE_EATER) },
 ];
-const frames: { recipient: string; senderGas: number; executionLimit: number }[] = [];
+const frames: { recipient: string; senderGas: number; senderStateGas: number; executionLimit: number }[] = [];
 for (const [i, { name, to }] of hostile.entries()) {
   const victim = victims[i]!;
   const result = await mined(name, sendNote(worst.address, await proofOf(worst.address, victim.note, victim.leaf, to)));
   check((await stateOf(worst.address, victim.note)) === 2n, `${name}: the note is spent and owed, in a frame that succeeded`);
-  frames.push({ recipient: name, senderGas: Number(BigInt(result.receipt.frameReceipts[1]!.gasUsed)), executionLimit: 500_000 });
+  const sender = result.receipt.frameReceipts[1]!;
+  frames.push({ recipient: name, senderGas: Number(BigInt(sender.gasUsed)), senderStateGas: Number(BigInt(sender.stateGasUsed)), executionLimit: 500_000 });
 }
+// The ordinary payment, on the same walk: a fresh address needs 183,600 spare gas at the call, and the call now asks for less than it did.
+const paidDeep = fresh();
+const deep = await mined("a fresh address, at the same walk", sendNote(worst.address, await proofOf(worst.address, victims[3]!.note, victims[3]!.leaf, paidDeep)));
+check((await publicClient.getBalance({ address: paidDeep })) === PAID, `the fresh address holds ${formatEther(PAID)} ETH`);
+const deepFrame = deep.receipt.frameReceipts[1]!;
+frames.push({ recipient: "a fresh address, paid", senderGas: Number(BigInt(deepFrame.gasUsed)), senderStateGas: Number(BigInt(deepFrame.stateGasUsed)), executionLimit: 500_000 });
 const lastClaim = await proofOf(worst.address, victims[0]!.note, victims[0]!.leaf, fresh());
 await claimLands("a claim to a fresh address", worst.address, lastClaim);
 const held32 = await held(worst.address);
-check(held32 === DENOM * 29n + PAID * 2n, `what is held adds up: 29 notes and two claims, ${formatEther(held32)} ETH`);
+check(held32 === DENOM * 28n + PAID * 2n, `what is held adds up: 28 notes and two claims, ${formatEther(held32)} ETH`);
 
 console.log("\n15. Whether the 24,576-byte limit on contract size holds on this fork");
 const sizes: { bytes: number; deployed: boolean; codeBytes: number; gas: number }[] = [];
@@ -494,6 +502,7 @@ const record = {
   account,
   denomination: DENOM.toString(),
   v2RuntimeBytes: size((await publicClient.getCode({ address: deployments().v2!.implementation }))!),
+  beforeThisChange: { freeBeforeTheRefusal: formatEther(oldFree), thiefTook: "0.15" },
   contractSizes: sizes,
   failures: tally.failures,
   transactions: steps,
