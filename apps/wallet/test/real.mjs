@@ -1,11 +1,14 @@
 // The real build, in a real browser, on the public chain, through a running server.ts. No fake anywhere. Spends test ETH.
 //   node build.mjs && URL=http://localhost:8791 node test/real.mjs
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { chromium } from "playwright-core";
 const origin = process.env.URL ?? "http://localhost:8791";
 const shots = new URL("./shots/real/", import.meta.url).pathname;
 mkdirSync(shots, { recursive: true });
 const PASS = "horse battery staple river";
+// A wallet costs test ETH, so a rerun picks up the last one from its backup.
+const SAVED = new URL("../../../.vajra-wallet/test-backup.txt", import.meta.url).pathname;
+const FROM = process.env.FROM ?? "start";
 let fails = 0;
 const t0 = Date.now();
 const say = (l) => console.log(`[${Math.round((Date.now() - t0) / 1000)}s] ${l}`);
@@ -30,6 +33,17 @@ const laptop = await device("laptop", { width: 1280, height: 800 });
 const phone = await device("phone", { width: 390, height: 844 });
 const p = laptop.page;
 try {
+  if (existsSync(SAVED) && FROM !== "start") {
+    await p.goto(`${origin}/`);
+    await p.evaluate(([sealed]) => {
+      localStorage.setItem("vajra.wallet.v1", JSON.stringify({ sealed: JSON.parse(sealed), account: "0x0000000000000000000000000000000000000000" }));
+      location.reload();
+    }, [readFileSync(SAVED, "utf8")]);
+    await p.getByLabel("Passphrase").fill(PASS);
+    await tap(p, "Open wallet");
+    await p.getByText("Protected", { exact: true }).first().waitFor({ timeout: 30000 });
+    say("opened the saved wallet");
+  } else {
   await p.goto(`${origin}/`);
   await p.getByRole("heading", { name: /thief can't empty/ }).waitFor();
   await tap(p, "Create a wallet", "link");
@@ -41,7 +55,7 @@ try {
   say("wallet created through the screens");
   const dl = p.waitForEvent("download");
   await tap(p, "Download backup file");
-  await dl;
+  await (await dl).saveAs(SAVED);
   await p.getByRole("checkbox").check();
   await tap(p, "Go to my wallet");
   await p.getByText("Protected", { exact: true }).first().waitFor({ timeout: 30000 });
@@ -70,6 +84,64 @@ try {
   await p.waitForTimeout(800);
   await laptop.shot("04-cancelled");
   say("Not me mined");
+
+  }
+
+  // Things only a browser can prove: proofs on the device, and the stealth keys.
+  await route(p, "/protection");
+  await p.getByRole("heading", { name: "Protection" }).waitFor();
+  await p.locator('[data-step="freeze"] .step-head').click();
+  await p.getByRole("button", { name: "Freeze now" }).waitFor({ timeout: 20000 });
+  await tap(p, "Freeze now");
+  await sheet(p, "Freeze");
+  await closeSheet(p);
+  await route(p, "/");
+  await p.getByText("Frozen", { exact: true }).first().waitFor({ timeout: 30000 });
+  await laptop.shot("04b-frozen");
+  await route(p, "/protection");
+  await p.locator('[data-step="freeze"] .step-head').click();
+  await p.getByRole("button", { name: "Unfreeze", exact: true }).click();
+  await sheet(p, "Unfreeze");
+  await closeSheet(p);
+  say("froze and unfroze through the screens");
+
+  await route(p, "/pool");
+  await p.getByRole("heading", { name: "Private pool" }).waitFor();
+  await tap(p, "Shield a note");
+  if (await p.getByRole("dialog").getByRole("button", { name: /Shield/ }).isVisible().catch(() => false)) await sheet(p, /Shield/);
+  await closeSheet(p);
+  say("shielded a note");
+  await p.waitForTimeout(5000);
+  await tap(p, "Unshield");
+  await p.getByLabel("Pay it out to").fill("0x000000000000000000000000000000000000dEaD");
+  await p.getByRole("button", { name: "Pay out", exact: true }).click();
+  await closeSheet(p, 180000);
+  await laptop.shot("04c-unshielded");
+  say("unshielded with a proof made in the browser");
+
+  await route(p, "/receive");
+  await p.getByRole("tab", { name: "Private" }).click();
+  const copied = await p.evaluate(async () => {
+    await new Promise((r) => setTimeout(r, 2500));
+    [...document.querySelectorAll("button")].find((b) => /copy/i.test(b.textContent)).click();
+    await new Promise((r) => setTimeout(r, 300));
+    return navigator.clipboard.readText();
+  });
+  say(`private code copied, ${copied.length} characters`);
+  await route(p, `/send?code=${copied.replace(/^.*[=/]/, "")}`);
+  await p.getByLabel("Their private code").waitFor();
+  await p.getByLabel("Amount").fill("0.0005");
+  await p.waitForTimeout(800);
+  await p.getByRole("button", { name: /^Send$/ }).click();
+  await closeSheet(p, 120000);
+  say("sent privately");
+  await route(p, "/receive");
+  await p.getByRole("tab", { name: "Private" }).click();
+  await p.getByRole("button", { name: "Claim" }).waitFor({ timeout: 60000 });
+  await laptop.shot("04d-private-found");
+  await tap(p, "Claim");
+  await closeSheet(p, 120000);
+  say("claimed the private payment");
 
   await route(p, "/move");
   await tap(p, "Show the QR code");
