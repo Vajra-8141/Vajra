@@ -297,7 +297,6 @@ pool:     shield | unshield <recipient>  (one note in, one note out)
           These need the mirror: VAJRA_STACK=local.
 gas:      explain <hash>                 (why a mined, pending or refused transaction went the way it did)
           paymaster-e2e                  (both paymasters, every attack; needs the mirror)
-devnet:   deploy [w16|w256|stealth] | e2e | device-e2e | stealth | measure | pin | budget | arkiv`);
 devnet:   deploy [w16|w256|stealth] | e2e | device-e2e | stealth | measure | pin | budget | arkiv
 attacks:  rep-burn [fixed|rule] | escape-solvency [fixed] | proof-spam [fixed] | clear-sign | exit-e2e  (the mirror only)`);
     process.exit(1);
