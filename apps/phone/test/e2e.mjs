@@ -16,9 +16,9 @@ const repo = new URL("../../../", import.meta.url).pathname;
 const main = join(repo, "packages/cli/src/main.ts");
 const lane = Number(process.env.VAJRA_LANE ?? 0);
 const rpcUrl = `http://127.0.0.1:${18545 + lane * 100}`;
-const PORT = 3210;
-const PUSH_PORT = 8910;
-const TELEGRAM_PORT = 8911;
+const PORT = 3210 + lane * 100;
+const PUSH_PORT = 8910 + lane * 100;
+const TELEGRAM_PORT = 8911 + lane * 100;
 const origin = `http://localhost:${PORT}`;
 const OWNER = 42;
 
@@ -45,7 +45,7 @@ const balanceOf = async (address) => BigInt(await rpc("eth_getBalance", [address
 const dir = mkdtempSync(join(tmpdir(), "vajra-phone-"));
 const state = join(dir, "state");
 mkdirSync(state);
-const env = { ...process.env, VAJRA_STATE_DIR: state, TELEGRAM_API: `http://127.0.0.1:${TELEGRAM_PORT}`, TELEGRAM_BOT_TOKEN: "test", TELEGRAM_CHAT_ID: String(OWNER) };
+const env = { ...process.env, VAJRA_PHONE_PORT: String(PORT), VAJRA_STATE_DIR: state, TELEGRAM_API: `http://127.0.0.1:${TELEGRAM_PORT}`, TELEGRAM_BOT_TOKEN: "test", TELEGRAM_CHAT_ID: String(OWNER) };
 const vajra = (...args) => spawnSync(process.execPath, [main, ...args], { env, encoding: "utf8" });
 
 const { generatePrivateKey, privateKeyToAccount } = await import(new URL("../../../packages/cli/node_modules/viem/_esm/accounts/index.js", import.meta.url));
