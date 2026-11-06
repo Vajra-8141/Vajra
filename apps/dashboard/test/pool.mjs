@@ -6,6 +6,8 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
+import { createWalletClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const SHOTS = process.env.SHOTS ?? "/tmp";
@@ -64,6 +66,22 @@ check(!/hides you|anonymous|untraceable/i.test(two), "nothing says the pool hide
 check(two.includes("right about 2 times in 3"), "it gives the odds of a guess at the largest depositor");
 check((await page.locator(".pool-shares span").count()) === 2 && (await page.locator(".pool-shares span.own").count()) === 1, "the bar has one block for each address, and marks this account's");
 await shot("pool-two");
+
+console.log("\nA payment fails");
+// One byte of INVALID: a contract that takes nothing, so this is a real refused payment.
+const wallet = createWalletClient({ account: privateKeyToAccount(deployerKey), transport: http(RPC), chain: { id: 13370, name: "mirror", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [RPC] } } } });
+const placed = await wallet.sendTransaction({ data: "0x60fe60005360016000f3", gas: 1_000_000n, gasPrice: 2_000_000n, type: "legacy" });
+let refuser = null;
+for (let i = 0; i < 30 && !refuser; i++) {
+  const reply = await fetch(RPC, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getTransactionReceipt", params: [placed] }) });
+  refuser = (await reply.json()).result?.contractAddress ?? null;
+  if (!refuser) await page.waitForTimeout(1000);
+}
+const said = vajra(["unshield", refuser, "--no-check"]);
+check(said.includes("refused the money"), "the holder is told the recipient refused");
+check(await until(async () => (await text()).includes("1 payment failed")), "the card says the money is still held");
+check((await text()).includes("1 spent"), "and counts the note as spent");
+await shot("pool-owed");
 
 console.log("\nA phone");
 await page.setViewportSize({ width: 360, height: 780 });

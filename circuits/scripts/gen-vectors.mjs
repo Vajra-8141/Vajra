@@ -9,6 +9,7 @@ const SALT = BigInt("0x" + "ab".repeat(32));
 const NEW_ROOT = BigInt("0x" + "cd".repeat(32));
 const DENOM = 10n ** 17n;
 const RECIPIENT = 0xbeef00000000000000000000000000000000beefn;
+const CLAIM_RECIPIENT = 0xcafe00000000000000000000000000000000cafen;
 const LIMB = 1n << 128n;
 
 const hash = await buildPoseidon();
@@ -44,11 +45,15 @@ const pathIndices = [1, ...Array(19).fill(0)];
 let root = H(first, second);
 for (let i = 1; i < 20; i++) root = H(root, zeros[i]);
 const nullifierHash = H(44n);
-const unshield = await groth16.fullProve(
-  { secret: 33n, nullifierSeed: 44n, pathElements, pathIndices, root, nullifierHash, recipient: RECIPIENT, denomination: DENOM, accountAddr: ACCOUNT, chainId: CHAIN },
-  build("unshield", "unshield_js/unshield.wasm"),
-  build("unshield", "unshield.zkey"),
-);
+const proveTo = (recipient) =>
+  groth16.fullProve(
+    { secret: 33n, nullifierSeed: 44n, pathElements, pathIndices, root, nullifierHash, recipient, denomination: DENOM, accountAddr: ACCOUNT, chainId: CHAIN },
+    build("unshield", "unshield_js/unshield.wasm"),
+    build("unshield", "unshield.zkey"),
+  );
+const unshield = await proveTo(RECIPIENT);
+// The same note, proved again to someone else: what a holder does after the first recipient refused.
+const claim = await proveTo(CLAIM_RECIPIENT);
 
 writeFileSync(
   new URL("../../contracts/test/vectors/zk.json", import.meta.url),
@@ -64,6 +69,8 @@ writeFileSync(
       poolRoot: root.toString(),
       nullifierHash: nullifierHash.toString(),
       unshieldProof: flat(unshield.proof),
+      claimRecipient: "0x" + CLAIM_RECIPIENT.toString(16).padStart(40, "0"),
+      claimProof: flat(claim.proof),
       poseidon: poseidonContract.createCode(2),
     },
     null,

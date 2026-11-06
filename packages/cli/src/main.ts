@@ -271,10 +271,13 @@ switch (command) {
     await import("./pool-e2e.ts");
     break;
   case "shield":
-    await (await import("./shield.ts")).shieldCommand({ account: flags.account as Address | undefined, keyFile: flags["key-file"] });
+    await (await import("./shield.ts")).shieldCommand({ account: flags.account, keyFile: flags["key-file"] });
     break;
   case "unshield":
-    await (await import("./shield.ts")).unshieldCommand(rest[0] as Address, { account: flags.account });
+    await (await import("./shield.ts")).unshieldCommand(rest[0] as Address, { account: flags.account, noCheck: flags["no-check"] !== undefined });
+    break;
+  case "claim":
+    await (await import("./shield.ts")).claimCommand(rest[0] as Address, { account: flags.account, keyFile: flags["key-file"] });
     break;
   case "pool":
     await (await import("./shield.ts")).poolCommand(rest[0]);
@@ -321,7 +324,8 @@ signer:   device | device wipe          (VAJRA_SIGNER=device keeps the master ke
 registry: leaves [root]                 (what Arkiv knows about a key tree; needs no keys)
 recovery: recover-setup [--delay s] [--out file] | recover-prove --secret file [--out file] | recover --proof file
           recover                        (no flags: the whole story on a fresh account, with every attack)
-pool:     shield [--account a --key-file f] | unshield <recipient> [--account a]  (one note in, one note out)
+pool:     shield [--account a --key-file f] | unshield <recipient> [--account a] [--no-check]  (one note in, one note out)
+          claim <recipient> --key-file f [--account a]  (a note whose recipient refused, paid to any address; the key pays the gas)
           pool [address]                 (what this pool hides, and what no chain can show; needs no key)
           notes [--account a]            (what this machine holds, and what the chain says of it)
           notes-restore [--seed-file f] [--account a] [--gap n]  (every note, rebuilt from the seed and the chain)
@@ -341,4 +345,4 @@ attacks:  rep-burn [fixed|rule] | escape-solvency [fixed] | proof-spam [fixed] |
 }
 
 if (command !== "bridge" && command !== "phone") await closeDevice();
-if (command?.startsWith("recover") || command?.startsWith("notes") || command === "pool" || command === "shield" || command === "unshield") await (await import("./proving.ts")).stopProver();
+if (command?.startsWith("recover") || command?.startsWith("notes") || command === "pool" || command === "claim" || command === "shield" || command === "unshield") await (await import("./proving.ts")).stopProver();

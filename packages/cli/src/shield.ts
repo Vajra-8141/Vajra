@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { type Address, type Hex, formatEther, getAddress, isAddress, parseAbiItem } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { DEVNET, type FrameTx, LEGACY_GAS_PRICE, RpcError, accountV2Abi, deployments, framesSucceeded, opsV2, poolMeter, poolWords, publicClient, readPoolFacts, refusalNameV2, submit, unshieldTx, waitForSuccess, walletFor } from "@vajra/core";
+import { DEVNET, type FrameTx, LEGACY_GAS_PRICE, RpcError, accountV2Abi, claimCall, deployments, framesSucceeded, opsV2, poolMeter, poolWords, publicClient, readPoolFacts, refusalNameV2, submit, unshieldTx, waitForSuccess, walletFor } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 import { installNoteSeed, localNoteSeed, noteSeed } from "./note-seed.ts";
@@ -33,6 +33,9 @@ const saveNotes = (notes: SavedNote[]) => {
   mkdirSync(dirname(notesPath), { recursive: true });
   writeFileSync(notesPath, JSON.stringify(notes, null, 1) + "\n", { mode: 0o600 });
 };
+
+/** The pairing, and paying a fresh address. Unused gas comes back. */
+export const CLAIM_GAS = 2_000_000n;
 
 export const denomination = () => BigInt(deployments().v2!.denomination);
 /** What a note gives up on the way out, to pay for its own transaction. */
@@ -79,8 +82,8 @@ async function nextNote(seed: Hex, account: Address, notes: SavedNote[]) {
 }
 
 /** One note, with the note saved before it is paid for. The account pays with the master key, or anyone pays from a key of their own. */
-export async function shieldCommand(o: { account?: Address; keyFile?: string } = {}) {
-  const account = o.account ?? requireWallet().account;
+export async function shieldCommand(o: { account?: string; keyFile?: string } = {}) {
+  const account = accountOr(o.account);
   const notes = loadNotes();
   const { note, commitment, index } = await nextNote(noteSeed(), account, notes);
   const saved = toSaved(account, note, commitment, -1, index);
@@ -96,16 +99,25 @@ export async function shieldCommand(o: { account?: Address; keyFile?: string } =
 /** An outsider's deposit: an ordinary transaction, so the sender's address is on the chain beside the note. */
 async function depositFrom(keyFile: string, account: Address, commitment: bigint): Promise<Hex> {
   const key = readFileSync(keyFile, "utf8").trim() as Hex;
+  const from = privateKeyToAccount(key).address;
+  if ((await publicClient.getBalance({ address: from })) <= denomination()) throw new Error(`${from} holds too little to pay ${formatEther(denomination())} ETH and its gas`);
   const hash = await walletFor(key).writeContract({ address: account, abi: accountV2Abi as never, functionName: "shield", args: [commitment], value: denomination(), gas: 8_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy", chain: undefined } as never);
   await waitForSuccess(hash, "the deposit");
   return hash;
 }
 
 /** What the chain says of a note, whatever this machine remembers. */
-export type NoteStatus = "in the pool" | "spent" | "swept to the harbor";
+export type NoteStatus = "in the pool" | "spent" | "owed" | "swept to the harbor";
+
+const UNSPENT = 0n;
+const OWED = 2n;
 
 export async function noteStatus(account: Address, note: Note): Promise<NoteStatus> {
-  const [spent, closed] = await Promise.all([readPool<boolean>(account, "noteSpent", [await noteNullifier(note)]), readPool<boolean>(account, "poolClosed")]);
+  const nullifier = await noteNullifier(note);
+  const [spent, closed] = await Promise.all([readPool<boolean>(account, "noteSpent", [nullifier]), readPool<boolean>(account, "poolClosed")]);
+  // The V2 on the public devnet has no claims, and reverts here. Only a revert means that: a failed read must not pass for it.
+  const state = spent ? await readPool<bigint>(account, "noteState", [nullifier]).catch((error: Error) => (/revert/i.test(error.message) ? 1n : Promise.reject(error))) : UNSPENT;
+  if (state === OWED) return closed ? "swept to the harbor" : "owed";
   if (spent) return "spent";
   return closed ? "swept to the harbor" : "in the pool";
 }
@@ -136,7 +148,12 @@ export async function notesCommand(o: { account?: string } = {}) {
   const account = accountOr(o.account);
   const notes = loadNotes().filter((n) => n.account === account);
   if (!notes.length) return console.log(`no notes on this machine for ${account}. That says nothing about the chain: \`vajra notes-restore\` looks there`);
-  for (const saved of notes) console.log(`note ${saved.index ?? "without a seed"}, leaf ${saved.leaf < 0 ? "unknown" : saved.leaf}: ${await noteStatus(account, asNote(saved))}`);
+  const leaves = await poolLeaves(account);
+  for (const saved of notes) {
+    const leaf = leaves.indexOf(BigInt(saved.commitment));
+    // A note is saved before it is paid for, so one here may never have reached the pool, and must not read as money that did.
+    console.log(`note ${saved.index ?? "without a seed"}, ${leaf < 0 ? "not in the pool: its deposit failed, or has not landed" : `leaf ${leaf}: ${await noteStatus(account, asNote(saved))}`}`);
+  }
 }
 
 /**
@@ -176,19 +193,19 @@ export async function notesRestoreCommand(o: { seedFile?: string; account?: stri
  * A plain address always takes a payment. A contract might not, so trial it, from an address with money: the node will not run a call
  * from the account, which has code, or one from an empty address. A check that could not run is not a pass, and stops the same way.
  */
-async function checkRecipient(recipient: Address) {
+async function checkRecipient(recipient: Address, from?: Address) {
   if (!(await publicClient.getCode({ address: recipient }))) return;
-  const funder = privateKeyToAccount(loadOrCreateKey(keyPath("deployer.key"))).address;
+  const funder = from ?? privateKeyToAccount(loadOrCreateKey(keyPath("deployer.key"))).address;
   const trial = await publicClient.call({ account: funder, to: recipient, value: denomination() - noteFee() }).then(
     () => null,
     (error: Error) => error.message,
   );
   if (trial === null) return;
-  throw new Error(/reverted/i.test(trial) ? `${recipient} refuses a plain payment, and the note would be lost: pick another recipient` : `could not check that ${recipient} takes a payment, so the note was not spent: ${trial}`);
+  throw new Error(/reverted/i.test(trial) ? `${recipient} refuses a plain payment, so the money would not arrive: pick another recipient` : `could not check that ${recipient} takes a payment, so nothing was sent: ${trial}`);
 }
 
 /** Spends the oldest unspent note. No key signs this. */
-export async function unshieldCommand(recipient: Address, o: { account?: string } = {}) {
+export async function unshieldCommand(recipient: Address, o: { account?: string; noCheck?: boolean } = {}) {
   const account = accountOr(o.account);
   const notes = loadNotes();
   // The chain decides, not the file: a process that stopped after the block and before the save would otherwise offer a spent note.
@@ -206,8 +223,9 @@ export async function unshieldCommand(recipient: Address, o: { account?: string 
   const facts = await readPoolFacts(account);
   if (facts) console.log(poolWords(poolMeter(facts)).headline);
 
-  // A note has one mined attempt, and it is spent whatever the recipient does. So ask first: a contract that refuses money costs the note.
-  await checkRecipient(recipient);
+  // A note has one mined attempt, and it is spent whatever the recipient does. So ask first: a contract that refuses money costs the fee, and
+  // then a claim. `--no-check` is for a contract that takes money only from this account, which a trial from elsewhere cannot show.
+  if (!o.noCheck) await checkRecipient(recipient);
 
   // A stale root is a tier, not an error: the note is fine, and a fresh proof against a newer root will do. Retrying the same
   // proof is always the same bytes, which `submit` does on its own.
@@ -221,7 +239,9 @@ export async function unshieldCommand(recipient: Address, o: { account?: string 
       if (!framesSucceeded(receipt)) throw new Error(`${hash} was mined but a frame failed`);
       saved.spent = true;
       saveNotes(notes);
-      console.log(`mined ${hash}, VERIFY ${Number(BigInt(receipt.frameReceipts[0]!.gasUsed))} gas\n${formatEther(denomination() - noteFee())} ETH to ${recipient}: a ${formatEther(denomination())} ETH note, less its ${formatEther(noteFee())} ETH fee`);
+      console.log(`mined ${hash}, VERIFY ${Number(BigInt(receipt.frameReceipts[0]!.gasUsed))} gas`);
+      if ((await noteStatus(account, note)) === "owed") console.log(`${recipient} refused the money. The note is spent and its fee is gone, and ${formatEther(denomination() - noteFee())} ETH is still held for it: \`vajra claim <recipient> --key-file <file>\` pays it to any address`);
+      else console.log(`${formatEther(denomination() - noteFee())} ETH to ${recipient}: a ${formatEther(denomination())} ETH note, less its ${formatEther(noteFee())} ETH fee`);
       return;
     } catch (error) {
       const name = error instanceof RpcError ? refusalNameV2(error.message) : "";
@@ -232,4 +252,39 @@ export async function unshieldCommand(recipient: Address, o: { account?: string 
       throw error instanceof RpcError ? new Error(name || error.message) : error;
     }
   }
+}
+
+/**
+ * Pays a note its recipient refused, to any address, with a new proof. An ordinary transaction, so a sender has to pay its gas, and that
+ * sender is public beside the claim. The proof fixes the recipient, so someone else can send it for you, and cannot change where it goes.
+ */
+export async function claimCommand(recipient: Address, o: { account?: string; keyFile?: string }) {
+  const account = accountOr(o.account);
+  if (!o.keyFile) throw new Error("--key-file <file> is required: whoever sends a claim pays its gas, and their address is public beside it");
+  const notes = loadNotes();
+  let saved: SavedNote | undefined;
+  for (const candidate of notes.filter((n) => n.account === account && n.leaf >= 0)) {
+    if ((await noteStatus(account, asNote(candidate))) === "owed") {
+      saved = candidate;
+      break;
+    }
+  }
+  if (!saved) throw new Error("nothing on this machine is owed: `vajra notes-restore` looks on the chain");
+  const key = readFileSync(o.keyFile, "utf8").trim() as Hex;
+  const sender = privateKeyToAccount(key).address;
+  await checkRecipient(recipient, sender);
+  const leaves = await poolLeaves(account);
+  const proved = await proveUnshield({ note: asNote(saved), leaves, leaf: saved.leaf, recipient, denomination: denomination(), account, chainId: DEVNET.chainId });
+  console.log(`proved in ${proved.ms} ms, against a tree of ${leaves.length}`);
+  // Asked first, so that a claim that would fail stops here with its name, and costs its sender nothing.
+  const args = [proved.proof, proved.root, proved.nullifierHash, recipient];
+  await publicClient.simulateContract({ address: account, abi: accountV2Abi as never, functionName: "claim", args, account: sender } as never).catch((error: Error) => {
+    throw new Error(/Error: (\w+)\(/.exec(error.message)?.[1] ?? error.message);
+  });
+  const data = claimCall({ proof: proved.proof, root: proved.root, nullifierHash: proved.nullifierHash, recipient });
+  const hash = await walletFor(key).sendTransaction({ to: account, data, gas: CLAIM_GAS, gasPrice: LEGACY_GAS_PRICE, type: "legacy" });
+  await waitForSuccess(hash, "the claim");
+  saved.spent = true;
+  saveNotes(notes);
+  console.log(`mined ${hash}\n${formatEther(denomination() - noteFee())} ETH to ${recipient}. The chain shows that the same note tried another address first`);
 }

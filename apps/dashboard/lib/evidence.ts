@@ -79,11 +79,13 @@ const LABELS: Record<string, { title: string; what: string; command?: string; fa
   "recovery-latest.json": { title: "Recovery by proof, every attack", what: "A Groth16 proof replaces a lost hash key, after a delay the owner can veto.", command: "vajra recover", facts: (r) => [["VERIFY gas of a proof", count(r.verifyGas)], ["Prover time, ms", count(r.proverMs)]] },
   "shielded-latest.json": { title: "The shielded pool, every attack", what: "Notes in with the master key, notes out with no key.", command: "vajra shielded", facts: (r) => [["VERIFY gas of an unshield", count(r.unshieldVerifyGas)], ["Prover time, ms", count(r.proverMs)]] },
   "pool-latest.json": {
-    title: "Notes rebuilt from one seed, and what the pool hides",
-    what: "The real commands in folders of their own: every note found again from the seed and the chain after the machine is gone, and the meter read at each stage.",
+    title: "Notes rebuilt, what the pool hides, and a failed payment that stays money",
+    what: "The real commands in folders of their own: every note found again after the machine is gone, the meter read at each stage, and a refused payment claimed, with every attack on it really sent.",
     command: "vajra pool-e2e",
     facts: (r) => [
       ["Meter readings", count(Array.isArray(r.meter) ? r.meter.length : null)],
+      ["Gas of a claim", count(Array.isArray(r.claims) ? (r.claims[0] as Raw)?.gas : null)],
+      ["V2 runtime, bytes", count(r.v2RuntimeBytes)],
       ["Failures", count(r.failures)],
     ],
   },

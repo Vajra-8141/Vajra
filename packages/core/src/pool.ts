@@ -19,8 +19,10 @@ export interface PoolFacts {
   closed: boolean;
   /** Who sent each deposit, in the order of the tree. Null where the chain did not answer. */
   depositors: (Address | null)[];
-  /** Notes that have left, whether or not the recipient took the money. */
+  /** Notes spent, whether or not the recipient took the money. */
   withdrawn: number;
+  /** Notes whose recipient refused, with the money still held for them. */
+  owed: number;
 }
 
 /** A transaction's sender never changes, so each is read once. */
@@ -36,27 +38,41 @@ async function sendersOf(hashes: Hex[]): Promise<(Address | null)[]> {
 }
 
 /** An account with no pool at all reverts, and an address with no code answers nothing. Anything else that fails is a failed read, not an empty pool. */
-async function hasPool(account: Address): Promise<boolean> {
+async function noteCountOf(account: Address): Promise<bigint | null> {
   const data = encodeFunctionData({ abi: accountV2Abi, functionName: "noteCount" });
   try {
-    return (await rpc<Hex>(DEVNET.execution, "eth_call", [{ to: account, data }, "latest"])) !== "0x";
+    const answer = await rpc<Hex>(DEVNET.execution, "eth_call", [{ to: account, data }, "latest"]);
+    return answer === "0x" ? null : BigInt(answer);
   } catch (error) {
-    if (error instanceof RpcError && /revert/i.test(error.message)) return false;
+    if (error instanceof RpcError && /revert/i.test(error.message)) return null;
     throw error;
   }
 }
 
-/** Null when the account has no pool. Throws when the chain did not answer, and the caller has to show that as unknown. */
+/**
+ * Null when the account has no pool. Throws when the chain did not answer, and when its answers do not add up, and the caller has to show
+ * either as unknown: a node that drops logs would otherwise give a confident wrong number. What is owed comes out of `poolHeld` for the same
+ * reason, so the logs have to agree with the money. It also means bytes with no claims, where a refused payment is simply gone, owe nothing.
+ */
 export async function readPoolFacts(account: Address): Promise<PoolFacts | null> {
-  if (!(await hasPool(account))) return null;
+  const count = await noteCountOf(account);
+  if (count === null) return null;
+  const read = <T>(functionName: string) => publicClient.readContract({ address: account, abi: accountV2Abi as never, functionName } as never) as Promise<T>;
   const logs = (event: typeof shielded | typeof unshielded | typeof unpaid) => publicClient.getLogs({ address: account, event, fromBlock: 0n, toBlock: "latest" });
-  const [closed, deposits, paid, refused] = await Promise.all([
-    publicClient.readContract({ address: account, abi: accountV2Abi as never, functionName: "poolClosed" } as never) as Promise<boolean>,
+  const [closed, held, denomination, fee, deposits, paid, refused] = await Promise.all([
+    read<boolean>("poolClosed"),
+    read<bigint>("poolHeld"),
+    read<bigint>("DENOMINATION"),
+    read<bigint>("MAX_PROOF_TX_COST"),
     logs(shielded),
     logs(unshielded),
     logs(unpaid),
   ]);
-  return { account, closed, depositors: await sendersOf(deposits.map((log) => log.transactionHash!)), withdrawn: paid.length + refused.length };
+  if (BigInt(deposits.length) !== count) throw new Error("the pool's log does not match its count: chain state unknown");
+  const withdrawn = paid.length + refused.length;
+  const heldForClaims = held - BigInt(deposits.length - withdrawn) * denomination;
+  if (!closed && (heldForClaims < 0n || heldForClaims % (denomination - fee) !== 0n)) throw new Error("the pool's log does not add up to what it holds: chain state unknown");
+  return { account, closed, depositors: await sendersOf(deposits.map((log) => log.transactionHash!)), withdrawn, owed: closed ? 0 : Number(heldForClaims / (denomination - fee)) };
 }
 
 export type PoolState = "empty" | "closed" | "unknown" | "hides nothing" | "hides little";
@@ -66,6 +82,7 @@ export interface PoolMeter {
   deposits: number;
   withdrawn: number;
   left: number;
+  owed: number;
   /** Notes paid in by each address, the largest first. Null when any deposit's sender is unknown. */
   shares: { address: Address; notes: number; own: boolean }[] | null;
   /** Different addresses that paid in. A ceiling on the number of people, and null when unknown. */
@@ -81,7 +98,7 @@ export function poolMeter(facts: PoolFacts): PoolMeter {
   const shares = known ? [...counted].map(([address, notes]) => ({ address: address as Address, notes, own: address === facts.account.toLowerCase() })).sort((a, b) => b.notes - a.notes) : null;
   const addresses = shares?.length ?? null;
   const state: PoolState = facts.closed ? "closed" : left <= 0 ? "empty" : addresses === null ? "unknown" : addresses === 1 ? "hides nothing" : "hides little";
-  return { state, deposits, withdrawn: facts.withdrawn, left, shares, addresses };
+  return { state, deposits, withdrawn: facts.withdrawn, left, owed: facts.owed, shares, addresses };
 }
 
 export interface PoolWords {
@@ -98,7 +115,7 @@ const notes = (count: number) => `${count} ${count === 1 ? "note" : "notes"}`;
 
 /** The same words on every surface, because the words are where a meter overstates. */
 export function poolWords(meter: PoolMeter): PoolWords {
-  const { state, deposits, withdrawn, left, shares, addresses } = meter;
+  const { state, deposits, withdrawn, left, owed, shares, addresses } = meter;
   const own = shares?.find((share) => share.own)?.notes ?? 0;
   const largest = shares?.[0];
   const shows = [`${notes(deposits)} paid in, ${withdrawn} spent, ${left} still in the pool.`];
@@ -106,6 +123,7 @@ export function poolWords(meter: PoolMeter): PoolWords {
     shows.push(`Paid in from ${addresses === 1 ? "one address" : `${addresses} addresses`}.${own ? ` ${notes(own)} from this account.` : ""}`);
     if (addresses > 1) shows.push(`The largest paid in ${largest!.notes} of ${deposits}. If every note is as likely to leave, a guess at that address is right about ${largest!.notes} times in ${deposits}.`);
   }
+  if (owed > 0) shows.push(`${owed === 1 ? "1 payment" : `${owed} payments`} failed, and the money is still held for ${owed === 1 ? "that note" : "those notes"}, out of reach of a spend.`);
   shows.push("Any withdrawal shows that this account paid that recipient. The pool hides which deposit paid, and not that.");
 
   const unknown = addresses === null ? ["Who paid in: the chain did not answer for every deposit, so the number of addresses is unknown."] : [];
