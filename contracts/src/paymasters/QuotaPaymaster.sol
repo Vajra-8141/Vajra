@@ -13,9 +13,9 @@ import {Scope} from "@forshtat/hegota-support/contracts/HegotaSupport.sol";
 /// cannot both pass on the same remaining quota, and what a transaction really costs cannot exceed what was counted.
 /// `settle` gives back what went unused. The most an account can cost this contract in a day is its quota at `feeCap`.
 ///
-/// `TIMESTAMP` is banned in validation, so `day` is kept in storage and moved by `settle`, or by anyone calling `roll`. If
-/// nobody has, an account sees yesterday's total: it gets less than its quota for a while, never more. The windows are fixed,
-/// so across a boundary an account can use a quota on each side of it.
+/// `TIMESTAMP` is banned in validation, so `day` is kept in storage and moved by `settle`, or by anyone calling `roll`. Each value
+/// of `day` gets one quota. If nobody has moved it, an account goes on spending what was left of yesterday's, and a whole quota
+/// follows once it moves. So across a boundary, late or not, an account can use a quota on each side of it, and no more.
 contract QuotaPaymaster is FramePaymaster {
     struct Allowance {
         uint64 quota;
@@ -38,7 +38,7 @@ contract QuotaPaymaster is FramePaymaster {
 
     /// The charge frame touches one slot, which `enroll` has already created, so it needs no state gas.
     constructor(address owner, address stakingRegistry, uint256 feeCap_, uint256 window)
-        FramePaymaster(owner, stakingRegistry, feeCap_, 36_000, 0)
+        FramePaymaster(owner, stakingRegistry, feeCap_, 40_000, 0)
     {
         WINDOW = window;
         day = uint64(block.timestamp / window);
@@ -59,7 +59,7 @@ contract QuotaPaymaster is FramePaymaster {
     /// The `pre_verify` frame. It adds to the total without judging it: `pay` reads the result, and if `pay` reverts, this is
     /// undone with the rest of the transaction.
     function charge() external onlyFrame {
-        _requireChargeGas();
+        _requireChargeFrame();
         address account = _sender();
         Allowance storage allowance = allowanceOf[account];
         if (allowance.quota == 0) revert NotEnrolled(account);
@@ -74,7 +74,7 @@ contract QuotaPaymaster is FramePaymaster {
     }
 
     /// The `pay` frame.
-    function pay() external {
+    function pay() external override {
         uint256 frame = _requireSponsorable(this.charge.selector);
         address account = _sender();
         Allowance memory allowance = allowanceOf[account];

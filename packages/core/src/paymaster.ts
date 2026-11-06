@@ -31,11 +31,11 @@ export type Sponsor = { kind: "quota"; paymaster: Address } | { kind: "usdc"; pa
  * `execution`, `state` for each paymaster frame. Unused gas comes back in `settle`, except settle's own limit.
  *
  * The quota shape fits the 100,000 prefix cap with a daily signature, so that what the canonical mempool refuses it for is the
- * storage it reads and not its size: 36,000 + 36,000 + 25,000 + 2,800 for the signature. The USDC shape cannot, since a token
+ * storage it reads and not its size: 35,000 + 40,000 + 22,000 + 2,800 for the signature. The USDC shape cannot, since a token
  * transfer alone takes most of that.
  */
 export const SPONSOR_LIMITS = {
-  quota: { verify: 36_000n, charge: { execution: 36_000n, state: 0n }, pay: 25_000n },
+  quota: { verify: 35_000n, charge: { execution: 40_000n, state: 0n }, pay: 22_000n },
   usdc: { verify: 60_000n, charge: { execution: 160_000n, state: 120_000n }, pay: 40_000n },
   settle: { execution: 100_000n, state: 0n },
   /** Whichever frame approves payment spends the nonce, and a keyed nonce's first use costs 20,000 more. */

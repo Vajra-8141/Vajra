@@ -1,0 +1,469 @@
+{
+ "chainId": 13370,
+ "mirror": true,
+ "at": "2026-11-06T12:41:18.953Z",
+ "paymasters": {
+  "quota": "0x0947d8b9188ec94f32604701b9934cbcc5cd7dd4",
+  "usdc": "0xb256f1af154924097123ff8162ea3de738343f81",
+  "feeCap": "3000000000",
+  "usdcPerEth": "3000000000"
+ },
+ "price": {
+  "usdcPerEth": "3000000000",
+  "label": "Fixed by the paymaster's owner. Not a market price."
+ },
+ "canonicalRefusals": {
+  "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender": 22,
+  "Invalid params: Frame transaction validation-prefix simulation failed: validation prefix frame reverted": 3,
+  "Invalid params: Frame transaction validation prefix does not match any recognized shape": 1,
+  "Invalid params: Nonce for account too low": 1,
+  "Invalid params: Invalid frame transaction signature": 1,
+  "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS": 19
+ },
+ "predictionsChecked": 63,
+ "transactions": [
+  {
+   "step": "sponsored daily spend",
+   "hash": "0x9c1c523af21e65e2303a528cd4317d4d73bc44e56809e94be9ed0f8cc04afa95",
+   "block": 79,
+   "gasUsed": 519401,
+   "charged": "602405 gas of quota",
+   "frames": [
+    32978,
+    37762,
+    17649,
+    371801,
+    39140
+   ]
+  },
+  {
+   "step": "first spend under the quota",
+   "hash": "0x47d9b021a2109af6d9350a737ac7ae8c78945d45847ecd80ee1e59e39e61063e",
+   "block": 86,
+   "gasUsed": 519389,
+   "charged": "602393 gas of quota",
+   "frames": [
+    32978,
+    37762,
+    17649,
+    371801,
+    39140
+   ]
+  },
+  {
+   "step": "second spend under the quota",
+   "hash": "0x6c6a46a33db74e0d3a3e0d2887f479a3184305ca262fbc7a1babf4deeecce9c4",
+   "block": 88,
+   "gasUsed": 421300,
+   "charged": "504304 gas of quota",
+   "frames": [
+    32978,
+    37593,
+    17649,
+    273881,
+    39140
+   ]
+  },
+  {
+   "step": "8 KB of ignored data, so that the calldata floor sets the cost",
+   "hash": "0xfda743ac8da533a362e2fc567bba2c839b720561cc7827e62b81c16b3d36e634",
+   "block": 112,
+   "gasUsed": 840087,
+   "charged": "996327 gas of quota",
+   "frames": [
+    32978,
+    37762,
+    17649,
+    371801,
+    39086
+   ]
+  },
+  {
+   "step": "a body that burns its whole limit and fails",
+   "hash": "0xe0ea97cfa05f18f67cd4494576f7ee4dc36bedb1ba7e6f649f6a1efada5c897b",
+   "block": 114,
+   "gasUsed": 155276,
+   "charged": "225059 gas of quota",
+   "frames": [
+    32978,
+    37593,
+    17649,
+    7911,
+    39086
+   ]
+  },
+  {
+   "step": "a spend, to replay",
+   "hash": "0xb1d60dc99fbc08b4c4ac2b272b4e137717d361a92003ffba9d5b01a4c0241f72",
+   "block": 127,
+   "gasUsed": 421312,
+   "charged": "504316 gas of quota",
+   "frames": [
+    32978,
+    37593,
+    17649,
+    273881,
+    39140
+   ]
+  },
+  {
+   "step": "a spend that takes most of the day's quota",
+   "hash": "0xb4dcb8be887f62752917bdf0213244695a14cbc5654864d76b6a93bfe34f50f1",
+   "block": 162,
+   "gasUsed": 519389,
+   "charged": "602393 gas of quota",
+   "frames": [
+    32978,
+    37762,
+    17649,
+    371801,
+    39140
+   ]
+  },
+  {
+   "step": "the quota is back",
+   "hash": "0x88200a640150c40fb0c31e90a5f6a7691467af752b7614592ecca57a4da4be6c",
+   "block": 183,
+   "gasUsed": 421469,
+   "charged": "504473 gas of quota",
+   "frames": [
+    32978,
+    37762,
+    17649,
+    273881,
+    39140
+   ]
+  },
+  {
+   "step": "a spend with gas paid in USDC",
+   "hash": "0xa6c79a898b318db02b89d633d440ac4c73a066cc894bbe8a2e7d57fe80a789c7",
+   "block": 194,
+   "gasUsed": 637475,
+   "charged": "2151613 USDC units",
+   "frames": [
+    32978,
+    166699,
+    16211,
+    356901,
+    44463
+   ]
+  },
+  {
+   "step": "a spend, to replay",
+   "hash": "0x9b6ddbeb5f715a349789c3dcbb8541891fe4cdfe489e2b09c4f20b32cc15ee35",
+   "block": 205,
+   "gasUsed": 441647,
+   "charged": "1564129 USDC units",
+   "frames": [
+    32978,
+    68779,
+    16211,
+    258981,
+    44463
+   ]
+  },
+  {
+   "step": "the body revokes the approval",
+   "hash": "0x6fa33ba8f8bba2f11f6a58707e1aa35ba4727765e406b25b7db85a40b9f4b384",
+   "block": 218,
+   "gasUsed": 265311,
+   "charged": "1500049 USDC units",
+   "frames": [
+    71512,
+    68779,
+    36211,
+    2383,
+    44463
+   ]
+  },
+  {
+   "step": "the body sends the account's USDC away",
+   "hash": "0x3612aa011af6ed6586a6a07af1838a1fc214c036e20b7bfa463e2b3b1e881867",
+   "block": 229,
+   "gasUsed": 393435,
+   "charged": "1849573 USDC units",
+   "frames": [
+    77653,
+    68779,
+    36211,
+    112798,
+    44463
+   ]
+  },
+  {
+   "step": "a body that burns its limit and fails",
+   "hash": "0x82c89124e302e5d8238e4adc1c6322348f1dd673525fa85768bdb1efe132dbce",
+   "block": 232,
+   "gasUsed": 190565,
+   "charged": "810883 USDC units",
+   "frames": [
+    32978,
+    68779,
+    16211,
+    7911,
+    44463
+   ]
+  },
+  {
+   "step": "8 KB of ignored data, so that the calldata floor sets the cost",
+   "hash": "0x1ab50d1265a434aa7976f2ea98ba7828f73fe0a4add69b4ccda2fcc1cf0358cf",
+   "block": 235,
+   "gasUsed": 744215,
+   "charged": "3484057 USDC units",
+   "frames": [
+    32978,
+    68779,
+    16211,
+    258981,
+    44463
+   ]
+  },
+  {
+   "step": "collect empties the account, and settle refills it",
+   "hash": "0x5d62999b67b74d03999bf32187f192d325b172051a3665308efafffa4e822503",
+   "block": 249,
+   "gasUsed": 313691,
+   "charged": "1180261 USDC units",
+   "frames": [
+    32978,
+    68779,
+    16211,
+    131061,
+    44463
+   ]
+  },
+  {
+   "step": "a stolen daily key adds two more collect frames",
+   "hash": "0x7271b6334cb4d4766afb9b2e0c745973b96fe0b674febe6db84173e3767b71dd",
+   "block": 275,
+   "gasUsed": 563661,
+   "charged": "1913896 USDC units",
+   "frames": [
+    34731,
+    68779,
+    16211,
+    5451,
+    5451,
+    356901,
+    54496
+   ]
+  }
+ ],
+ "refusals": [
+  {
+   "attack": "the third spend of the day",
+   "refusal": "OverQuota",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+  },
+  {
+   "attack": "one transaction whose limits are over the whole quota",
+   "refusal": "OverQuota",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+  },
+  {
+   "attack": "two transactions at once on one remaining quota",
+   "refusal": "1 of 2 mined, the other OverQuota at inclusion"
+  },
+  {
+   "attack": "the charge frame given too little gas to run",
+   "refusal": "ChargeFrameStarved",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: validation prefix frame reverted"
+  },
+  {
+   "attack": "the charge frame given too little gas to reach its own check",
+   "refusal": "validation frame 1: ran out of gas (Out Of Gas)",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: validation prefix frame reverted"
+  },
+  {
+   "attack": "the settle frame given too little gas to run",
+   "refusal": "SettleFrameStarved",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+  },
+  {
+   "attack": "no charge frame at all",
+   "refusal": "ChargeFrameMissing",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: validation prefix frame reverted"
+  },
+  {
+   "attack": "no settle frame",
+   "refusal": "SettleFrameMissing",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+  },
+  {
+   "attack": "settle moved before the body, which would refund the body's whole limit",
+   "refusal": "SettleFrameMissing",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+  },
+  {
+   "attack": "settle pointed at the wrong frame",
+   "refusal": "SettleFrameMissing",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+  },
+  {
+   "attack": "the charge frame sent to some other contract",
+   "refusal": "frame transaction validation prefix not recognized",
+   "canonical": "Invalid params: Frame transaction validation prefix does not match any recognized shape"
+  },
+  {
+   "attack": "a fee above the paymaster's cap",
+   "refusal": "FeeTooHigh",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+  },
+  {
+   "attack": "a tip paid to a colluding block producer",
+   "refusal": "FeeTooHigh",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+  },
+  {
+   "attack": "an account nobody enrolled",
+   "refusal": "NotEnrolled",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+  },
+  {
+   "attack": "an account the owner removed",
+   "refusal": "NotEnrolled",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+  },
+  {
+   "attack": "the mined spend, replayed byte for byte",
+   "refusal": "Invalid Transaction: Nonce mismatch: expected 3, got 2",
+   "canonical": "Invalid params: Nonce for account too low"
+  },
+  {
+   "attack": "a stranger signs for an enrolled account",
+   "refusal": "Invalid frame transaction signature",
+   "canonical": "Invalid params: Invalid frame transaction signature"
+  },
+  {
+   "attack": "a body or a plain call charges someone",
+   "refusal": "NotEntryPoint"
+  },
+  {
+   "attack": "a body or a plain call settles",
+   "refusal": "NotEntryPoint"
+  },
+  {
+   "attack": "a stranger enrols themselves",
+   "refusal": "NotOwner"
+  },
+  {
+   "attack": "a stranger withdraws the float",
+   "refusal": "NotOwner"
+  },
+  {
+   "attack": "a stranger raises the fee cap",
+   "refusal": "NotOwner"
+  },
+  {
+   "attack": "a stranger moves the stake",
+   "refusal": "NotOwner"
+  },
+  {
+   "attack": "the same contract with no ETH",
+   "refusal": "validation frame 2: reverted",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+  },
+  {
+   "attack": "the same contract with no stake",
+   "refusal": "unstaked payer accessed payer slot 0x0000000000000000000000000000000000000000000000000000000000000001",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+  },
+  {
+   "attack": "the next spend, the same day",
+   "refusal": "OverQuota",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+  },
+  {
+   "attack": "a new day that nobody has announced: still the old day's total",
+   "refusal": "OverQuota",
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+  },
+  {
+   "attack": "no approval",
+   "refusal": "InsufficientAllowance",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
+  },
+  {
+   "attack": "no USDC",
+   "refusal": "InsufficientUsdc",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
+  },
+  {
+   "attack": "the repay frame starved of gas",
+   "refusal": "ChargeFrameStarved",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
+  },
+  {
+   "attack": "the repay frame starved of state gas",
+   "refusal": "ChargeFrameStarved",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
+  },
+  {
+   "attack": "the refund frame starved",
+   "refusal": "SettleFrameStarved",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
+  },
+  {
+   "attack": "no repay frame",
+   "refusal": "ChargeFrameMissing",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
+  },
+  {
+   "attack": "no refund frame",
+   "refusal": "SettleFrameMissing",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
+  },
+  {
+   "attack": "a fee above the cap",
+   "refusal": "FeeTooHigh",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
+  },
+  {
+   "attack": "a price below the owner's, signed by the sender",
+   "refusal": "PriceChanged",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
+  },
+  {
+   "attack": "the owner raises the price on a signed transaction",
+   "refusal": "PriceChanged",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
+  },
+  {
+   "attack": "the mined spend, replayed byte for byte",
+   "refusal": "prefix gas budget exceeded: 262800 > 100000 (MAX_VERIFY_GAS)",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
+  },
+  {
+   "attack": "a body or a plain call collects",
+   "refusal": "NotEntryPoint"
+  },
+  {
+   "attack": "a stranger sets the price",
+   "refusal": "NotOwner"
+  },
+  {
+   "attack": "a stranger takes the USDC",
+   "refusal": "NotOwner"
+  },
+  {
+   "attack": "a stranger takes the float",
+   "refusal": "NotOwner"
+  },
+  {
+   "attack": "a collect inside a batch that reverts",
+   "refusal": "PayFrameMissing, then NothingToSettle: mined, nothing moved"
+  },
+  {
+   "attack": "a collect with no pay frame, and no batch",
+   "refusal": "PayFrameMissing, then NothingToSettle: mined, nothing moved"
+  },
+  {
+   "attack": "a batch that undoes a charge, then settle, to reset a quota",
+   "refusal": "PayFrameMissing, then NothingToSettle: mined, nothing moved"
+  },
+  {
+   "attack": "a stolen daily key adds collect frames to burn the approval",
+   "refusal": "PayFrameMissing in each: mined, charged once"
+  }
+ ]
+}

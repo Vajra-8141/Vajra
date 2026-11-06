@@ -6,9 +6,11 @@
  * verdict is then held against what the live sidecar did, so a wrong prediction is a failure like any other.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
+import * as lib from "@forshtat/hegota-support/tx";
 import { type Address, type Hex, concat, encodeFunctionData, keccak256, parseEther, parseAbi, toHex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
+  ATOMIC_BATCH_FLAG,
   CHARGE_INDEX,
   DEVNET,
   ETH,
@@ -43,6 +45,7 @@ import {
   sponsorRefusal,
   submit,
   txHash,
+  profile,
   usdcPaymasterAbi,
   waitForSuccess,
   walletFor,
@@ -412,7 +415,7 @@ console.log("\n7. the stake is what gets it admitted");
     if ((await publicClient.getBlock()).timestamp / WINDOW > before) break;
     await sleep(1000);
   }
-  await refused("a new day that nobody has announced: less than the quota, never more", await fred.sponsoredDaily({ calls: [payeeSpend(fred, fresh(), SPEND)], sponsor: shortSponsor }), "OverQuota");
+  await refused("a new day that nobody has announced: still the old day's total", await fred.sponsoredDaily({ calls: [payeeSpend(fred, fresh(), SPEND)], sponsor: shortSponsor }), "OverQuota");
   const anyone = generatePrivateKey();
   await waitForSuccess(await owned.sendTransaction({ to: privateKeyToAccount(anyone).address, value: parseEther("0.01"), ...plain }), "funding a stranger");
   await waitForSuccess(await walletFor(anyone).writeContract({ address: short, abi: quotaPaymasterAbi as never, functionName: "roll", ...plain } as never), "a stranger rolls the day");
@@ -506,6 +509,69 @@ console.log("\n12. an account whose last unit goes on gas still gets its refund"
   check((await usdcOf(luke.account)) === needed, `the account holds exactly the ${needed} the transaction can cost`);
   const { kept } = await usdcMined("collect empties the account, and settle refills it", luke.account, tx);
   check((await usdcOf(luke.account)) === needed - kept, `it got back ${needed - kept}`);
+}
+
+console.log("\n13. frames a batch undid, whose status still says success");
+{
+  // An EOA pays for itself, so `pay` never runs. This took 30 USDC from the float, in the first version, with every other test passing.
+  const attacker = generatePrivateKey();
+  const eoa = privateKeyToAccount(attacker).address;
+  await waitForSuccess(await owned.sendTransaction({ to: eoa, value: parseEther("1"), ...plain }), "funding the attacker");
+  await giveUsdc(eoa, 100_000_000n);
+  await giveUsdc(paymasters.usdc, 50_000_000n);
+  await waitForSuccess(await walletFor(attacker).writeContract({ address: usdc, abi: erc20Abi, functionName: "approve", args: [paymasters.usdc, APPROVAL], ...plain }), "approving");
+  await enroll(paymasters.quota, eoa, 20_000_000n);
+
+  const selfPaid = async (target: Address, charge: Hex, settleData: Hex, state: bigint, flags: number) =>
+    lib.signTx(
+      profile,
+      lib.newTx({
+        chainId: DEVNET.chainId,
+        sender: eoa,
+        nonceSeq: BigInt(await publicClient.getTransactionCount({ address: eoa })),
+        fees: { maxFeePerGas: 20_000_000_000n, maxPriorityFeePerGas: 1n },
+        signatures: [lib.secp256k1Placeholder(profile)],
+        frames: [
+          lib.frame(profile, "VERIFY", { scope: "EXECUTION_AND_PAYMENT", execution: 30_000n }),
+          lib.frame(profile, "DEFAULT", { target, execution: 160_000n, state, flags, data: charge }),
+          lib.frame(profile, "DEFAULT", { target, execution: 30_000n, data: "0xdeadbeef" }),
+          lib.frame(profile, "DEFAULT", { target, execution: 150_000n, data: settleData }),
+        ],
+      }),
+      attacker,
+    );
+  const collectData = encodeFunctionData({ abi: usdcPaymasterAbi, functionName: "collect", args: [PRICE] });
+  const settleData = encodeFunctionData({ abi: quotaPaymasterAbi, functionName: "settle", args: [CHARGE_INDEX] });
+  const chargeData = encodeFunctionData({ abi: quotaPaymasterAbi, functionName: "charge" });
+
+  for (const [name, flags] of [["a collect inside a batch that reverts", ATOMIC_BATCH_FLAG], ["a collect with no pay frame, and no batch", 0]] as const) {
+    const before = [await usdcOf(eoa), await usdcOf(paymasters.usdc)] as const;
+    const { receipt, hash } = await submit(await selfPaid(paymasters.usdc, collectData, settleData, 120_000n, flags));
+    const moved = [(await usdcOf(eoa)) - before[0], (await usdcOf(paymasters.usdc)) - before[1]];
+    check(moved[0] === 0n && moved[1] === 0n, `${name}, then settle: nothing moved, ${hash}`);
+    check(receipt.frameReceipts[3]!.status === "0x0", "settle refused");
+    refusals.push({ attack: name, refusal: "PayFrameMissing, then NothingToSettle: mined, nothing moved" });
+  }
+
+  const used = (await readQuota(paymasters.quota, eoa)).used;
+  await submit(await selfPaid(paymasters.quota, chargeData, settleData, 0n, ATOMIC_BATCH_FLAG));
+  check((await readQuota(paymasters.quota, eoa)).used === used, "a charge undone by a batch, then settle: the quota did not move");
+  refusals.push({ attack: "a batch that undoes a charge, then settle, to reset a quota", refusal: "PayFrameMissing, then NothingToSettle: mined, nothing moved" });
+}
+
+console.log("\n14. a second collect in the body, to burn the approval");
+{
+  const mona = await usdcAccount(100_000_000n);
+  const collectFrame = lib.frame(profile, "DEFAULT", { target: paymasters.usdc, execution: 160_000n, state: 120_000n, data: encodeFunctionData({ abi: usdcPaymasterAbi, functionName: "collect", args: [PRICE] }) });
+  const tx = await mona.sponsoredDaily({
+    calls: [mona.pay(fresh(), SPEND)],
+    sponsor: USDC,
+    edit: (t) => ({ ...t, frames: [...t.frames.slice(0, 3), collectFrame, collectFrame, ...t.frames.slice(3)] }),
+  });
+  const max = (BigInt((await simulate(tx)).maxCost) * PRICE + 10n ** 18n - 1n) / 10n ** 18n;
+  const { kept } = await usdcMined("a stolen daily key adds two more collect frames", mona.account, tx, { body: "fails" });
+  check(kept < max, `it was charged once: ${kept} kept, of at most ${max}`);
+  refusals.push({ attack: "a stolen daily key adds collect frames to burn the approval", refusal: "PayFrameMissing in each: mined, charged once" });
 }
 
 mkdirSync(new URL("../../../docs/evidence/", import.meta.url), { recursive: true });

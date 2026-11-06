@@ -47,6 +47,7 @@ abstract contract FrameDouble is Test {
     uint256 constant LIMIT = 1;
     uint256 constant MODE = 2;
     uint256 constant LENGTH = 4;
+    uint256 constant ATOMIC_BATCH = 7;
     uint256 constant STATUS = 5;
     uint256 constant STATE_LIMIT = 9;
     uint256 constant USED = 10;
@@ -99,7 +100,7 @@ abstract contract FrameDouble is Test {
         frames = new Frame[](5);
         frames[0] = Frame(VERIFY_MODE, account, 60_000, 0, 33_000, 0, 36, 0x0, 0, 1);
         frames[1] = Frame(DEFAULT_MODE, pm, execution, state, execution / 2, 0, 36, chargeSelector(), 0, 1);
-        frames[2] = Frame(VERIFY_MODE, pm, 40_000, 0, 25_000, 0, 4, FramePaymaster.settle.selector ^ bytes4(0xffffffff), 0, 1);
+        frames[2] = Frame(VERIFY_MODE, pm, 40_000, 0, 25_000, 0, 4, FramePaymaster.pay.selector, 0, 1);
         frames[3] = Frame(SENDER_MODE, account, 500_000, 700_000, 60_000, 380_000, 100, 0x0, 0, 1);
         frames[4] = Frame(DEFAULT_MODE, pm, 100_000, 0, 0, 0, 36, FramePaymaster.settle.selector, 1, 1);
     }
@@ -122,6 +123,7 @@ abstract contract FrameDouble is Test {
             setFrame(i, LIMIT, f.limit);
             setFrame(i, STATE_LIMIT, f.stateLimit);
             setFrame(i, LENGTH, f.length);
+            setFrame(i, ATOMIC_BATCH, 0);
             setFrame(i, STATUS, f.status);
             setFrame(i, USED, f.used);
             setFrame(i, STATE_USED, f.stateUsed);
@@ -161,7 +163,7 @@ contract QuotaPaymasterTest is FrameDouble {
     }
 
     function chargeLimit() internal pure override returns (uint256, uint256) {
-        return (36_000, 0);
+        return (40_000, 0);
     }
 
     function setUp() public {
@@ -206,9 +208,9 @@ contract QuotaPaymasterTest is FrameDouble {
 
     function test_charge_names_its_own_starvation() public {
         Frame[] memory frames = honest();
-        frames[1].limit = 35_999;
+        frames[1].limit = 39_999;
         install(frames, 1);
-        vm.expectRevert(abi.encodeWithSelector(FramePaymaster.ChargeFrameStarved.selector, 35_999, 0));
+        vm.expectRevert(abi.encodeWithSelector(FramePaymaster.ChargeFrameStarved.selector, 39_999, 0));
         vm.prank(ENTRY_POINT);
         quota.charge();
     }
@@ -379,7 +381,83 @@ contract QuotaPaymasterTest is FrameDouble {
         assertEq(used(), maxGas(frames));
     }
 
-    function test_a_stale_day_gives_less_and_never_more() public {
+    function test_a_charge_has_to_be_followed_by_its_own_pay() public {
+        Frame[] memory frames = honest();
+        frames[2].selector = 0xdeadbeef;
+        install(frames, 1);
+        vm.expectRevert(FramePaymaster.PayFrameMissing.selector);
+        vm.prank(ENTRY_POINT);
+        quota.charge();
+
+        frames = honest();
+        frames[2].mode = DEFAULT_MODE;
+        install(frames, 1);
+        vm.expectRevert(FramePaymaster.PayFrameMissing.selector);
+        vm.prank(ENTRY_POINT);
+        quota.charge();
+
+        frames = honest();
+        frames[2].target = makeAddr("elsewhere");
+        install(frames, 1);
+        vm.expectRevert(FramePaymaster.PayFrameMissing.selector);
+        vm.prank(ENTRY_POINT);
+        quota.charge();
+
+        // A charge as the last frame.
+        install(honest(), 4);
+        vm.expectRevert(FramePaymaster.PayFrameMissing.selector);
+        vm.prank(ENTRY_POINT);
+        quota.charge();
+    }
+
+    function test_a_charge_cannot_sit_in_a_batch_that_can_undo_it() public {
+        install(honest(), 1);
+        setFrame(1, ATOMIC_BATCH, 1);
+        vm.expectRevert(FramePaymaster.PayFrameMissing.selector);
+        vm.prank(ENTRY_POINT);
+        quota.charge();
+    }
+
+    /// The drain: an unrolled batch keeps frame statuses, so a status of 1 proves nothing without the pay frame beside it.
+    function test_settle_refunds_nothing_unless_pay_ran() public {
+        Frame[] memory frames = honest();
+        frames[2].selector = 0xdeadbeef;
+        install(frames, 4);
+        vm.expectRevert(FramePaymaster.NothingToSettle.selector);
+        vm.prank(ENTRY_POINT);
+        quota.settle(1);
+
+        frames = honest();
+        frames[2].mode = DEFAULT_MODE;
+        frames[2].selector = FramePaymaster.pay.selector;
+        install(frames, 4);
+        vm.expectRevert(FramePaymaster.NothingToSettle.selector);
+        vm.prank(ENTRY_POINT);
+        quota.settle(1);
+
+        frames = honest();
+        frames[2].status = 0;
+        install(frames, 4);
+        vm.expectRevert(FramePaymaster.NothingToSettle.selector);
+        vm.prank(ENTRY_POINT);
+        quota.settle(1);
+    }
+
+    /// A frame that fails for want of state gas reports its limit and the cold access on top. That has to count.
+    function test_gas_over_a_frames_limit_comes_off_the_refund() public {
+        charged();
+        Frame[] memory frames = honest();
+        uint256 clean = expectedBack(frames);
+        frames[3].used = frames[3].limit + 3000;
+        frames[3].stateUsed = 0;
+        install(frames, 4);
+        vm.prank(ENTRY_POINT);
+        quota.settle(1);
+        uint256 back = clean - (frames[3].limit - 60_000) - 3000 + (380_000 - 0);
+        assertEq(used(), maxGas(frames) - back);
+    }
+
+    function test_a_stale_day_gives_one_quota_for_each_value_of_day() public {
         vm.prank(owner);
         quota.enroll(account, uint64(maxGas(honest())));
         charged();
@@ -444,7 +522,8 @@ contract QuotaPaymasterTest is FrameDouble {
         Frame[] memory frames = honest();
         frames[3].limit = bound(body, 1000, 3_000_000);
         frames[3].stateLimit = bound(bodyState, 0, 3_000_000);
-        frames[3].used = bound(usedBody, 0, frames[3].limit);
+        // A frame that fails for want of state gas reports more than its limit.
+        frames[3].used = bound(usedBody, 0, frames[3].limit + 3000);
         frames[3].stateUsed = bound(usedState, 0, frames[3].stateLimit);
         frames[0].used = bound(used0, 0, frames[0].limit);
         frames[3].length = bound(extra, 0, 60_000);
@@ -622,7 +701,6 @@ contract UsdcPaymasterTest is FrameDouble {
         vm.txGasPrice(1);
         vm.prank(ENTRY_POINT);
         paymaster.settle(1);
-        assertGe(usdc.balanceOf(account), 0);
         assertLe(usdc.balanceOf(account), 1000e6);
     }
 
@@ -636,6 +714,31 @@ contract UsdcPaymasterTest is FrameDouble {
         vm.prank(ENTRY_POINT);
         paymaster.settle(1);
         assertEq(usdc.balanceOf(pm), paymaster.quote((maxGas(frames) - expectedBack(frames)) * FEE, PRICE));
+    }
+
+    function test_collect_refuses_when_pay_is_not_next() public {
+        Frame[] memory frames = signed();
+        frames[2].selector = 0xdeadbeef;
+        install(frames, 1);
+        vm.expectRevert(FramePaymaster.PayFrameMissing.selector);
+        vm.prank(ENTRY_POINT);
+        paymaster.collect(PRICE);
+        assertEq(usdc.balanceOf(pm), 0);
+    }
+
+    /// The drain, in the shape it took: a batch undid the collect, kept its status, and there was no pay.
+    function test_settle_pays_nothing_out_of_the_float_for_an_undone_collect() public {
+        deal(address(usdc), pm, 500e6);
+        Frame[] memory frames = signed();
+        frames[2].mode = DEFAULT_MODE;
+        frames[2].selector = 0xdeadbeef;
+        frames[2].status = 0;
+        install(frames, 4);
+        vm.txGasPrice(1);
+        vm.expectRevert(FramePaymaster.NothingToSettle.selector);
+        vm.prank(ENTRY_POINT);
+        paymaster.settle(1);
+        assertEq(usdc.balanceOf(pm), 500e6);
     }
 
     function test_settle_needs_a_collect_in_this_transaction() public {

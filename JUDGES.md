@@ -48,6 +48,10 @@ Times are from one machine, on a warm mirror.
 | The flaw in the contract as first deployed, and its fix | `vajra nonce-burn`, then `vajra nonce-burn fixed` | 2 min | 64 of 64 leaves burned and the escape refused, then 0 of 64 and admitted |
 | A stealth payer taking the money back, and the fix | `vajra stealth-theft`, then `vajra stealth-theft fixed` | 1 min | 25 of 25 taken, then `CoSignerRequired` and 0 taken |
 | The dashboard, on the mirror | `make dashboard`, then http://localhost:3000 | 30 s | a banner saying it is local. Use a wallet holding `.vajra-local/daily.key` |
+| Quota and USDC paymasters, and every attack | `vajra paymaster-e2e` | 6 min | 16 mined, 46 refused, canonical refused 47 of 47, 63 predictions checked, 0 failures |
+| Why a transaction went the way it did | `vajra explain 0xHash` | 1 s | state, frames, both verdicts, the sidecar's rules. Unknown stays unknown |
+| The SDK, every action | `node packages/sdk/examples/mirror.ts`, with `VAJRA_STACK=local` | 30 s | a spend, a queue, a veto |
+| A precompile in validation, on both sidecars | `make unpatched`, then `vajra precompile-check` | 1 min | refused as deployed, admitted as patched |
 | Releasing a queued payment early, and the race that must not pay twice | `vajra pay-e2e` | 40 s | 0 failures |
 | The phone alert, with a local stand-in for Telegram's servers | `vajra watch-e2e` | 1 min | a stranger refused, Pay refused on software, then cancel and pay both land |
 | The phone alert, for real | a bot from @BotFather, `TELEGRAM_BOT_TOKEN` in `.env`, then `vajra watch` | | Tried on Nov 6 with a real bot and a real phone, on the mirror: two **Not me** taps cancelled, one **Pay, it's me** tap paid 0.5 ETH. Pay used the software signer (`--allow-software-pay`). **Not me** also passed on the public devnet |

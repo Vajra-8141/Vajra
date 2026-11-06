@@ -139,8 +139,6 @@ const BANNED_OPCODES: Record<number, string> = {
   0x3a: "GASPRICE", 0x45: "GASLIMIT", 0x44: "PREVRANDAO", 0x42: "TIMESTAMP", 0x48: "BASEFEE", 0x40: "BLOCKHASH", 0x43: "NUMBER", 0x47: "SELFBALANCE",
   0x31: "BALANCE", 0x32: "ORIGIN", 0x5a: "GAS", 0x41: "COINBASE", 0xff: "SELFDESTRUCT", 0xfe: "INVALID", 0x49: "BLOBHASH", 0x4a: "BLOBBASEFEE",
 };
-/** What the patch sets, as CALLING-040 lists them: 0x01 to 0x11, and P256VERIFY. */
-const PRECOMPILES = new Set([...Array.from({ length: 0x11 }, (_, i) => i + 1), 0x100].map((n) => `0x${n.toString(16).padStart(40, "0")}`));
 
 type Role = "sender" | "payer" | "factory";
 type PrefixFrame = { index: number; role: Role };
@@ -248,6 +246,7 @@ const nameOrNull = (reason: string) => {
 async function replayRules(tx: FrameTx, prefix: Prefix, sim: Traced, config: SidecarConfig): Promise<Verdict> {
   const unverified = ["mempool", "reputation"];
   if (tx.recentRootReferences?.length) unverified.push("recent-root");
+  if (config.whitelisted) unverified.push("whitelist");
 
   if (!sim.erc7562Trace) {
     const reason = failureText(sim);
@@ -327,7 +326,7 @@ async function replayRules(tx: FrameTx, prefix: Prefix, sim: Traced, config: Sid
 
     for (const call of calls) {
       for (const [address, { contractSize, opcode }] of Object.entries(call.contractSize)) {
-        if (address.toLowerCase() !== sender && contractSize <= 2 && !PRECOMPILES.has(address.toLowerCase())) return refuse("COD-010", `${role} accesses un-deployed contract address ${address} with opcode ${opcode}`, unverified);
+        if (address.toLowerCase() !== sender && contractSize <= 2 && !config.precompiles.has(address.toLowerCase())) return refuse("COD-010", `${role} accesses un-deployed contract address ${address} with opcode ${opcode}`, unverified);
       }
       if (call.extCodeAccessInfo.some((address) => address.toLowerCase() === ENTRY_POINT)) return refuse("entrypoint-access", `${role} accesses EntryPoint contract address`, unverified);
     }
@@ -353,11 +352,22 @@ function failureText(sim: Traced): string {
 interface SidecarConfig {
   minStake: bigint;
   minUnstakeDelay: bigint;
+  userOpGasLimit: bigint;
+  precompiles: Set<string>;
+  /** A whitelist waives rules, and this does not follow it. */
+  whitelisted: boolean;
 }
 
+/** The node's own settings, so that nothing here is assumed. */
 async function sidecarConfig(): Promise<SidecarConfig> {
-  const config = await rpc<{ minStake: string; minUnstakeDelay: number }>(DEVNET.mempool, "skandha_config");
-  return { minStake: BigInt(config.minStake), minUnstakeDelay: BigInt(config.minUnstakeDelay) };
+  const config = await rpc<{ minStake: string; minUnstakeDelay: number; userOpGasLimit: number; precompiles: string[]; whitelistedEntities: Record<string, string[]> }>(DEVNET.mempool, "skandha_config");
+  return {
+    minStake: BigInt(config.minStake),
+    minUnstakeDelay: BigInt(config.minUnstakeDelay),
+    userOpGasLimit: BigInt(config.userOpGasLimit),
+    precompiles: new Set(config.precompiles.map((p) => p.toLowerCase())),
+    whitelisted: Object.values(config.whitelistedEntities).some((list) => list.length > 0),
+  };
 }
 
 /** What the sidecar itself says about the shape. Its later rules are not usable here: see the top of this file. */
@@ -378,8 +388,9 @@ async function altVerdict(tx: FrameTx, sim: Traced | null, simError: string | nu
   if (shape) return shape;
   if (!isLocalStack) return unknown("The sidecar has no dry run for a signed transaction, and these rules are only checked against the mirror's.", ["all rules after structure"]);
 
+  const config = await sidecarConfig();
   const declared = tx.frames.reduce((sum, f) => sum + f.limits.execution + f.limits.state, 0n);
-  if (declared > 25_000_000n) return refuse("gas-limit", "Frame transaction's gas limit is too high");
+  if (declared > config.userOpGasLimit) return refuse("gas-limit", "Frame transaction's gas limit is too high");
   const prefix = recognizePrefix(tx);
   if (!prefix) return refuse("prefix", "frame transaction validation prefix not recognized");
   const structure = structureFailure(tx, prefix);
@@ -388,7 +399,7 @@ async function altVerdict(tx: FrameTx, sim: Traced | null, simError: string | nu
   if (simError !== null) return refuse("simulation", simError, ["mempool", "reputation"]);
   if (!sim) return unknown("ethrex did not answer");
   if (sim.canonicalMempoolViolation?.includes("does not authenticate the sender")) return refuse("signature", "Invalid frame transaction signature");
-  return replayRules(tx, prefix, sim, await sidecarConfig());
+  return replayRules(tx, prefix, sim, config);
 }
 
 /**
@@ -553,12 +564,15 @@ export async function explain(hash: Hex): Promise<Explanation> {
     ? altFromRecord(detail!, !!receipt)
     : receipt ? verdict({ admitted: true, source: "chain", unverified: ["which rules passed: the sidecar has no record of this"] }) : unknown("The sidecar has no record of this transaction, and the chain does not have it.");
 
-  let canonical = unknown(state === "rejected" ? "The sidecar refused this, so the bytes are gone, and ethrex was never asked." : "The transaction could not be rebuilt from what the node returned.");
+  let canonical = unknown(
+    state === "rejected" ? "The sidecar refused this, so the bytes are gone, and ethrex was never asked." : mined ? "The transaction could not be rebuilt from what the node returned." : "ethrex does not have this transaction.",
+  );
   const rebuilt = mined ? rebuild(mined) : null;
   if (rebuilt) {
     const block = receipt ? `0x${(BigInt(receipt.blockNumber) - 1n).toString(16)}` : "latest";
-    const then = await simulateFrames(rebuilt, block, false).catch(() => null);
-    if (then) canonical = canonicalVerdict(then);
+    // A node keeps a limited window of old state, so an old transaction can be past asking.
+    const then = await simulateFrames(rebuilt, block, false).catch((error: Error) => error);
+    canonical = then instanceof Error ? unknown(`ethrex could not run it again: ${then.message}`) : then ? canonicalVerdict(then) : unknown("ethrex could not run it again, and gave no reason.");
   }
   return {
     hash,

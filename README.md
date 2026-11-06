@@ -67,6 +67,8 @@ evidence, on the local mirror and nowhere else.
 | Dashboard, exposure scanner | BUILT | every flow driven in a real browser over the Nym mixnet, with a scripted wallet |
 | Master key on hardware | BUILT | a real ESP32 signed through the CLI (7 mined) and the dashboard (3 mined), with a person pressing BOOT. **Not safe from a computer it is plugged into**: see [`docs/HARDWARE.md`](docs/HARDWARE.md) |
 | Leaf registry on Arkiv | BUILT | `vajra arkiv`, on the live Arkiv testnet and devnet. The dashboard reads it and verifies each signature in the browser |
+| Daily quota paymaster, USDC paymaster | BUILT, LOCAL | `vajra paymaster-e2e`: 16 mined, 46 attacks refused, the canonical mempool refused all 47 offered, 0 failures. **The first version could be drained, with every test passing**: see [`docs/FINDINGS.md`](docs/FINDINGS.md). Not audited |
+| Admission simulator, `vajra explain`, `@vajra/sdk` | BUILT, LOCAL | `simulate` gives each mempool's verdict, rule and fix. Its 63 verdicts in that run were held against what the nodes then did. Alt verdicts only on the mirror: elsewhere they stay unknown |
 | Phone alert, "Not me" and "Pay, it's me" | IN BUILD | `vajra watch`. Runs end to end on the mirror against a local stand-in for Telegram's servers. Also tried on Nov 6 with a real bot and phone on the mirror: two **Not me** taps cancelled, one **Pay, it's me** tap paid 0.5 ETH, using the software signer. **Not me** also passed on the public devnet with real MetaMask and a real phone. **Pay** has not been tried there, or with the board signing |
 | Nominee | NOT STARTED | |
 | Recovery by proof, Groth16 v1 | BUILT, LOCAL | `vajra recover`: 8 mined, 21 refused, 0 failures. **Not post-quantum**: see below |
@@ -187,6 +189,26 @@ On the local mirror, by `vajra recover` and `vajra shielded`, each sent for real
 | An old note, against money that arrived after the escape | `ValueNotConserved` |
 | An outsider opens a pool on someone else's account | `PoolClosed` |
 
+On the local mirror, by `vajra paymaster-e2e`, each sent for real, from accounts holding no ETH:
+
+| Attack | Refusal |
+|---|---|
+| Over the day's quota, in one transaction or the third of three | `OverQuota` |
+| Two at once, on one remaining quota | both admitted, one mined, the other `OverQuota` at inclusion |
+| The charge or repay frame starved of gas | `ChargeFrameStarved`. Too little to reach that check is the node's out-of-gas |
+| The settle frame starved, missing, moved before the body, or pointed elsewhere | `SettleFrameStarved`, `SettleFrameMissing` |
+| No charge frame | `ChargeFrameMissing` |
+| A fee above the cap, or a tip to a colluding block producer | `FeeTooHigh` |
+| An account nobody enrolled, or one removed | `NotEnrolled` |
+| A mined transaction, replayed | the protocol nonce |
+| No approval, no USDC | `InsufficientAllowance`, `InsufficientUsdc` |
+| A lower price signed, or the owner raising it on a signed transaction | `PriceChanged` |
+| The same contract with no stake | `unstaked payer accessed` |
+| A batch that undoes a charge, then settle. **This drained the first version** | `PayFrameMissing`, `NothingToSettle`: nothing moves |
+| Extra collect frames, to burn the approval | `PayFrameMissing`: charged once |
+
+A body that revokes the approval or empties the account changes nothing: the USDC was taken before it ran. The USDC price is a number the owner sets, and the contract says so.
+
 ## Run it
 
 Needs Node 22.18 or newer, pnpm and Foundry.
@@ -229,9 +251,10 @@ The tests that run against the devnet, and write to it:
 
     packages/core       WOTS, frame transactions, stealth payments, exposure. Runs in a browser and in Node.
     packages/cli        the wallet, the bridge, and the live test runs
+    packages/sdk        viem-style actions: simulate, send, explain, spend, veto, escape status
     apps/dashboard      Next.js: account, exposure scanner, proof page
     firmware            the ESP32 signer, and its logic as a portable library
-    contracts           VajraAccount (deployed), VajraAccountV2 (local), Wots, VajraFactory, SponsorPaymaster, generated verifiers
+    contracts           VajraAccount (deployed), VajraAccountV2 (local), Wots, VajraFactory, SponsorPaymaster, paymasters/ (local), generated verifiers
     circuits            the two Groth16 circuits, their keys, and the build
     stack               the local mirror: Compose, genesis, block producer
     docs                measured gas, devnet findings, proofs, stealth design, demo runbook, upstream patch

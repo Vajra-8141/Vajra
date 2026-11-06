@@ -63,7 +63,7 @@ contract UsdcPaymaster is FramePaymaster {
 
     /// The `pre_verify` frame, carrying the price the sender signed. The two reads are there to say why, by name.
     function collect(uint256 signedPrice) external onlyFrame {
-        _requireChargeGas();
+        _requireChargeFrame();
         if (signedPrice != usdcPerEth) revert PriceChanged(signedPrice, usdcPerEth);
         address account = _sender();
         uint256 amount = quote(_maxCost(), signedPrice);
@@ -76,15 +76,15 @@ contract UsdcPaymaster is FramePaymaster {
     }
 
     /// The `pay` frame.
-    function pay() external {
+    function pay() external override {
         uint256 frame = _requireSponsorable(this.collect.selector);
         if (!_charged(frame)) revert ChargeFrameFailed();
         approve(Scope.PAYMENT);
     }
 
     /// The last frame: back goes what was collected less the gas owed, at the price the sender signed and the price gas really
-    /// cost. Both figures are worked out from the transaction, so nothing had to be stored, and settling cannot exceed
-    /// what collect took.
+    /// cost. Both figures are worked out from the transaction, so nothing had to be stored. `_refundableGas` is what makes the
+    /// collected figure true: it holds only for a collect that stood, followed by a `pay` that ran.
     function settle(uint256 frame) external override onlyFrame {
         uint256 back = _refundableGas(frame, this.collect.selector);
         uint256 signedPrice = uint256(framedataload(4, frame));

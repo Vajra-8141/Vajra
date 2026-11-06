@@ -29,3 +29,11 @@ When a VERIFY frame reverts in the full run, `executionError` says `VERIFY frame
 ## A CALL paying a new address needs 183,600 spare execution gas in a frame
 
 `opcode_handlers/system.rs:153` computes a state-gas spill against `state_gas_reservoir`, which is always 0 in a frame, and subtracts it from execution gas even though the state gas is charged to the frame's own pool. The gas is not spent, only required. With too little, the frame dies out of gas while reporting no state use. Seen on the public devnet on 2026-11-05. It is why our spend frames declare 500,000.
+
+## An atomic batch keeps the status of the frames it undid
+
+`vm.rs`, at the batch unroll: "frames that executed before the failure retain their execution status". So `FRAMEPARAM` status says success for a frame whose effects are gone. A contract that reads the status of an earlier frame to decide what happened can be misled, and ours was: `[self_verify, collect (batched), a frame that reverts, settle]` took 30.5 USDC from a paymaster's float on the mirror, before we fixed it on our side. This is what the EIP says, as the comment records. A note in the EIP, or a distinct status for an unrolled frame, would save the next sponsor from it.
+
+## `charged >= owed` may not always hold
+
+**Read in the source, not reproduced.** Settlement says `charged >= owed always`, and `checked_sub` turns a failure into an internal error. A frame that fails for want of state gas reports its limit, and then the entry access cost is added on top, so it can report more than its limit (`new_account_charge_failed` in `execute_frame_tx`). With no unused gas elsewhere, and an effective price equal to `max_fee`, used could pass `max_gas`. We have not built that transaction.

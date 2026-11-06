@@ -13,7 +13,13 @@ import {HegotaSupport, Devnet, TxParam, FrameParam, FrameMode, SigParam} from "@
 /// the body to dodge, and no repay frame that can be starved into free gas.
 ///
 /// `settle` runs last and gives back what the transaction provably did not use. Starving it costs the sender their refund and
-/// the paymaster nothing, and `pay` refuses that too, so that nobody loses a refund by accident.
+/// the paymaster nothing, and `pay` refuses a settle limit that is too low.
+///
+/// A frame's status is not proof that its effects stand. An atomic batch that unrolls keeps the status of the frames it undid, so
+/// `[self_verify, collect (batched), a frame that reverts, settle]` once took 30 USDC from the float: the collect was undone, and
+/// settle refunded it anyway. So a charge frame insists the next frame is this contract's `pay`. A batch flag cannot be followed by a
+/// VERIFY frame, so such a charge is not in a batch that can undo it, and only one `pay` in a transaction can approve, so a valid
+/// transaction holds one charge at most. `settle` then checks that `pay` ran as well.
 ///
 /// The order of the checks is forced by ethrex's prefix simulator, which is what a mempool sees. It stops at the first frame that
 /// fails, so `pay` never runs after a failed `charge`, and `charge` has to name its own refusals. And it keeps no frame results, so
@@ -24,7 +30,7 @@ abstract contract FramePaymaster is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     address internal constant ENTRY_POINT = address(0xaa);
 
     /// The settle frame's whole limit counts as used, which is what covers the bytes `_refundableGas` cannot see: 16 recent-root
-    /// references at 75 bytes each, at the floor of 64 gas per byte, is 76,800.
+    /// references are 1,235 bytes of RLP, which at the floor of 64 gas per byte is 79,040.
     uint256 public constant SETTLE_GAS = 100_000;
 
     /// EIP-7623 on this fork: 4 tokens a byte, 16 gas a token, zero or not.
@@ -50,6 +56,7 @@ abstract contract FramePaymaster is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     error NotOwner();
     error NotEntryPoint();
     error ChargeFrameMissing();
+    error PayFrameMissing();
     error ChargeFrameStarved(uint256 execution, uint256 state);
     error ChargeFrameFailed();
     error SettleFrameMissing();
@@ -100,6 +107,9 @@ abstract contract FramePaymaster is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         }
     }
 
+    /// The `pay` frame.
+    function pay() external virtual;
+
     /// The last frame of a sponsored transaction.
     function settle(uint256 frame) external virtual;
 
@@ -116,17 +126,25 @@ abstract contract FramePaymaster is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         return _maxCost() / txparam(TxParam.MAX_FEE);
     }
 
+    function _isOwnFrame(uint256 index, FrameMode mode, bytes4 selector) private view returns (bool) {
+        return frameparam(index, FrameParam.MODE) == uint256(mode) && address(uint160(frameparam(index, FrameParam.RESOLVED_TARGET))) == address(this)
+            && bytes4(framedataload(0, index)) == selector;
+    }
+
     function _isOwnDefaultFrame(uint256 index, bytes4 selector) private view returns (bool) {
-        return frameparam(index, FrameParam.MODE) == uint256(FrameMode.DEFAULT)
-            && address(uint160(frameparam(index, FrameParam.RESOLVED_TARGET))) == address(this) && bytes4(framedataload(0, index)) == selector;
+        return _isOwnFrame(index, FrameMode.DEFAULT, selector);
     }
 
     /// The first thing a charge frame does. Too little to get this far is out of gas, which is a refusal without a name.
-    function _requireChargeGas() internal view {
+    function _requireChargeFrame() internal view {
         uint256 current = txparam(TxParam.CURRENT_FRAME_INDEX);
         uint256 execution = frameparam(current, FrameParam.EXECUTION_GAS_LIMIT);
         uint256 state = frameparam(current, FrameParam.STATE_GAS_LIMIT);
         if (execution < CHARGE_GAS || state < CHARGE_STATE_GAS) revert ChargeFrameStarved(execution, state);
+        if (
+            current + 1 >= txparam(TxParam.FRAME_COUNT) || frameparam(current, FrameParam.ATOMIC_BATCH) != 0
+                || !_isOwnFrame(current + 1, FrameMode.VERIFY, this.pay.selector)
+        ) revert PayFrameMissing();
     }
 
     /// Everything a pay frame insists on before it looks at its own policy. Returns the index of the charge frame.
@@ -155,6 +173,9 @@ abstract contract FramePaymaster is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
 
     /// Gas the sender was charged for and provably did not use. It may only ever be too low.
     ///
+    /// Limits and gas used are summed apart: a frame that fails for want of state gas reports more than its limit, and that excess
+    /// has to count against the unused gas of the others.
+    ///
     /// What the payer really owes is `mandatory + max(data + E, floor) + S`, for execution gas E and state gas S. `max_gas` less
     /// the unused limits of every earlier frame covers everything but the floor, which is 64 gas for each byte carried. So those
     /// bytes come off the refund, whether or not the floor binds. Without that, a transaction stuffed with data would be
@@ -164,22 +185,24 @@ abstract contract FramePaymaster is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     function _refundableGas(uint256 charge, bytes4 chargeSelector) internal view returns (uint256) {
         uint256 current = txparam(TxParam.CURRENT_FRAME_INDEX);
         if (current != txparam(TxParam.FRAME_COUNT) - 1) revert SettleNotLast();
-        if (charge >= current || !_isOwnDefaultFrame(charge, chargeSelector) || !_charged(charge)) revert NothingToSettle();
+        if (charge + 1 >= current || !_isOwnDefaultFrame(charge, chargeSelector) || !_charged(charge)) revert NothingToSettle();
+        if (!_isOwnFrame(charge + 1, FrameMode.VERIFY, this.pay.selector) || !_charged(charge + 1)) revert NothingToSettle();
 
-        uint256 unused;
+        uint256 limits;
+        uint256 used;
         uint256 size = frameparam(current, FrameParam.DATA_LENGTH) + NONCE_BYTES + txparam(TxParam.NONCE_KEY_COUNT) * NONCE_KEY_BYTES;
         for (uint256 i; i < current; ++i) {
             // Only the three modes whose gas this arithmetic was worked out for.
             if (frameparam(i, FrameParam.MODE) > uint256(FrameMode.SENDER)) return 0;
-            unused += _less(frameparam(i, FrameParam.EXECUTION_GAS_LIMIT), frameparam(i, FrameParam.EXECUTION_GAS_USED));
-            unused += _less(frameparam(i, FrameParam.STATE_GAS_LIMIT), frameparam(i, FrameParam.STATE_GAS_USED));
+            limits += frameparam(i, FrameParam.EXECUTION_GAS_LIMIT) + frameparam(i, FrameParam.STATE_GAS_LIMIT);
+            used += frameparam(i, FrameParam.EXECUTION_GAS_USED) + frameparam(i, FrameParam.STATE_GAS_USED);
             size += frameparam(i, FrameParam.DATA_LENGTH);
         }
         uint256 signatures = txparam(TxParam.SIGNATURE_COUNT);
         for (uint256 i; i < signatures; ++i) {
             size += sigparam(i, SigParam.SIGNATURE_LENGTH) + SIGNATURE_ENTRY_BYTES;
         }
-        return _less(unused, size * FLOOR_PER_BYTE);
+        return _less(limits, used + size * FLOOR_PER_BYTE);
     }
 
     function _less(uint256 a, uint256 b) private pure returns (uint256) {

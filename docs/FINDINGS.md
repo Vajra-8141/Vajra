@@ -185,3 +185,43 @@ Both fixed, in `VajraAccount.sol` and `VajraAccountV2`, and deployed:
   the same signature. The nonce and fee are spent and nobody is paid. The owner can sign again. Shown with mocked frame opcodes, not reproduced live.
 
 **Open in both,** as design limits, and in the README: fee burn across many transactions, and a queue with no cap that survives a change of daily key.
+
+## Paymasters on the mirror
+
+Two staked paymasters, in `contracts/src/paymasters/`: a daily gas quota for enrolled accounts, and one that takes USDC for gas. Everything here ran on the mirror, and nothing here is on the public devnet. `vajra paymaster-e2e` sends every attack, and `docs/evidence/paymaster-latest.json` has the run.
+
+**The first version could be drained, with every test passing.** `vajra paymaster-e2e` had just reported 42 attacks refused and 0 failures when an independent review read the client and found this. An atomic batch that unrolls undoes a frame's effects and keeps its status. So an EOA paying for itself sent `[self_verify, collect (batched), a frame that reverts, settle]`: the collect was undone, its status still said success, and `settle` refunded USDC that was never taken. On the mirror it took 30,495,599 units, 30.5 USDC, from the float, and the attacker set the size with `max_fee`. The same shape reset a quota to zero. Our attack list had no batch in it. The claim was wider than the test, which is how section 9 happened too.
+
+**The fix is two checks.** A charge frame insists the next frame is this contract's `pay`. A batch flag cannot be followed by a VERIFY frame, so such a charge is not in a batch that can undo it, and since one `pay` can approve, a valid transaction holds one charge at most. And `settle` requires that `pay` ran. The same attack now moves nothing, and is in the run. So is a stolen daily key adding collect frames to burn the approval, which the review found by the same route: each one now fails, and the account is charged once.
+
+**Take the money first, and there is no repay frame to starve.** A paymaster that repays itself after the body has to survive the body: it can be starved of gas, or the body can revoke the approval. So the shape here is `[only_verify, charge, pay, SENDER..., settle]`. `charge` is a `pre_verify` frame, the one place before payment that can write. It takes the transaction's maximum cost, and `pay` refuses unless it succeeded. A failed frame does not fail a transaction, so that check is the defence. `settle` only ever gives back, so starving it costs the sender and not the paymaster.
+
+**A refund has to be worked out from below.** The payer owes `mandatory + max(data + E, floor) + S`. Refunding "the unused gas" is wrong by the calldata floor: 8 KB of ignored bytes makes a transaction cost far more than its frames used. `settle` takes 64 gas per byte carried off the refund, and counts its own limit as used, which covers the bytes it cannot see. Limits and gas used are summed apart, because a frame that fails for want of state gas reports more than its limit. `testFuzz_what_stays_charged_covers_the_real_gas` holds this against ethrex's arithmetic, and it fails at once if the floor term is taken out. Every sponsored transaction in the run checks it again against a real receipt.
+
+**The quota is counted at the maximum, in order.** Two transactions on different nonce keys can both pass admission on the same remaining quota. Only what runs first lands: `pay` reads the total after `charge` has added to it, so the second fails at inclusion, and nobody pays for it.
+
+**`TIMESTAMP` is banned in validation, so a paymaster cannot know what day it is.** It keeps `day` in storage, moved by `settle` or by anyone calling `roll`. Each value of `day` gets one quota. If nobody has moved it, an account keeps spending what was left of yesterday's, and a whole quota follows once it moves. So around a boundary, late or not, an account can use a quota on each side and no more.
+
+**ethrex's prefix simulator shapes where the checks go.** It keeps no frame results, so `FRAMEPARAM STATUS` halts there, with no data, and a passing transaction reports a failed frame. And it stops at the first failed frame, so `pay` never runs after a failed `charge`. So `charge` names its own refusals and `pay` reads the status last. On chain the status read still decides. A transaction with too little gas to reach those checks is refused by the node's own out-of-gas text, with no name of ours.
+
+**The canonical mempool refuses all of it, every time.** With the prefix under 100,000 the reason is `StorageReadNonSender`, so it is the read and not the size. A master transaction's prefix is over the cap, and the USDC shape always is, so those get the budget refusal first.
+
+**A keyed nonce costs the approving frame 20,000.** A pay frame that fits a linear nonce runs out of gas on a keyed one, and the simulator shows it as a bare revert.
+
+### What the account cannot do
+
+We left `VajraAccount` alone, so these stand:
+
+- **The daily key cannot approve a token.** `validateDaily` only allows `spend` and `executeQueued` on the account. So the master key signs the approval. An account with no ETH can have the quota paymaster pay for that.
+- **A stock wallet cannot use a paymaster.** The wallet digest is pinned to `[VERIFY, SENDER]`, so a sponsored transaction needs the daily key in a process that can sign the signature hash.
+- **The rulebook does not see USDC paid for gas.** `validateDaily` skips DEFAULT frames, and the fee cap only applies when the account pays. So a stolen daily key can spend the account's USDC on gas, outside the daily limit, one maximum cost per transaction, up to the approval. With a colluding block producer, the tip part of that reaches the thief, up to `feeCap`. **Keep the approval small**: it is the only bound. A thief can also use up the day's quota. The real fix is in the account: apply the cost cap at every scope, and allow only the exact sponsored shape.
+
+### Limits
+
+- The USDC price is a number the owner sets, and the contract says so. Below the market, the paymaster loses the difference, up to `feeCap`.
+- The sender signs the exact price, so a price change kills pending transactions. That protects them.
+- `settle`'s own 100,000 limit is charged in full, and the floor term overcharges a little. Measured: 83,000 gas over the real cost on a plain spend, and 156,000 with 8 KB of data.
+- A batch flag on the last body frame makes `settle` its terminator, so a body failure skips the refund. Only the sender loses, and only by signing that shape.
+- That review was one read of the source, and it found a critical bug. **The fix has had no second independent review**: one was started and stopped before it reached a conclusion. Nothing here has been audited.
+- `SponsorPaymaster`, which `vajra stealth` uses, is unchanged and can still be drained by anyone.
+- An enrolled account can get transactions admitted that then fail at inclusion, which may count against the paymaster with the sidecar. Not measured.
