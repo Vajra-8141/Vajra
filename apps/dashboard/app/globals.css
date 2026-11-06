@@ -216,7 +216,8 @@ td.num, th.num { text-align: right; }
 /* Glossary */
 .term { position: relative; display: inline; }
 .term-word { all: unset; cursor: help; border-bottom: 1px dotted var(--t40); font: inherit; color: var(--t100); }
-.term-word:hover { border-bottom-color: var(--t100); }
+.term .term-word:hover:not(:disabled) { background: transparent; border-bottom-color: var(--t100); }
+.term .term-word:active:not(:disabled) { transform: none; }
 .term-word:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .term-tip { position: absolute; z-index: 30; left: 0; top: calc(100% + var(--s2)); width: min(320px, 76vw); padding: var(--s3) var(--s4); background: var(--surface-3); color: var(--t60); border: 1px solid var(--line-strong); border-radius: var(--r2); font: 400 var(--t-sm)/1.5 var(--font-ui); letter-spacing: 0; text-transform: none; text-align: left; }
 .term-tip strong { display: block; color: var(--t100); font-weight: 500; margin-bottom: 2px; }
@@ -273,7 +274,7 @@ td.num, th.num { text-align: right; }
 .step.current h3, .step.done h3 { color: var(--t100); }
 .step p { color: var(--t60); margin-bottom: var(--s2); }
 .step p strong { color: var(--t100); font-weight: 500; }
-.step button { margin-top: var(--s1); }
+.step button:not(.term-word) { margin-top: var(--s1); }
 .step .result, .result { font-weight: 400; color: var(--ok); margin: var(--s2) 0 0; font-size: var(--t-sm); overflow-wrap: anywhere; }
 .result.bad, .tally .bad, .step .result.bad { color: var(--danger); }
 .refused-line { margin-top: var(--s3); display: grid; gap: var(--s2); justify-items: start; }
@@ -292,6 +293,8 @@ td.num, th.num { text-align: right; }
 .cheque-empty { margin: var(--s4) 0 0; color: var(--t60); font-size: var(--t-sm); }
 .cheque-main { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--s2) var(--s3); margin: var(--s3) 0; }
 .cheque-amount { font-size: var(--t-figure); font-weight: 500; line-height: 1.05; letter-spacing: -0.035em; }
+/* A cancelled theft is the hash key's win, so it wears the hash key's colour. */
+.cheque.cancelled .stamp.red { --tone: var(--arc); --soft: var(--base); }
 .cheque.cancelled .cheque-amount { color: var(--t60); text-decoration: line-through; text-decoration-thickness: 2px; }
 .cheque-pay { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s2); font-size: var(--t-xs); color: var(--t60); }
 .cheque-to { overflow-wrap: anywhere; color: var(--t100); font-size: var(--t-xs); }
@@ -423,7 +426,7 @@ tr.mine td { font-weight: 500; }
   .term { position: static; }
   .term-tip { position: fixed; left: var(--s4); right: var(--s4); top: auto; bottom: var(--s4); width: auto; }
   .actions > button, .after-links > .button { flex: 1 1 auto; }
-  .step button { width: 100%; }
+  .step button:not(.term-word) { width: 100%; }
   .cheque { padding: var(--s3) var(--s4); }
 }
 
