@@ -3,8 +3,10 @@
  * thief or the holder might try. Each attack is really sent, and has to die with the name shown. Exits non-zero if anything differs from
  * the claim.
  */
-import { type ChildProcess, spawn } from "node:child_process";
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { type ChildProcess, spawn, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as lib from "@forshtat/hegota-support/tx";
@@ -16,8 +18,10 @@ import {
   ETH,
   type FrameTx,
   LEGACY_GAS_PRICE,
+  MasterSigner,
   RescueInvalid,
   RpcError,
+  WOTS_W16,
   accountState,
   accountV2Abi,
   checkRescue,
@@ -28,6 +32,7 @@ import {
   framesSucceeded,
   genesisHash,
   isLocalStack,
+  memoryStore,
   ops,
   opsV2,
   parseRescue,
@@ -41,6 +46,7 @@ import {
   releaseCalls,
   rescueDue,
   rescueFile,
+  rpc,
   sendAlt,
   sendCanonical,
   signDaily,
@@ -54,6 +60,7 @@ import {
   waitForSuccess,
   walletFor,
   withMasterSignature,
+  wouldBurn,
 } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
@@ -70,20 +77,20 @@ const erc20 = parseAbi(["function transfer(address,uint256) returns (bool)", "fu
 const work = mkdtempSync(join(tmpdir(), "vajra-nominee-"));
 
 /** An owner, as `vajra exit-setup` and `vajra nominee-setup` leave one: an account, an exit with its reserve, and a rescue in a file. */
-async function ownerOf(name: string, o: { fund?: bigint; tokens?: Address[] } = {}) {
+async function ownerOf(name: string, o: { fund?: bigint; tokens?: Address[]; reserve?: bigint; margin?: number; exitSeed?: Uint8Array } = {}) {
   const signer = newSigner();
-  const exitTree = newSigner();
+  const exitTree = o.exitSeed ? new MasterSigner(WOTS_W16, memoryStore(), () => o.exitSeed!) : newSigner();
   const dailyKey = generatePrivateKey();
   const daily = privateKeyToAccount(dailyKey).address;
   const harbor = fresh();
   const harborSalt = keccak256(toHex(name));
   const account = await newAccount(deployer, signer, daily, harbor, harborSalt, o.fund ?? parseEther("2"));
   const { epochSalt } = await accountState(account);
-  const exit = await createExit(deployer, v2.exitFactory!, account, exitTree.root, epochSalt, parseEther("0.05"));
+  const exit = await createExit(deployer, v2.exitFactory!, account, exitTree.root, epochSalt, o.reserve ?? parseEther("0.05"));
   await mined(`${name}: the master key names the exit`, master(signer, account, epochSalt, [opsV2.setExit(exit)]));
   const extra = o.tokens ?? [];
   const { tx } = signRescue({ signer: exitTree, exit, account, epochSalt, harbor, harborSalt, tokens: extra.length, extra, fees: { maxFeePerGas: 10_000_000_000n, maxPriorityFeePerGas: DEFAULT_FEES.maxPriorityFeePerGas } });
-  const text = rescueFile({ tx, genesis: await genesisHash(), marginSeconds: 15 });
+  const text = rescueFile({ tx, genesis: await genesisHash(), marginSeconds: o.margin ?? 15 });
   const path = join(work, `${name.replaceAll(" ", "-")}.json`);
   writeFileSync(path, text);
   return { name, signer, exitTree, dailyKey, daily, harbor, harborSalt, account, epochSalt, exit, tx, path, rescue: parseRescue(text) };
@@ -91,11 +98,11 @@ async function ownerOf(name: string, o: { fund?: bigint; tokens?: Address[] } = 
 type Owner = Awaited<ReturnType<typeof ownerOf>>;
 
 /** The holder's real process. It gets a folder with nothing in it, and it must leave that folder with nothing in it: it holds no key. */
-function holder(o: Owner) {
+function holder(o: Owner, lane?: number) {
   const dir = mkdtempSync(join(work, "holder-"));
   const lines: string[] = [];
   const child: ChildProcess = spawn(process.execPath, [new URL("./main.ts", import.meta.url).pathname, "nominee-watch", "--rescue", o.path, "--interval", "1"], {
-    env: { ...process.env, VAJRA_STATE_DIR: dir },
+    env: { ...process.env, VAJRA_STATE_DIR: dir, ...(lane === undefined ? {} : { VAJRA_LANE: String(lane) }) },
     stdio: ["ignore", "pipe", "pipe"],
   });
   const collect = (chunk: Buffer) => {
@@ -112,6 +119,62 @@ function holder(o: Owner) {
 }
 type Holder = ReturnType<typeof holder>;
 
+/**
+ * The network between a holder and the chain, for a holder on a lane of its own. The chain behind it is the real one and the process is the
+ * real one, and this decides what reaches them: a node that will not simulate, reads that die, a sidecar that is down or sits on what it is
+ * given. A node's answers are never made up here, only withheld.
+ */
+function network(lane: number, o: { mempool?: "up" | "down" | "sits"; simulate?: boolean } = {}) {
+  const state = { reads: true };
+  const bodyOf = (req: IncomingMessage) =>
+    new Promise<string>((resolve) => {
+      let text = "";
+      req.on("data", (chunk) => (text += chunk));
+      req.on("end", () => resolve(text));
+    });
+  const relay = async (to: string, body: string, res: ServerResponse) => {
+    const answer = await fetch(to, { method: "POST", headers: { "content-type": "application/json" }, body });
+    res.writeHead(answer.status, { "content-type": "application/json" });
+    res.end(await answer.text());
+  };
+  const reply = (res: ServerResponse, id: number, body: object) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ jsonrpc: "2.0", id, ...body }));
+  };
+  const servers = [
+    createServer(async (req, res) => {
+      const body = await bodyOf(req);
+      const call = JSON.parse(body) as { id: number; method: string };
+      if (o.simulate === false && call.method === "ethrex_simulateFrameTransaction") return reply(res, call.id, { error: { code: -32601, message: "Method not found" } });
+      if (!state.reads && call.method !== "eth_sendRawTransaction") {
+        res.writeHead(503);
+        res.end("no");
+        return;
+      }
+      await relay(DEVNET.execution, body, res);
+    }).listen(18545 + lane * 100, "127.0.0.1"),
+  ];
+  if (o.mempool !== "down") {
+    servers.push(
+      createServer(async (req, res) => {
+        const body = await bodyOf(req);
+        if (o.mempool !== "sits") return relay(DEVNET.mempool, body, res);
+        const call = JSON.parse(body) as { id: number; method: string };
+        reply(res, call.id, { result: call.method === "skandha_frameTransactionStatus" ? { status: "Pending" } : `0x${"ab".repeat(32)}` });
+      }).listen(14337 + lane * 100, "127.0.0.1"),
+    );
+  }
+  return {
+    state,
+    close: () => {
+      for (const server of servers) {
+        server.close();
+        server.closeAllConnections();
+      }
+    },
+  };
+}
+
 async function until(what: string, test: () => boolean | Promise<boolean>, ms = 90_000) {
   const deadline = Date.now() + ms;
   while (Date.now() < deadline) {
@@ -125,6 +188,11 @@ async function until(what: string, test: () => boolean | Promise<boolean>, ms = 
 const nextBlockTime = async () => Number((await publicClient.getBlock()).timestamp);
 const item = (o: Owner, id: bigint) => publicClient.readContract({ address: o.account, abi: accountV2Abi as never, functionName: "queuedItem", args: [id] } as never) as Promise<{ state: number; executeAfter: bigint }>;
 const steal = (o: Owner, to: Address, amount = parseEther("0.6")) => signDaily({ key: o.dailyKey, dailyKey: o.daily, account: o.account, calls: [ops.spend(ETH, to, amount)] });
+/** Whether the node's own pool holds a transaction from this account right now. */
+const hasPending = async (account: Address) => {
+  const pool = await rpc<{ pending: Record<string, unknown> }>(DEVNET.execution, "txpool_content");
+  return Object.keys(pool.pending).some((sender) => sender.toLowerCase() === account.toLowerCase());
+};
 
 /** The attack has to die at admission, with this name. */
 async function refusedByExit(attack: string, tx: FrameTx, want: string) {
@@ -192,6 +260,10 @@ const realButNotARescue = signExitTx({ signer: first.exitTree, exit: first.exit,
 refusedByTheTool("A file holding a real signature on something other than an escape", rescueFile({ tx: realButNotARescue, genesis: first.rescue.genesis, marginSeconds: 15 }));
 const stolenFrom = bytesToHex(new TextEncoder().encode("{}"));
 refusedByTheTool("A file that is not a rescue at all", stolenFrom);
+refusedByTheTool("A file with a margin of nothing, which would fire when the thief can already collect", rescueFile({ tx, genesis: first.rescue.genesis, marginSeconds: 0 }));
+const badMargin = spawnSync(process.execPath, [new URL("./main.ts", import.meta.url).pathname, "nominee-watch", "--rescue", first.path, "--margin", "1h"], { encoding: "utf8" });
+check(badMargin.status !== 0 && /whole number of seconds/.test(badMargin.stderr + badMargin.stdout), "`--margin 1h` is refused, and does not watch in silence for ever");
+refusals.push({ attack: "A holder asks for a margin of 1h, which is not a number", refusal: "--margin is a whole number of seconds" });
 
 console.log("\n3. What a thief with the daily key can do about it");
 const asDaily = (calls: Parameters<typeof signDaily>[0]["calls"]) => signDaily({ key: first.dailyKey, dailyKey: first.daily, account: first.account, calls });
@@ -222,12 +294,13 @@ check((await publicClient.getBalance({ address: first.harbor })) === 0n, "the ha
 check(!(await accountState(first.account)).frozen, "the account is not frozen");
 check(watching.child.exitCode === null, "and the holder is still watching");
 
-console.log("\n5. Nobody answers, with a thief keeping a transaction pending the whole time");
+console.log("\n5. Nobody answers, with a thief sending a transaction every second");
 const thiefPayee = fresh();
 await mined("the thief queues 0.6 ETH", await steal(first, thiefPayee));
 const theft = (await rescueDue(first.rescue)).waiting[0]!;
 let pinning = true;
 let pins = 0;
+const pendingSeen: boolean[] = [];
 const pinLoop = (async () => {
   const pinned = fresh();
   while (pinning) {
@@ -236,18 +309,20 @@ const pinLoop = (async () => {
     const pin = await signDailyTx(dailyTx({ account: first.account, dailyKey: first.daily, nonce, calls: [ops.spend(ETH, pinned, 1n)], fees: { maxFeePerGas: base + 1n, maxPriorityFeePerGas: 0n } }), first.dailyKey);
     await sendCanonical(pin).then(() => pins++, () => {});
     await sleep(1000);
+    pendingSeen.push(await hasPending(first.account));
   }
 })();
 await until("the rescue to land", async () => (await receiptOf(first.rescue.hash)) !== null);
 pinning = false;
 await pinLoop;
+check(pendingSeen.slice(-5).some(Boolean), `a thief's transaction really was in the node's pool as the rescue went: seen in ${pendingSeen.filter(Boolean).length} of ${pendingSeen.length} looks, and in ${pendingSeen.slice(-5).filter(Boolean).length} of the last 5`);
 const rescued = await receiptOf(first.rescue.hash);
 if (!rescued) throw new Error("the rescue never landed, so nothing after this means anything");
 const landedAt = Number((await publicClient.getBlock({ blockNumber: BigInt(rescued.blockNumber) })).timestamp);
 const secondsLeft = Number(theft.executeAfter) - landedAt;
 evidence.push({ step: "The rescue, sent by a process with no key, because nobody answered", hash: first.rescue.hash, block: Number(BigInt(rescued.blockNumber)), verifyGas: Number(BigInt(rescued.frameReceipts[0]!.gasUsed)), totalGas: Number(BigInt(rescued.gasUsed)), attempts: 1 });
 check(framesSucceeded(rescued), `the rescue mined: ${first.rescue.hash}, VERIFY ${Number(BigInt(rescued.frameReceipts[0]!.gasUsed))} gas, ${Number(BigInt(rescued.gasUsed))} in all`);
-check(secondsLeft > 0, `it landed with ${secondsLeft} seconds to spare, past ${pins} pending thief transactions`);
+check(secondsLeft > 0, `it landed with ${secondsLeft} seconds to spare, with ${pins} thief transactions sent meanwhile`);
 await holderFinished(watching, "after the rescue");
 check((await publicClient.getBalance({ address: first.harbor })) > parseEther("1.2"), `the harbor holds ${formatEther(await publicClient.getBalance({ address: first.harbor }))} ETH`);
 check((await accountState(first.account)).frozen, "the account is frozen");
@@ -260,9 +335,9 @@ check(/nonce|LeafAlreadySpent/i.test(replay), `the same bytes again: ${replay.sl
 refusals.push({ attack: "The same bytes again, after they landed", refusal: replay.slice(0, 200) });
 check((await checkRescue(first.rescue)).state === "sent", "the tool says it has been sent");
 
-console.log("\n6. A theft hidden behind a dozen more, on an account short of ETH, holding tokens");
+console.log("\n6. A theft hidden behind a dozen more, on an account holding tokens");
 const TOKENS = 25_000_000n;
-const second = await ownerOf("hidden and short of ETH", { fund: parseEther("0.032"), tokens: [DEVNET.usdc] });
+const second = await ownerOf("hidden", { fund: parseEther("0.7"), tokens: [DEVNET.usdc] });
 await waitForSuccess(await walletFor(deployer).writeContract({ address: DEVNET.usdc, abi: erc20, functionName: "transfer", args: [second.account, TOKENS], gas: 300_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy", chain: undefined }), "funding the tokens");
 watching = holder(second);
 await until("the holder to say it is ready", () => watching.said(/the rescue is ready/));
@@ -284,15 +359,20 @@ await mined(
   ),
 );
 check((await readAccount(second.account)).items.some((one) => one.id === 0n), "the first of them is still in what a reader sees, with twelve newer ones behind it");
+const heldBefore = await publicClient.getBalance({ address: second.account });
+check(heldBefore >= parseEther("0.6"), `the account can really pay the first of them: it holds ${formatEther(heldBefore)} ETH`);
+const hiddenTheft = (await rescueDue(second.rescue)).waiting[0]!;
 await until("the rescue to land", async () => (await receiptOf(second.rescue.hash)) !== null);
 const secondReceipt = (await receiptOf(second.rescue.hash))!;
-evidence.push({ step: "The rescue, with a theft hidden behind a dozen more, on an account short of ETH", hash: second.rescue.hash, block: Number(BigInt(secondReceipt.blockNumber)), verifyGas: Number(BigInt(secondReceipt.frameReceipts[0]!.gasUsed)), totalGas: Number(BigInt(secondReceipt.gasUsed)), attempts: 1 });
+evidence.push({ step: "The rescue, with a theft hidden behind a dozen more", hash: second.rescue.hash, block: Number(BigInt(secondReceipt.blockNumber)), verifyGas: Number(BigInt(secondReceipt.frameReceipts[0]!.gasUsed)), totalGas: Number(BigInt(secondReceipt.gasUsed)), attempts: 1 });
 check(framesSucceeded(secondReceipt), `the rescue mined: ${second.rescue.hash}`);
 await holderFinished(watching, "after the hidden theft");
 const tokensLanded = await publicClient.readContract({ address: DEVNET.usdc, abi: erc20, functionName: "balanceOf", args: [second.harbor] });
 check(tokensLanded === TOKENS, `the harbor holds all ${tokensLanded} tokens`);
-check((await publicClient.getBalance({ address: second.harbor })) > 0n, `and the ${formatEther(await publicClient.getBalance({ address: second.harbor }))} ETH left, none of it spent on the rescue: the exit paid`);
-check((await publicClient.getBalance({ address: hiddenPayee })) === 0n, "the thief has nothing");
+check((await publicClient.getBalance({ address: second.harbor })) === heldBefore, `and all ${formatEther(heldBefore)} ETH the account held, none of it spent on the rescue: the exit paid`);
+await until("the hidden theft's time to arrive", async () => (await nextBlockTime()) > Number(hiddenTheft.executeAfter) + 1);
+await reverts("Anyone collects the hidden theft, once the time is up", "AccountFrozen", { account: privateKeyToAccount(deployer).address, address: second.account, functionName: "executeQueued", args: [hiddenTheft.id] });
+check((await publicClient.getBalance({ address: hiddenPayee })) === 0n, "the thief has nothing, from an account that could have paid");
 
 console.log("\n7. A stolen recovery paper, on a frozen account");
 const third = await ownerOf("stolen paper");
@@ -349,7 +429,115 @@ const paddedCost = before - (await publicClient.getBalance({ address: sixth.exit
 evidence.push({ step: "A copy of the rescue, padded by 8 KB, and it still rescues", hash: paddedLanding.hash, block: Number(BigInt(paddedLanding.receipt.blockNumber)), verifyGas: Number(BigInt(paddedLanding.receipt.frameReceipts[0]!.gasUsed)), totalGas: Number(BigInt(paddedLanding.receipt.gasUsed)), attempts: paddedLanding.attempts });
 check(framesSucceeded(paddedLanding.receipt), `it mined, and the reserve paid ${formatEther(paddedCost)} ETH for it. This is the hole in FINDINGS section 15`);
 check((await publicClient.getBalance({ address: sixth.harbor })) > parseEther("1.9"), "the money still went to the harbor, and nowhere else");
-check((await checkRescue(sixth.rescue)).state === "sent", "the tool says it was sent, by a copy, whose hash is not the file's");
+const copied = await checkRescue(sixth.rescue);
+check(copied.state === "sent" && copied.copy && copied.hash === paddedLanding.hash && copied.hash !== sixth.rescue.hash, `the tool says it was sent, by a copy, and names the copy from the chain's own log: ${copied.state === "sent" ? copied.hash : copied.state}`);
+
+console.log("\n11. What goes wrong between the holder and the chain, each with a real theft and a real process");
+const dark = await ownerOf("the node goes dark");
+const sidecarDown = await ownerOf("the sidecar is down");
+const sidecarSits = await ownerOf("the sidecar sits on it", { margin: 30 });
+const short = await ownerOf("a short reserve", { reserve: parseEther("0.001") });
+const shortCheck = await checkRescue(short.rescue);
+check(shortCheck.state === "broken" && !wouldBurn(shortCheck), `a reserve that is short is said to be, and holds nothing back: ${shortCheck.state === "broken" ? shortCheck.reason.slice(0, 80) : shortCheck.state}`);
+
+async function theNodeGoesDark() {
+  const net = network(7, { simulate: false });
+  const h = holder(dark, 7);
+  await until("the holder to say it cannot tell", () => h.said(/the rescue is unknown/));
+  check(!h.said(/would fail|WOULD FAIL/i), "a node that will not simulate is unknown, and is not called broken");
+  await mined("the node goes dark: the thief queues a payment", await steal(dark, fresh()));
+  await until("the holder to see the item", () => h.said(/leaves in/));
+  net.state.reads = false;
+  await until("the rescue to land, with the holder unable to read anything", async () => (await receiptOf(dark.rescue.hash)) !== null);
+  check(h.said(/state unknown/), "the holder could not read the chain");
+  check(h.said(/the last good read said it is time/), "and it sent on the last good read");
+  net.state.reads = true;
+  await holderFinished(h, "after the node came back");
+  check((await publicClient.getBalance({ address: dark.harbor })) > parseEther("1.2"), "the money reached the harbor");
+  net.close();
+}
+
+async function theSidecarIsDown(who: Owner, lane: number, mode: "down" | "sits") {
+  const net = network(lane, { mempool: mode });
+  const h = holder(who, lane);
+  await until("the holder to say it is ready", () => h.said(/the rescue is ready/));
+  await mined(`${who.name}: the thief queues a payment`, await steal(who, fresh()));
+  const theft = (await rescueDue(who.rescue)).waiting[0]!;
+  await until(`${who.name}: the rescue to land`, async () => (await receiptOf(who.rescue.hash)) !== null);
+  check(h.said(/the alt mempool did not carry it/), `${who.name}: the alt mempool could not carry it, and the holder said so`);
+  const receipt = (await receiptOf(who.rescue.hash))!;
+  const landedAt = Number((await publicClient.getBlock({ blockNumber: BigInt(receipt.blockNumber) })).timestamp);
+  check(framesSucceeded(receipt) && landedAt < Number(theft.executeAfter), `${who.name}: the canonical mempool carried it, with ${Number(theft.executeAfter) - landedAt} seconds to spare`);
+  await holderFinished(h, who.name);
+  net.close();
+}
+
+async function theReserveIsShort() {
+  const h = holder(short);
+  await until("the holder to say it is broken", () => h.said(/the rescue is broken/));
+  await mined("a short reserve: the thief queues a payment", await steal(short, fresh()));
+  await until("the holder to try, and fail", () => h.said(/did not go through/));
+  check((await receiptOf(short.rescue.hash)) === null, "both mempools turned it away, so it mined nothing and burned nothing");
+  await waitForSuccess(await walletFor(deployer).sendTransaction({ to: short.exit, value: parseEther("0.05"), gas: 100_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy", chain: undefined }), "topping up the reserve");
+  await until("the rescue to land, once anyone topped the reserve up", async () => (await receiptOf(short.rescue.hash)) !== null);
+  check(framesSucceeded((await receiptOf(short.rescue.hash))!), "topped up by someone with no key, and the rescue mined");
+  await holderFinished(h, "a short reserve");
+}
+
+await Promise.all([theNodeGoesDark(), theSidecarIsDown(sidecarDown, 8, "down"), theSidecarIsDown(sidecarSits, 9, "sits"), theReserveIsShort()]);
+
+console.log("\n12. A signer restored from an old backup spends the rescue's own leaf");
+const seed = new Uint8Array(randomBytes(32));
+const reused = await ownerOf("reused leaf", { exitSeed: seed });
+const restored = new MasterSigner(WOTS_W16, memoryStore(), () => seed);
+watching = holder(reused);
+await until("the holder to say it is ready", () => watching.said(/the rescue is ready/));
+await mined("the thief queues a payment", await steal(reused, fresh()));
+await mined("the restored signer cancels it, on the leaf the rescue already used", signExitTx({ signer: restored, exit: reused.exit, account: reused.account, epochSalt: reused.epochSalt, calls: [ops.veto(0n)] }).tx);
+await until("the holder to notice", () => watching.said(/spent by another transaction/));
+const spent = await checkRescue(reused.rescue);
+check(spent.state === "broken", `a spent key with nothing at the harbor is not called sent: ${spent.state === "broken" ? spent.reason.slice(0, 80) : spent.state}`);
+check(!watching.said(/already sent|rescued:/), "the holder does not say it was rescued");
+check(watching.child.exitCode === null, "and it is still watching");
+check((await publicClient.getBalance({ address: reused.harbor })) === 0n, "the harbor is empty, as the tool says");
+watching.child.kill();
+await watching.done;
+
+console.log("\n13. The owner's real commands, a lost seed, and the end of every rescue");
+const state = mkdtempSync(join(work, "owner-"));
+copyFileSync(keyPath("deployer.key"), join(state, "deployer.key"));
+const cli = (...args: string[]) => {
+  const run = spawnSync(process.execPath, [new URL("./main.ts", import.meta.url).pathname, ...args], { env: { ...process.env, VAJRA_STATE_DIR: state }, encoding: "utf8" });
+  return { ok: run.status === 0, said: run.stdout + run.stderr };
+};
+const realHarbor = fresh();
+check(cli("create", "--harbor", realHarbor, "--delay", "60", "--cooling", "0", "--limit", "0.1", "--allowance", "0.1", "--fund", "2").ok, "`vajra create`");
+check(cli("exit-setup", "--reserve", "0.001").ok, "`vajra exit-setup`, with a reserve too small for a rescue");
+const tooSmall = cli("nominee-setup", "--out", join(state, "small.json"));
+check(!tooSmall.ok && /Do not hand this over/.test(tooSmall.said) && !/Give that file/.test(tooSmall.said), "`vajra nominee-setup` says not to hand it over, and does not say to");
+const treePath = join(state, "signer.exit.json");
+renameSync(treePath, join(state, "put-away.json"));
+const noTree = cli("nominee-setup", "--out", join(state, "no-tree.json"));
+check(!noTree.ok && /does not hold the exit's key/.test(noTree.said), "with the seed lost, it refuses, and does not sign with a new one");
+check(!existsSync(treePath) && !existsSync(join(state, "no-tree.json")), "and it made no new tree and no file");
+refusals.push({ attack: "The owner signs a rescue after losing the exit's seed", refusal: "does not hold the exit's key" });
+renameSync(join(state, "put-away.json"), treePath);
+const topUp = JSON.parse(readFileSync(join(state, "exit.json"), "utf8")) as { exit: Address };
+await waitForSuccess(await walletFor(deployer).sendTransaction({ to: topUp.exit, value: parseEther("0.05"), gas: 100_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy", chain: undefined }), "topping up the reserve");
+const realFile = join(state, "for-the-nominee.json");
+const setUp = cli("nominee-setup", "--out", realFile);
+check(setUp.ok && /Give that file/.test(setUp.said), "`vajra nominee-setup`, with a reserve that covers it");
+check(cli("nominee-check", realFile).ok, "`vajra nominee-check` says it would work");
+const revoke = cli("nominee-revoke");
+check(revoke.ok, "`vajra nominee-revoke`, signed by the master key");
+check(readdirSync(state).some((name) => name.startsWith("signer.exit.before-")) && existsSync(treePath) && !existsSync(join(state, "signer.exit.next.json")), "the old tree is kept, the new one is in place, and nothing is left half done");
+const dead = cli("nominee-check", realFile);
+check(!dead.ok && /key tree was replaced/.test(dead.said), "the old rescue is dead, and the tool says why");
+const fresher = join(state, "rescue-2.json");
+check(cli("nominee-setup", "--out", fresher).ok && cli("nominee-check", fresher).ok, "a new one, signed by the new tree, works");
+check(cli("thief", "0.6").ok && cli("freeze").ok, "a theft waits, and the owner freezes");
+const thaw = cli("unfreeze");
+check(thaw.ok && /still waiting/.test(thaw.said), "`vajra unfreeze` warns that a freeze never ended it");
 
 const result = {
   ranAt: new Date().toISOString(),
@@ -361,7 +549,8 @@ const result = {
   marginSeconds: 15,
   rescueGas,
   secondsLeftWhenTheRescueLanded: secondsLeft,
-  thiefTransactionsPendingMeanwhile: pins,
+  thiefTransactionsSentMeanwhile: pins,
+  thiefPendingInTheNodesPool: { lookedTimes: pendingSeen.length, seenTimes: pendingSeen.filter(Boolean).length, inTheLastFive: pendingSeen.slice(-5).filter(Boolean).length },
   account: first.account,
   exit: first.exit,
   failures: tally.failures,

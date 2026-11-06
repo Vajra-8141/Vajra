@@ -37,7 +37,7 @@ leaf as its sequence would save it, at the cost of being unable to skip a leaf t
 | Daily key, signed by a stock wallet with personal_sign | 42,318 |
 | Daily key on V2, signed by a stock wallet as typed data, on the mirror | 49,923 |
 | The exit's VERIFY frame, on the mirror, with the digest under 430 hashes | about 97,000 |
-| A rescue, which is that same frame, signed in advance, on the mirror. About 490,000 for the whole transaction, to a fresh harbor. At a 10 gwei cap the reserve has to hold about 0.0125 ETH | about 97,000 |
+| A rescue, which is that same frame, signed in advance, on the mirror. About 490,000 for the whole transaction, to a fresh harbor. At a 10 gwei cap the reserve has to hold about 0.0125 ETH, and 0.009 more for each token | about 97,000 |
 
 ## The third w=256 checksum chain
 

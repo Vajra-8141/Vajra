@@ -79,7 +79,7 @@ evidence, on the local mirror and nowhere else.
 | One-transaction move from an EOA | BUILT, LOCAL | `vajra move-e2e`, and from the extension's move page |
 | Passkey before **Pay, it's me** | BUILT, LOCAL | Client-side only: the phone and the local service check it, and **the contracts do not know about it** |
 | leanSphincs-S, a hash key with no leaves | BENCHMARK, LOCAL | `vajra sphincs-bench`. Fits a VERIFY frame under the 100,000 cap, with no stake, on both mempools, if its sender keeps one nonce: about 81,500 gas for a veto. About the same as the hash key like for like, and a transaction costs 63% more. No account relies on it yet: it is to become the exit's key, and that contract is not built. Research parameters, not audited: see [`docs/GAS.md`](docs/GAS.md) and [`docs/FINDINGS.md`](docs/FINDINGS.md#20-leansphincs-s-measured) |
-| Nominee: a rescue signed in advance, held by someone with no key | BUILT, LOCAL | `vajra nominee-e2e`: 23 mined, 17 refused, 0 failures, with a real process holding no key. Its page, in a real browser. **No contract change**, and **not run on the public devnet**. It cannot tell you from a thief: see below |
+| Nominee: a rescue signed in advance, held by someone with no key | BUILT, LOCAL | `vajra nominee-e2e`: 34 mined, 21 refused, 0 failures, with a real process holding no key, a node that goes dark, and a sidecar that is down. Its page, in a real browser. **No contract change**, and **not run on the public devnet**. It cannot tell you from a thief: see below |
 | Recovery by proof, Groth16 v1 | BUILT, PUBLIC | `vajra recover`: 12 mined, 24 refused, 0 failures, on the public devnet and on the mirror. **Not post-quantum**: see below |
 | Shielded pool, fixed denomination v1 | BUILT, LOCAL, ONE NOTE ON PUBLIC | `vajra shielded`, on the mirror: 12 mined, 30 refused, 0 failures. One 0.01 ETH note in and out on the public devnet. **Does not hide that the account paid the recipient**: see below |
 | STARK recovery and shielded v2 | DESIGNED | spec §9, §10; **no STARK proof exists** |
@@ -151,10 +151,11 @@ Or they load the file on the **Your nominee** page of the dashboard, which needs
 
 **Limits, and the first one is real:**
 
-- **It cannot tell you from a thief.** A real payment of yours that you leave unanswered sets it off. That moves everything to your harbor and freezes the account. Nothing is lost, and you have to start again from there. So once someone holds a rescue, every queued payment needs an answer.
+- **It cannot tell you from a thief.** A real payment of yours that you leave unanswered sets it off, and so does a recovery of your own, which you cannot answer. That moves everything to your harbor and freezes the account, and if the account has a pool, it closes for good and everyone's notes in it go to your harbor. So once someone holds a rescue, every queued payment needs an answer.
+- **It does not end what is waiting.** A theft stays queued. It cannot leave while the account is frozen, so cancel it before you unfreeze, or it can take what you pay in next.
 - **A spend under the daily limit leaves at once,** so it never waits. A thief still gets a day's limit, each day, until you come back.
 - **The holder can send it early, or not at all, and they learn where your harbor is.** They still cannot move your money anywhere else. Give it to two people.
-- **Its fee and gas were signed in advance.** It is signed with a 10 gwei cap by default, and the reserve has to cover the most it can cost, about 0.0125 ETH. Change the harbor, or the exit's key tree, and it stops working: `vajra nominee-check` says so, and you sign a new one. `vajra nominee-revoke` ends every rescue you have signed.
+- **Its fee and gas were signed in advance.** It is signed with a 10 gwei cap by default, and the reserve has to cover the most it can cost: about 0.0125 ETH, and 0.009 more for each token. `vajra nominee-setup` says if yours is short. Change the harbor, or the exit's key tree, and it stops working: `vajra nominee-check` says so, and you sign a new one. `vajra nominee-revoke` ends every rescue you have signed.
 - **It is not a will.** The money goes to your harbor, not to your nominee, so choose a harbor your family could reach.
 
 See [`docs/FINDINGS.md`](docs/FINDINGS.md#23-the-nominee-a-rescue-signed-in-advance) section 23.
@@ -262,6 +263,9 @@ On the local mirror, by `vajra nominee-e2e`, each sent for real, against a rescu
 | Daily key replaces the exit's tree, so that it dies | `FrameNotAllowed` |
 | The thief collects, with the daily key or through anyone, after the rescue landed | `AccountFrozen` |
 | A file with a real signature on anything but an escape | the holder's tool refuses it, and it is never sent |
+| A file with a margin of nothing, or a `--margin` that is not a number | the holder's tool refuses it |
+| A key spent by another transaction, with nothing at the harbor | the tool says so, and never says it was rescued |
+| The owner signs after losing the exit's seed | `nominee-setup` refuses, and makes no new tree |
 
 On the local mirror, by `vajra paymaster-e2e`, each sent for real, from accounts holding no ETH:
 
