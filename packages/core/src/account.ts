@@ -341,12 +341,13 @@ export async function signStealthSpend(a: {
   calls: Call[];
   leaf?: number;
   maxHashes?: number;
+  fees?: Fees;
 }): Promise<{ tx: FrameTx; leaf: number; hashes: number }> {
   const leaf = a.leaf ?? a.signer.nextLeaf();
   const limit = a.maxHashes ?? 600;
   for (let tweak = 0n; tweak < 10_000n; tweak++) {
     const calls = a.calls.map((c, i) => (i === 0 ? { ...c, execution: c.execution + tweak } : c));
-    const tx = stealthTx({ account: a.account, leaf, paymaster: a.paymaster, coSigner: a.coSigner, calls });
+    const tx = stealthTx({ account: a.account, leaf, paymaster: a.paymaster, coSigner: a.coSigner, calls, fees: a.fees });
     const digest = masterDigest({ chainId: DEVNET.chainId, epochSalt: a.epochSalt, account: a.account, nonceKey: 0n, sigHash: sigHash(tx) });
     const hashes = a.signer.hashCount(digest);
     if (hashes > limit) continue;

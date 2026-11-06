@@ -68,6 +68,8 @@ const MAX_HASHES = 520;
 const DRILL_OVER = "0.001";
 const STORE = "vajra.wallet.v1";
 const MIN_PASSPHRASE = 8;
+/** The chain's base fee is a few wei. The library default of 2 gwei is paid in full as a tip, which would eat a test wallet. */
+const FEES = { maxFeePerGas: 20_000_000n };
 
 /** What the blob holds. `seed` is null once the hash key has moved to a phone; `dailyKey` is null on that phone. */
 interface Secrets {
@@ -268,7 +270,7 @@ async function master(calls: Call[], onStep: OnStep): Promise<Done & { receipt: 
   if (signer.leavesLeft === 0) throw new Error("This hash key is used up. Replace it first.");
   onStep("Signing with your hash key");
   await tick();
-  const { tx } = signMasterTx({ signer, account, epochSalt: state.epochSalt, calls, maxHashes: MAX_HASHES });
+  const { tx } = signMasterTx({ signer, account, epochSalt: state.epochSalt, calls, maxHashes: MAX_HASHES, fees: FEES });
   return land(tx, onStep);
 }
 
@@ -278,7 +280,7 @@ async function daily(calls: Call[], onStep: OnStep) {
   if (!dailyKey) throw new Error("This device only holds the hash key. Spend from your other device.");
   onStep("Signing with your wallet key");
   const address = privateKeyToAccount(dailyKey).address;
-  const tx = await signDaily({ key: dailyKey, dailyKey: address, account, calls });
+  const tx = await signDaily({ key: dailyKey, dailyKey: address, account, calls, fees: FEES });
   return land(tx, onStep);
 }
 
@@ -682,7 +684,7 @@ export const engine: Engine = {
     const coSignerKey = bytesToHex(stealthSecretKey(keys.spendingSk, ss));
     const coSigner = privateKeyToAccount(coSignerKey).address;
     const call: Call = { target: to, value: balance, data: "0x", execution: 400_000n, state: 300_000n };
-    const { tx } = await signStealthSpend({ signer, coSignerKey, coSigner, account: entry.account, epochSalt: genesis, paymaster, calls: [call] });
+    const { tx } = await signStealthSpend({ signer, coSignerKey, coSigner, account: entry.account, epochSalt: genesis, paymaster, calls: [call], fees: FEES });
     await persist();
     onStep("Gas is covered by the paymaster, so this needs no ETH");
     const done = await land(tx, onStep);
@@ -725,7 +727,7 @@ export const engine: Engine = {
     const newRoot = treeOf(seed).root;
     onStep("Proving you hold the paper. The paper itself never leaves this device");
     const { proof, nullifier } = await proveRecovery({ secret, newRoot, account, epochSalt, chainId: DEVNET.chainId });
-    const done = await land(recoveryTx({ account, newRoot, nullifier, proof, ticket: recoveryTicket(secret) }), onStep).catch((error) => {
+    const done = await land(recoveryTx({ account, newRoot, nullifier, proof, ticket: recoveryTicket(secret), fees: FEES }), onStep).catch((error) => {
       // Nothing landed, so this half made wallet must not look like a wallet.
       engine.forget();
       throw error;
@@ -770,7 +772,7 @@ export const engine: Engine = {
     await tick();
     const signer = await catchUpLeaves(s.exit.seed, s.exit.address);
     onStep("Signing from the second way out");
-    const { tx } = signExitTx({ signer, exit: s.exit.address, account: s.account, epochSalt, calls: [ops.escape(s.safe, s.harborSalt)] });
+    const { tx } = signExitTx({ signer, exit: s.exit.address, account: s.account, epochSalt, calls: [ops.escape(s.safe, s.harborSalt)], fees: FEES });
     const done = await land(tx, onStep);
     record("escaped", `Moved everything to your safe by the second way out`, done.hash);
     return finished(done);
@@ -814,7 +816,7 @@ export const engine: Engine = {
       const proved = await proveUnshield({ note, leaves, leaf, recipient: to, denomination: BigInt(v2.denomination), account: s.account, chainId: DEVNET.chainId });
       onStep("Doing the anti-spam work. This can take half a minute on a phone");
       await tick();
-      const tx = unshieldTx({ account: s.account, root: proved.root, nullifierHash: proved.nullifierHash, recipient: to, proof: proved.proof });
+      const tx = unshieldTx({ account: s.account, root: proved.root, nullifierHash: proved.nullifierHash, recipient: to, proof: proved.proof, fees: FEES });
       try {
         const done = await land(tx, onStep);
         saved.spent = true;

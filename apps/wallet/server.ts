@@ -48,7 +48,7 @@ const FUND = parseEther(process.env.FUND ?? "0.03");
 const TOP_UP = parseEther("0.015");
 const EXIT_RESERVE = parseEther("0.006");
 const MAX_TOP_UPS = 2;
-const PER_IP_HOUR = Number(process.env.PER_IP_HOUR ?? 6);
+const PER_IP_HOUR = Number(process.env.PER_IP_HOUR ?? 12);
 /** Below this the service stops giving money away, so the relays keep working. */
 const FLOOR = parseEther(process.env.FLOOR ?? "0.03");
 
@@ -179,7 +179,8 @@ const routes: Record<string, (body: Record<string, unknown>, ip: string) => Prom
   },
 
   /** Creates a stealth account and publishes the announcement, so the sender's wallet is not the one that does either. */
-  async "/api/private"(body) {
+  async "/api/private"(body, ip) {
+    if (limited(ip)) throw new Refused(429, "Too many from here. Try again in an hour.");
     const { w16, genesis, announcer } = deployments();
     const config = stealthConfig(needBytes32(body.root, "root"), needAddress(body.coSigner, "coSigner"), genesis);
     const stealth = await predictAccount(w16.factory, config);
