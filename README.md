@@ -150,12 +150,22 @@ These run on the local mirror. See [`JUDGES.md`](JUDGES.md) for the commands.
 
 **Move.** `vajra move` sends one frame transaction from an EOA, which creates the account and moves the ETH and listed tokens. The frames are an atomic batch, so a failed transfer means no account and no money moved. The EOA stays on as the daily key. The refund of unused gas lands after the last frame, so a few millionths of an ETH stay behind. A stock wallet cannot sign a frame transaction, so this asks for the private key: from a file in the CLI, and in the extension's page, where it goes no further than the extension.
 
+## The wallet
+
+**Try it: https://wallet-production-a086.up.railway.app**
+
+A self-serve wallet that runs on a phone or a laptop, on the public devnet, with test money. Keys are made on the device and never leave it. It is a PWA, so add it to the home screen on a phone. The code is in [`apps/wallet`](apps/wallet): `server.ts` is the small service that sponsors new wallets, relays and sends alerts, and it only ever sees public values.
+
+Every feature is in the app: instant and queued payments, Not me, freeze, escape, a second way out, recovery by paper, stealth payments, the private pool, moving the hash key to a phone, and alerts by Telegram or push.
+
 ## Leaf registry on Arkiv
 
 A one-time key must never sign twice, on any device. The signer's counter fails when a backup is restored, and the chain's nonce only
 moves when a transaction is mined, so a signature that was revealed and never mined is invisible to it. Every master operation now
 reads a public registry on [Arkiv](https://arkiv.network) before signing, reserves the key with an entity that expires in 5
 minutes, and publishes the signature afterwards.
+
+The wallet app does the same read and publish on every hash key signature, and shows the record under **Proof**. It does not reserve: that needs a separate identity for each device. The service only pays for the write, and refuses a record whose signature does not verify.
 
 Anyone can write to Arkiv, so nothing is believed because of who wrote it. **Each record carries the signature itself, and every
 reader verifies it**, so a thief cannot forge "this key is spent" to block an escape. If Arkiv is unreachable, signing goes on: the way

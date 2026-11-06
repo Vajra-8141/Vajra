@@ -1,5 +1,7 @@
 # Running VAJRA yourself
 
+**The fastest way in is the live wallet: https://wallet-production-a086.up.railway.app**. It runs on the public devnet with test money, and a phone works best. New wallets are limited by the test ETH the sponsor holds.
+
 One command boots a full local copy of everything: ethrex, a block producer, the alternative mempool, an explorer, and every contract.
 
 Needs Docker, Node 22.18 or newer, pnpm, make, and git.

@@ -8,6 +8,10 @@ Every master operation goes through the registry. The order in [`packages/cli/sr
 3. **Sign and broadcast** on the devnet.
 4. **Publish** the signature as a usage record, whether or not the transaction landed, because the leaf was revealed either way.
 
+## In the wallet app
+
+The wallet in [`apps/wallet`](../apps/wallet) runs in a browser, so its reads and writes go through its service. Before a hash key signs, it reads the tree and checks every signature itself, then moves past any leaf the record shows as spent. It publishes the signature as soon as it exists, before the transaction is sent. A person sees this as **On Arkiv** under Proof, and as a count on the Hash key row. It skips the reservation step: that needs a separate holder for each device. If Arkiv cannot be reached, signing goes on.
+
 ## Do the filters fit?
 
 | Query | Who runs it | Why this shape |
