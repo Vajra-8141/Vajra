@@ -29,6 +29,8 @@ import {
   waitForSuccess,
   walletFor,
 } from "@vajra/core";
+import { LeafRegistryWriter, proves } from "@vajra/core/registry";
+import { generatePrivateKey } from "viem/accounts";
 import { type PushSubscription, type Vapid, newVapid, sendPush } from "../../packages/cli/src/webpush.ts";
 
 const PORT = Number(process.env.PORT ?? 8791);
@@ -41,6 +43,17 @@ if (process.env.DEPLOYMENTS_FILE) useDeployments(JSON.parse(readFileSync(process
 const sponsor = privateKeyToAccount(KEY).address;
 const BOT = process.env.TELEGRAM_BOT_TOKEN;
 const BOT_NAME = process.env.TELEGRAM_BOT_NAME ?? null;
+
+/**
+ * The public record of which one-time keys are spent. This service only pays for the writes: a record proves itself with the
+ * signature it carries, so readers never have to trust who wrote it. Without these settings the wallet goes on without Arkiv.
+ */
+const arkivKey = process.env.DEV_WALLET_PRIVATE_KEY;
+const arkiv =
+  process.env.ARKIV && arkivKey
+    ? new LeafRegistryWriter({ accessKey: process.env.ARKIV, privateKey: (arkivKey.startsWith("0x") ? arkivKey : `0x${arkivKey}`) as Hex, holder: generatePrivateKey(), writers: [] })
+    : null;
+let arkivWrites: Promise<unknown> = Promise.resolve();
 
 /** Enough for the stake, a few spends and a pool note. */
 const STAKE = parseEther("0.012");
@@ -214,6 +227,31 @@ const routes: Record<string, (body: Record<string, unknown>, ip: string) => Prom
     return { hash };
   },
 
+  /** Rows anyone could have written. The wallet checks each signature itself before believing one. */
+  async "/api/arkiv/leaves"(body) {
+    if (!arkiv) return { available: false, uses: [] };
+    const snapshot = await arkiv.snapshot(needBytes32(body.root, "root"), { from: Number(body.from ?? 0) });
+    if (!snapshot) return { available: false, uses: [] };
+    return { available: true, uses: snapshot.uses.map((u) => ({ leaf: u.leaf, digest: u.digest, signature: u.signature, entity: u.entity })) };
+  },
+
+  async "/api/arkiv/use"(body, ip) {
+    if (!arkiv) return { entity: null };
+    if (limited(ip)) throw new Refused(429, "Too many from here. Try again in an hour.");
+    const use = {
+      root: needBytes32(body.root, "root"),
+      leaf: Number(body.leaf),
+      account: needAddress(body.account, "account"),
+      digest: needBytes32(body.digest, "digest"),
+      signature: body.signature as Hex,
+      op: String(body.op ?? "").slice(0, 32),
+    };
+    if (!proves(use)) throw new Refused(400, "That signature doesn't prove this use");
+    const next = arkivWrites.then(() => arkiv.recordUse(use), () => arkiv.recordUse(use));
+    arkivWrites = next.catch(() => {});
+    return { entity: await next };
+  },
+
   async "/api/alerts/watch"(body) {
     watched(needAddress(body.account, "account"));
     save();
@@ -352,6 +390,6 @@ async function watchLoop() {
   }
 }
 
-server.listen(PORT, () => console.log(`wallet service on ${PORT}, sponsor ${sponsor}, telegram ${BOT && BOT_NAME ? "on" : "off"}`));
+server.listen(PORT, () => console.log(`wallet service on ${PORT}, sponsor ${sponsor}, telegram ${BOT && BOT_NAME ? "on" : "off"}, arkiv ${arkiv ? "on" : "off"}`));
 void watchLoop();
 if (BOT) void pollTelegram();

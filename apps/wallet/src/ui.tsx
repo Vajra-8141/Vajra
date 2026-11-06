@@ -433,6 +433,16 @@ export function Proof({ done }: { done: Done }) {
         <dd>{done.block.toLocaleString("en-US")}</dd>
         <dt>Gas to verify</dt>
         <dd>{done.verifyGas === null ? "not recorded" : done.verifyGas.toLocaleString("en-US")}</dd>
+        {done.arkiv && (
+          <>
+            <dt>Public key record</dt>
+            <dd>
+              <a href={done.arkiv} target="_blank" rel="noreferrer">
+                On Arkiv
+              </a>
+            </dd>
+          </>
+        )}
       </dl>
       {done.canonicalRefusal ? (
         <div className="refusal">

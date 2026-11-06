@@ -28,6 +28,8 @@ export interface Done {
   verifyGas: number | null;
   /** Why the normal mempool would have refused this, in its own words, or null if it would have taken it. */
   canonicalRefusal: string | null;
+  /** A link to the public record of this one-time signature on Arkiv, when one was written. */
+  arkiv?: string | null;
 }
 
 export interface QueuedItem {
@@ -82,6 +84,8 @@ export interface Snapshot {
   /** One-time signatures left on the hash key. */
   hashKeyLeft: number | null;
   hashKeyTotal: number;
+  /** Uses of this hash key on the public Arkiv record, each one checked here. null when Arkiv can't be read. */
+  arkiv: { records: number; latest: string | null } | null;
   /** Is the hash key on this device? false after it was moved to a phone. */
   hashKeyHere: boolean;
   /** Is the wallet key on this device? false on a phone that only holds the hash key. */

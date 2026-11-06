@@ -172,6 +172,7 @@ export const engine: Engine = {
       hashKeyHere: state.hashKeyHere,
       walletKeyHere: true,
       backupStale: false,
+      arkiv: { records: 3, latest: null },
       recoveryPending: false,
       safe: { address: state.safe.address, balance: unknown ? null : eth(state.safe.balance), keyHeld: state.safe.keyHeld },
       recoverySet: unknown ? null : state.recoverySet,

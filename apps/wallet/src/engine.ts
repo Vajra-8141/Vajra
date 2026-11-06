@@ -17,6 +17,7 @@ import {
   type SignerStore,
   TREE_LEAVES,
   WOTS_W16,
+  verifyMasterSignature,
   accountState,
   accountV2Abi,
   createPayment,
@@ -183,12 +184,58 @@ function treeOf(seed: Hex): MasterSigner {
   if (!tree) {
     tree = new MasterSigner(WOTS_W16, leafStore(seed), () => hexToBytes(seed));
     trees.set(seed, tree);
+    kv.set(`vajra.root.${keccak256(seed).slice(2, 18)}`, tree.root);
   }
   return tree;
 }
 
+const ARKIV_EXPLORER = "https://rabdi.explorer.arkiv.network";
+
+interface ArkivUse {
+  leaf: number;
+  digest: Hex;
+  signature: Hex;
+  entity: Hex;
+}
+
+/** Anyone can write these rows, so a row only counts if its signature really is that key's. */
+async function arkivUses(root: Hex): Promise<ArkivUse[] | null> {
+  const reply = await api<{ available: boolean; uses: ArkivUse[] }>("/api/arkiv/leaves", { root, from: 0 }).catch(() => null);
+  if (!reply?.available) return null;
+  return reply.uses.filter((use) => {
+    try {
+      const blob = hexToBytes(use.signature);
+      return blob[0] === use.leaf && verifyMasterSignature(WOTS_W16, hexToBytes(use.digest), blob, hexToBytes(root));
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** Publishes a signature the moment it exists: it is revealed from here on, whether or not it ever gets mined. */
+function publishUse(use: { root: Hex; leaf: number; account: Address; digest: Hex; signature: Hex; op: string }): Promise<string | null> {
+  const written = api<{ entity: Hex | null }>("/api/arkiv/use", use).then(
+    ({ entity }) => (entity ? `${ARKIV_EXPLORER}/entity/${entity}` : null),
+    () => null,
+  );
+  return Promise.race([written, sleep(16_000).then(() => null)]);
+}
+
+let arkivCache: { root: Hex; at: number; value: Snapshot["arkiv"] } | null = null;
+async function arkivSummary(root: Hex): Promise<Snapshot["arkiv"]> {
+  if (arkivCache?.root === root && Date.now() - arkivCache.at < 45_000) return arkivCache.value;
+  const uses = await arkivUses(root);
+  const last = uses?.reduce<ArkivUse | null>((best, use) => (!best || use.leaf > best.leaf ? use : best), null) ?? null;
+  const value = uses ? { records: uses.length, latest: last ? `${ARKIV_EXPLORER}/entity/${last.entity}` : null } : null;
+  arkivCache = { root, at: Date.now(), value };
+  return value;
+}
+
 const NONCE_MANAGER: Address = "0x0000000000000000000000000000000000008250";
 const nonceSlot = (account: Address, key: bigint) => keccak256(concat([pad(account, { size: 32 }), numberToHex(key, { size: 32 })]));
+
+/** Building a tree takes seconds on a phone, so a refresh must never do it: it uses the root saved when the tree was first built. */
+const savedRoot = (seed: Hex) => kv.get(`vajra.root.${keccak256(seed).slice(2, 18)}`) as Hex | null;
 
 /**
  * A backup, or a key moved from another device, can be behind. The chain knows every use, so skip past them.
@@ -202,6 +249,9 @@ async function catchUpLeaves(seed: Hex, sender: Address): Promise<MasterSigner> 
     leaves.map((leaf) => ({ method: "eth_getStorageAt", params: [NONCE_MANAGER, nonceSlot(sender, leafNonceKey(tree.root, leaf)), "latest"] })),
   );
   const used = leaves.filter((leaf) => BigInt(values[leaf]!) !== 0n && leaf !== ROTATION_LEAF);
+  // The chain can't see a signature that was revealed and never mined. Arkiv can, and if it can't be read the chain still stands.
+  const published = await arkivUses(tree.root);
+  if (published) used.push(...published.map((use) => use.leaf).filter((leaf) => leaf !== ROTATION_LEAF));
   const store = leafStore(seed);
   const state = store.load()!;
   const next = used.length ? Math.max(...used) + 1 : 0;
@@ -276,8 +326,12 @@ async function master(calls: Call[], onStep: OnStep): Promise<Done & { receipt: 
   if (signer.leavesLeft === 0) throw new Error("This hash key is used up. Replace it first.");
   onStep("Signing with your hash key");
   await tick();
-  const { tx } = signMasterTx({ signer, account, epochSalt: state.epochSalt, calls, maxHashes: MAX_HASHES, fees: FEES });
-  return land(tx, onStep);
+  const { tx, leaf, digest } = signMasterTx({ signer, account, epochSalt: state.epochSalt, calls, maxHashes: MAX_HASHES, fees: FEES });
+  onStep("Publishing this one-time signature to Arkiv");
+  const record = publishUse({ root: signer.root, leaf, account, digest, signature: signer.sign(leaf, digest), op: "hash-key" });
+  const done = await land(tx, onStep);
+  arkivCache = null;
+  return { ...done, arkiv: await record };
 }
 
 async function daily(calls: Call[], onStep: OnStep) {
@@ -480,6 +534,8 @@ export const engine: Engine = {
     const denomination = BigInt(deployments().v2?.denomination ?? 0);
     const fee = BigInt(deployments().v2?.noteFee ?? 0);
     const notes: Note[] = s.notes.map((n) => ({ id: n.id, amount: eth(denomination), payout: eth(denomination - fee), spent: n.spent }));
+    const root = seed ? savedRoot(seed) : null;
+    const arkivRecord = root ? await arkivSummary(root).catch(() => null) : null;
     const privatePayments: PrivatePayment[] = await Promise.all(
       s.privates.map(async (p) => ({ id: p.account, account: p.account, amount: eth((await orNull(publicClient.getBalance({ address: p.account }))) ?? 0n), claimed: p.claimed })),
     );
@@ -496,6 +552,7 @@ export const engine: Engine = {
       queue,
       hashKeyLeft: leavesLeft,
       hashKeyTotal: ROTATION_LEAF,
+      arkiv: arkivRecord,
       hashKeyHere: seed !== null,
       walletKeyHere: s.dailyKey !== null,
       recoveryPending: !!s.recovering,
@@ -809,8 +866,9 @@ export const engine: Engine = {
     await tick();
     const signer = await catchUpLeaves(s.exit.seed, s.exit.address);
     onStep("Signing from the second way out");
-    const { tx } = signExitTx({ signer, exit: s.exit.address, account: s.account, epochSalt, calls: [ops.escape(s.safe, s.harborSalt)], fees: FEES });
-    const done = await land(tx, onStep);
+    const { tx, leaf, digest } = signExitTx({ signer, exit: s.exit.address, account: s.account, epochSalt, calls: [ops.escape(s.safe, s.harborSalt)], fees: FEES });
+    const published = publishUse({ root: signer.root, leaf, account: s.exit.address, digest, signature: signer.sign(leaf, digest), op: "exit" });
+    const done = { ...(await land(tx, onStep)), arkiv: await published };
     record("escaped", `Moved everything to your safe by the second way out`, done.hash);
     return finished(done);
   },

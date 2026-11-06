@@ -243,14 +243,30 @@ function RowAction({ id, s, done }: { id: string; s: Snapshot; done: boolean }) 
       </a>
     );
   if (id === "move")
-    return done ? (
+    return (
+      <>
+        <p className="t60 small">
+          {s.arkiv === null ? "The public record on Arkiv can't be read right now, so the chain is the only check." : `Each hash key signature works once. ${s.arkiv.records} ${s.arkiv.records === 1 ? "use is" : "uses are"} published on Arkiv, so no copy of this key can use one twice.`}{" "}
+          {s.arkiv?.latest && (
+            <a href={s.arkiv.latest} target="_blank" rel="noreferrer">
+              See the latest
+            </a>
+          )}
+        </p>
+        <MoveAction done={done} />
+      </>
+    );
+  return null;
+}
+
+function MoveAction({ done }: { done: boolean }) {
+  return done ? (
       <p className="t60 small">Your hash key is on your phone. Hash key actions happen there now.</p>
     ) : (
       <a className="btn primary" href="#/move">
         Move it to my phone
       </a>
     );
-  return null;
 }
 
 function BackupAgain({ done }: { done: boolean }) {
