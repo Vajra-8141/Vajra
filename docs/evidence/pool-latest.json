@@ -1,44 +1,73 @@
 {
- "ranAt": "2026-11-06T20:19:44.947Z",
+ "ranAt": "2026-11-06T21:27:45.142Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
  "chainId": 13370,
  "genesis": "0x74f05f1d3d0589fbf8e763a064aefe6d9941f6ab907cb52993142ede6c23cf3c",
  "implementation": "0x668e5b07b106c3ea01e113830636e19262d4db12",
- "account": "0xf8eAb2977C05573b4e87AF2A72Cc2dAF7b18a769",
+ "account": "0x8E803F5109c774Fb8a121368120a399528eB113E",
  "denomination": "100000000000000000",
+ "v2RuntimeBytes": 23918,
+ "beforeThisChange": {
+  "freeBeforeTheRefusal": "0.084704994976934965",
+  "thiefTook": "0.15"
+ },
+ "contractSizes": [
+  {
+   "bytes": 24576,
+   "deployed": true,
+   "codeBytes": 24576,
+   "gas": 37817019
+  },
+  {
+   "bytes": 24577,
+   "deployed": true,
+   "codeBytes": 24577,
+   "gas": 37818573
+  },
+  {
+   "bytes": 30000,
+   "deployed": true,
+   "codeBytes": 30000,
+   "gas": 46117847
+  }
+ ],
  "failures": 0,
- "steps": [
+ "transactions": [
   {
    "step": "the owner shields note 0",
-   "hash": "0x86a235a7cb5a3bc9dd37c7dc72f58ed3418bae1c0603ac6a654eaf856175a3cc"
+   "hash": "0xdafcbc07cb102380699d287f1c3f00203556b8fe324706afab4a4718c6a58b27"
   },
   {
    "step": "the owner shields note 1",
-   "hash": "0x8a280dc1e55ca3820fb6cfc579f29b714d11b9729863412ebf45d187ab861508"
+   "hash": "0x1e80ff7f269b5df7fb258d85426bad9d629ccd16c3c1f201e4d669460521a01e"
   },
   {
    "step": "an outsider pays in, from a key and a seed of their own",
-   "hash": "0x69148f42438b4c282a22f62da86fa77c69b9c559975f1408ec9c0656f32086eb"
+   "hash": "0xa0d5c88e3a6d3a6e2791bbf946bbb11f3b50e6de6230e4bf04eceee5b0797658"
   },
   {
    "step": "the owner shields note 2",
-   "hash": "0x9570c934a891d4a7b73b58fccce871529411f030447db7a6dc50cbe370079281"
+   "hash": "0x795aa71b331cf081c81a313965837160a487cec8677a2a8507e1caf979401593"
   },
   {
    "step": "the owner spends the oldest note",
-   "hash": "0xf567587ef8b90e9e6f570d2da3703c876ebe910c4453ae93ce3de2be5658957e"
+   "hash": "0xe95ffb063b1c184722e8557eff43049f93d6184f57550b54b01a0ea6f2e45810"
   },
   {
    "step": "freeze",
-   "hash": "0x348e9f180de0b409ae2a1376e8b2cb395074662bcf8677818f4683edad71cf59"
+   "hash": "0xc7aa84e78817bbd59225c5c509b0ce46e66936f2b52f1beccd54b7ebb3a9d18e"
+  },
+  {
+   "step": "this machine's own record of it",
+   "hash": null
   },
   {
    "step": "unfreeze",
-   "hash": "0x4d8d61118e4cae6370b16b8b6861319d12ad95ced72da65c3a248d1610bef02b"
+   "hash": "0xefadaf1d58bd0d8f4075906465d0c77bc293d470053209ca9e1509032002b8e7"
   },
   {
    "step": "the owner shields again, past the number that failed",
-   "hash": "0x24764b8c32be900b9a7cd7ac19ea8c6da318682d88583848241f42078b3bc68e"
+   "hash": "0xc1030ee28634b21935d34c719f8cdd77420df92bf54d138b6ada8a9294777dc0"
   },
   {
    "step": "rebuild every note from the seed and the chain",
@@ -46,7 +75,7 @@
   },
   {
    "step": "a rebuilt note is spent from the new machine",
-   "hash": "0x36dbfe64026c0c3d4fa61b4ca9483653fe4e42cbd3c7a69b414ca3a4c48dfe7b"
+   "hash": "0xe79734b74597d1f9a4805c5b6379135e7a8e8d1f911d664fd21b36182f06182d"
   },
   {
    "step": "rebuilding again is safe, and sees that spend",
@@ -54,10 +83,14 @@
   },
   {
    "step": "the new machine shields, and carries on from the seed's next number",
-   "hash": "0x48fb7c81aba32370957971bb4ceb9d49c4ed4db560fc8f7352eb830e6e938cc1"
+   "hash": "0x6c8954e177eb7048bfeffda58d7914e2f980533f937b1e75aab24206a753956f"
   },
   {
    "step": "another seed",
+   "hash": null
+  },
+  {
+   "step": "the right seed, on the machine that just tried the wrong one",
    "hash": null
   },
   {
@@ -70,7 +103,7 @@
   },
   {
    "step": "rotate the master key",
-   "hash": "0x4a0ae9d9d96f63895e11317d044e5ac36e9a3f084702b6c8790535dfb6ab6c44"
+   "hash": "0x7c70c15dacdf7f9fae7a8469f57ba05630c7cf07ad62e1284daa350a6ca3531a"
   },
   {
    "step": "rebuild after the rotation",
@@ -94,10 +127,74 @@
   },
   {
    "step": "escape",
-   "hash": "0x53def81d585016ab9db34ec9cb1bfced20e9bdbdd5b2b99ef42c107f39935aea"
+   "hash": "0x23184bc08beb6a44dddf185efd0de5952ab2945cf87ee872ab6dfdfdf391ff66"
   },
   {
    "step": "rebuild after the escape",
+   "hash": null
+  },
+  {
+   "step": "the thief's same spend, mined with its frame failed",
+   "hash": "0x3d59cc656db7c955c2a8ce592b3bc3ee0d46c2c2b9531a303f7811fa06dd5840"
+  },
+  {
+   "step": "the owner shields a note",
+   "hash": "0x0ebad61ad6de3be1d9733779b95785b496537ccdc64534721ffa2302e9cf64cd"
+  },
+  {
+   "step": "and a second",
+   "hash": "0x5035e711421f308785d91013c74d15713cb467551bba4e2019ef07ea4cdb890a"
+  },
+  {
+   "step": "the owner sets up the exit",
+   "hash": "0x3b757715ada139752a79cf321f5c60263e99e0ec6bc8c3ca93cefcae34f7a8d3"
+  },
+  {
+   "step": "the owner signs a rescue in advance, before any claim exists",
+   "hash": null
+  },
+  {
+   "step": "the holder sends anyway, with --no-check",
+   "hash": "0xc238ff923ae2df5f3fa3d7005c30c625a29a999c54152d4c311c2ef6e6fad38c"
+  },
+  {
+   "step": "and the second note the same way",
+   "hash": "0x8076f97bd132b8c0addbfc6d3ffc9f01c6bc4850bb77e720d2b3e7072aad2594"
+  },
+  {
+   "step": "this machine says what the chain says",
+   "hash": null
+  },
+  {
+   "step": "freeze",
+   "hash": "0x817bde51f51f22c8ea5cef94f2aa1828b6fd8a8d85407ca53242ba25521a0ed1"
+  },
+  {
+   "step": "unfreeze",
+   "hash": "0x098dd573248dfe82b9b437bb15caf73d84d9e091d39db0b495b9534656e903da"
+  },
+  {
+   "step": "the pool says so",
+   "hash": null
+  },
+  {
+   "step": "the machine is gone, and the seed finds the claims",
+   "hash": null
+  },
+  {
+   "step": "a claim from the new machine, with the real command",
+   "hash": "0x4930f26c501e081f5d622c9a9a853dcadc9f43e0daedd9127a39e5cf7ca97c08"
+  },
+  {
+   "step": "the rescue, with a claim outstanding",
+   "hash": "0x816c491ee2779a16ad92df22596c97789d68d60c8dde74eeafc2cb7e78bae8a5"
+  },
+  {
+   "step": "the master key unfreezes",
+   "hash": "0xc6fdc9782809980e994a45bdee46b72d8126828e3f8664ab6924ce3635b76265"
+  },
+  {
+   "step": "the seed says where the money went",
    "hash": null
   }
  ],
@@ -157,6 +254,243 @@
    "said": "This pool is closed. An escape took what it held to the harbor, and no note can be spent."
   }
  ],
+ "claims": [
+  {
+   "step": "the holder claims, to a new address, with a new proof",
+   "hash": "0x5722d0f2a6a176a577c382fd6be69d049ff2d290bf86868206869c87befca6a6",
+   "gas": 482141
+  },
+  {
+   "step": "a stranger sends the public first proof, and it pays the address it names",
+   "hash": "0xccf1f2aa74d9cf7bb8cef2dfb0ca954f303e4e12a1c5a3747a375c98b6e8ccfe",
+   "gas": 291262
+  },
+  {
+   "step": "a claim to a fresh address",
+   "hash": "0xb40b75c2eb68a7db53d26789c472b59ff8d8fb6ea8b2c9597661724a2cccbb6c",
+   "gas": 547985
+  }
+ ],
+ "hostileFrames": [
+  {
+   "recipient": "a recipient that burns all its gas",
+   "senderGas": 478574,
+   "senderStateGas": 97920,
+   "executionLimit": 500000
+  },
+  {
+   "recipient": "a recipient that reverts with 450,000 bytes",
+   "senderGas": 471605,
+   "senderStateGas": 97920,
+   "executionLimit": 500000
+  },
+  {
+   "recipient": "a recipient that eats the frame's state gas",
+   "senderGas": 478574,
+   "senderStateGas": 97920,
+   "executionLimit": 500000
+  },
+  {
+   "recipient": "a fresh address, paid",
+   "senderGas": 42626,
+   "senderStateGas": 281520,
+   "executionLimit": 500000
+  }
+ ],
+ "mined": [
+  {
+   "step": "before: a note, with the master key",
+   "hash": "0x272fbca85bb0dc53dcb36d02ee82991fac287db7ec48d9fba7fdd17ac7e6e68d",
+   "block": 1326,
+   "verifyGas": 88834,
+   "totalGas": 3295005,
+   "attempts": 1
+  },
+  {
+   "step": "before: the note is paid to a contract that refuses it",
+   "hash": "0x642b5b77beec12e9d509d295d6d199c4eff83e9bf768d0ef384a6b2bcffec958",
+   "block": 1330,
+   "verifyGas": 287225,
+   "totalGas": 879440,
+   "attempts": 1
+  },
+  {
+   "step": "before: the thief spends the note's money with the daily key",
+   "hash": "0xbd750cc9a07eda800b36acd8cd7526f29ea8fee1da9568e1c7c6dcc193582f3d",
+   "block": 1332,
+   "verifyGas": 36230,
+   "totalGas": 492317,
+   "attempts": 1
+  },
+  {
+   "step": "a note, with the master key",
+   "hash": "0xadc29eea5c69225cc840154ee79d315ba2de4e304252c5aec0c4bd8c159ad94d",
+   "block": 1337,
+   "verifyGas": 90851,
+   "totalGas": 3297068,
+   "attempts": 1
+  },
+  {
+   "step": "the note is paid to a contract that refuses it",
+   "hash": "0x160667f49ed560bea7ebfc45fca3bdf310ef7ef122be00253368ee34c5ad7e8d",
+   "block": 1342,
+   "verifyGas": 287292,
+   "totalGas": 443744,
+   "attempts": 1
+  },
+  {
+   "step": "the thief spends the free balance down, as a spend may",
+   "hash": "0x4c430f41c7e53d96a4f7db809d6dd5b25059a65d4abdce5e182b71c3f65a414a",
+   "block": 1348,
+   "verifyGas": 36344,
+   "totalGas": 492453,
+   "attempts": 1
+  },
+  {
+   "step": "a note, with the master key",
+   "hash": "0xc7c177499f40b22fc621ff3ea084851721363f2d4951f15c5868231ba7934b87",
+   "block": 1355,
+   "verifyGas": 92747,
+   "totalGas": 3298892,
+   "attempts": 1
+  },
+  {
+   "step": "the note goes to a contract that refuses it",
+   "hash": "0x4c102067e86ce85176aec0dc1e352d694a78e408a5cb0f1437a7652d00171924",
+   "block": 1360,
+   "verifyGas": 287292,
+   "totalGas": 883052,
+   "attempts": 1
+  },
+  {
+   "step": "the owner sets a recovery paper",
+   "hash": "0x90d0343f1b9ea39dfbea1ec9feb60d11eb49814318deb5d8dfdafa6ca486f141",
+   "block": 1363,
+   "verifyGas": 91529,
+   "totalGas": 481267,
+   "attempts": 1
+  },
+  {
+   "step": "the thief spends the free balance down",
+   "hash": "0x7d2daa116fc342d17535c125e10376910a297e9dc6e6f6f788528621265d2850",
+   "block": 1366,
+   "verifyGas": 36344,
+   "totalGas": 492453,
+   "attempts": 1
+  },
+  {
+   "step": "a second note, never spent",
+   "hash": "0x656e69e5bc6aff849add113b887fcac93c5329b90c355ff29defe361a49446c0",
+   "block": 1378,
+   "verifyGas": 91034,
+   "totalGas": 1132415,
+   "attempts": 1
+  },
+  {
+   "step": "freeze",
+   "hash": "0xa042a233597f6f8ef6d7599bfd6f4270130a9d51275ca6fceb91b4e7e39030a6",
+   "block": 1383,
+   "verifyGas": 91529,
+   "totalGas": 167418,
+   "attempts": 1
+  },
+  {
+   "step": "unfreeze",
+   "hash": "0x3d66405b317a9c324f3f656b3f968cb1d9c6c12802e703ed0cbfa8caac4f49b4",
+   "block": 1387,
+   "verifyGas": 90368,
+   "totalGas": 167418,
+   "attempts": 1
+  },
+  {
+   "step": "the second note leaves as usual",
+   "hash": "0x2ff631b0c7db69f3309fb92bf8cea6ef6e1749dd418daae95f473f2da9a5a000",
+   "block": 1396,
+   "verifyGas": 289486,
+   "totalGas": 615438,
+   "attempts": 1
+  },
+  {
+   "step": "a third note",
+   "hash": "0xa0ff2f16a9f211da8a3e8ed984bd74c1d126b8e547811a3df84703bba1e90ebb",
+   "block": 1400,
+   "verifyGas": 92633,
+   "totalGas": 1231898,
+   "attempts": 1
+  },
+  {
+   "step": "it goes to a contract that refuses it",
+   "hash": "0x4d9a069379ba0e54698a2949f3ba372ced8020c6208a52ab5c7bdec8a4031e1e",
+   "block": 1405,
+   "verifyGas": 291680,
+   "totalGas": 448496,
+   "attempts": 1
+  },
+  {
+   "step": "note 0 for a hostile recipient",
+   "hash": "0xb85a476278654f57d43bd0ab0ab45f7a23c2eb541269a2c7343a48838243228d",
+   "block": 1478,
+   "verifyGas": 91148,
+   "totalGas": 3297317,
+   "attempts": 1
+  },
+  {
+   "step": "note 1 for a hostile recipient",
+   "hash": "0x7404cf0857710708d340a2d4049a7c8d02e263942c90546d405682ab8f349e49",
+   "block": 1481,
+   "verifyGas": 90086,
+   "totalGas": 1131431,
+   "attempts": 1
+  },
+  {
+   "step": "note 2 for a hostile recipient",
+   "hash": "0x5e8cee45b3a20b951606e6ede108d8ed56912fb0654f030b5ed480f1d2e86998",
+   "block": 1483,
+   "verifyGas": 91487,
+   "totalGas": 1132880,
+   "attempts": 1
+  },
+  {
+   "step": "note 3 for a hostile recipient",
+   "hash": "0x036f5b8fe9ebe09e669755f479d8064452da8c62329b69554806389a49a555b0",
+   "block": 1486,
+   "verifyGas": 92321,
+   "totalGas": 1123168,
+   "attempts": 1
+  },
+  {
+   "step": "a recipient that burns all its gas",
+   "hash": "0x25bbf025b234b7d9fc23c4c7ad6e2d1773d1c13ed67be7c2100ebffbb2a2d8e5",
+   "block": 1495,
+   "verifyGas": 355306,
+   "totalGas": 951042,
+   "attempts": 1
+  },
+  {
+   "step": "a recipient that reverts with 450,000 bytes",
+   "hash": "0x03f10134b8b4742612150873717100a6e1bff96e3da60c329e4c89c4ee426adc",
+   "block": 1497,
+   "verifyGas": 355306,
+   "totalGas": 944097,
+   "attempts": 1
+  },
+  {
+   "step": "a recipient that eats the frame's state gas",
+   "hash": "0xebfb8744485ade0dab2cf71817df66c0e4fa3e7510cfd5ba68602ec9f1e814f0",
+   "block": 1499,
+   "verifyGas": 355306,
+   "totalGas": 951030,
+   "attempts": 1
+  },
+  {
+   "step": "a fresh address, at the same walk",
+   "hash": "0x99f29481a51b0a742dd448d2074760f0443e575b92776874b0e08d1355d98616",
+   "block": 1501,
+   "verifyGas": 355306,
+   "totalGas": 698694,
+   "attempts": 1
+  }
+ ],
  "refusals": [
   {
    "attack": "A deposit while frozen",
@@ -177,6 +511,94 @@
   {
    "attack": "A rebuilt note the chain has seen spent, sent again",
    "refusal": "NullifierSpent"
+  },
+  {
+   "attack": "One note, the same proof sent again",
+   "refusal": "NullifierSpent"
+  },
+  {
+   "attack": "A daily spend reaching into a claim, really sent",
+   "refusal": "ValueNotConserved, in the SENDER frame"
+  },
+  {
+   "attack": "The daily key reaches for the claim with no proof",
+   "refusal": "EscapeKeyOutranks"
+  },
+  {
+   "attack": "Fees reaching into a claim, with almost nothing free",
+   "refusal": "ValueNotConserved"
+  },
+  {
+   "attack": "A recovery's fee reaching into a claim",
+   "refusal": "ValueNotConserved"
+  },
+  {
+   "attack": "A corrupted proof",
+   "refusal": "ShieldProofInvalid"
+  },
+  {
+   "attack": "The seen proof, moved to a thief",
+   "refusal": "ShieldProofInvalid"
+  },
+  {
+   "attack": "A proof made for another account",
+   "refusal": "ShieldProofInvalid"
+  },
+  {
+   "attack": "A proof claiming a larger denomination",
+   "refusal": "ShieldProofInvalid"
+  },
+  {
+   "attack": "Half a note, proved in a tree of the thief's own",
+   "refusal": "RootUnknown"
+  },
+  {
+   "attack": "The first recipient, which still refuses",
+   "refusal": "TransferFailed"
+  },
+  {
+   "attack": "A note that was never spent, to take it without a fee",
+   "refusal": "NothingOwed"
+  },
+  {
+   "attack": "A freeze stops a claim",
+   "refusal": "AccountFrozen"
+  },
+  {
+   "attack": "The same claim again",
+   "refusal": "NothingOwed"
+  },
+  {
+   "attack": "The first proof, public since it failed, once its recipient takes money",
+   "refusal": "NothingOwed"
+  },
+  {
+   "attack": "A note that was paid",
+   "refusal": "NothingOwed"
+  },
+  {
+   "attack": "A recipient the trial shows will refuse, with nothing spent",
+   "refusal": "refuses a plain payment"
+  },
+  {
+   "attack": "A recipient the trial cannot read, with nothing spent",
+   "refusal": "could not check"
+  },
+  {
+   "attack": "A claim from the command, while frozen",
+   "refusal": "AccountFrozen"
+  },
+  {
+   "attack": "A claim with no sender for its gas",
+   "refusal": "--key-file <file> is required"
+  },
+  {
+   "attack": "A claim after the rescue, while frozen",
+   "refusal": "AccountFrozen"
+  },
+  {
+   "attack": "A claim against money that arrived after the rescue",
+   "refusal": "PoolClosed"
   }
  ]
 }

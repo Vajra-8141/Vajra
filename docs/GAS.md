@@ -47,23 +47,31 @@ it is a one-constant change: `len2` is a constructor argument of `VajraAccount`.
 
 ## Proofs
 
-Measured on the local mirror, 2026-11-06, the same way: `ethrex_simulateFrameTransaction`, a fresh proof per sample. Reproduce with `vajra measure-zk`.
+Measured on the local mirror, 2026-11-07, on the V2 with the claim path, the same way: `ethrex_simulateFrameTransaction`, a fresh proof per sample. Reproduce with `vajra measure-zk`.
 Recorded in `docs/evidence/zk-gas-latest.json`. **These are mirror numbers, not public devnet ones:** same client, same commit, a different chain.
 
 | Path | Samples | VERIFY gas (min / median / max) | Whole tx (median) | vs the 100,000 cap | vs the staked 1,000,000 | Sidecar as deployed |
 |---|---|---|---|---|---|---|
-| Recovery, Groth16, 8 public inputs | 24 | 298,084 / **298,084** / 298,084 | 876,901 | 3.0x over | fits | refused |
-| Unshield, Groth16, 6 public inputs | 32, one per ring position | 286,226 / **321,330** / 354,240 | 661,927 | 2.9x to 3.5x over | fits | refused |
+| Recovery, Groth16, 8 public inputs | 24 | 301,575 / **301,575** / 301,575 | 1,111,988 | 3.0x over | fits | refused |
+| Unshield, Groth16, 6 public inputs | 32, one per ring position | 287,292 / **322,396** / 355,306 | 662,910 | 2.9x to 3.5x over | fits | refused |
 
-A recovery's cost does not move, because its path through the verifier is the same whatever the proof. An unshield's depends on where its root sits in the
+These replace an older measurement. The claim added 67 gas to an unshield's VERIFY, like for like: 287,225 on the bytes before it and 287,292 after, in `docs/evidence/pool-latest.json`. The rest of the rise, and all of a recovery's, came from earlier fixes that this table had not caught up with. A recovery's cost does not move, because its path through the verifier is the same whatever the proof. An unshield's depends on where its root sits in the
 ring: the check walks it, at about 2,200 gas a slot, which is the whole spread. The VERIFY limit declared is 500,000.
 
 | Other | Gas |
 |---|---|
-| Shield, the first note, SENDER frame (twenty Poseidon hashes) | 896,305 |
-| Shield, later notes, whole transaction (31 samples) | 965,798 / **986,904** / 1,008,017 |
+| Shield, the first note, SENDER frame (twenty Poseidon hashes) | 896,371 |
+| Shield, later notes, whole transaction (31 samples) | 965,864 / **986,970** / 1,008,083 |
+| A claim, whole transaction, an ordinary call paying an address that exists, root early in the ring | 291,262 |
+| The same, paying a fresh address | 482,141 |
+| The same, with the root in the ring's last slot | 547,985 |
+| A refused unshield, SENDER frame, root in the ring's last slot: recipient burning all its gas, or eating the frame's state gas | 478,574 of the 500,000 pinned |
+| The same: recipient reverting with 450,000 bytes | 471,605 |
+| The same walk, an ordinary payment to a fresh address | 42,626 |
 
-A proof takes about 80 ms for recovery and about 340 ms for an unshield, on a 16-core x86-64 machine. Recovery has 937 constraints and the pool 11,336.
+Those six are single runs from `vajra pool-e2e`, in `docs/evidence/pool-latest.json`. A claim costs its sender, and never the account. What a refused unshield leaves unused, 21,426 gas, is the margin on a frame that must not fail: it holds back 30,000 from the recipient, and the call and the two writes after it take the rest. It writes no new slot after the call, so it needs no state gas there.
+
+A proof takes about 80 ms for recovery and about 340 ms for an unshield, on an idle 16-core x86-64 machine. The file in `docs/evidence/` was recorded beside another test run, so it says 141 ms and 624 ms. Recovery has 937 constraints and the pool 11,336.
 
 The note fee on the mirror is 0.005 ETH, out of a 0.1 ETH note. It is the cap on what a proof transaction may cost. At these limits that is about 3 gwei, so
 honest proof transactions cannot be included above that. The fee is immutable, which is fine here and would not be on a network with a real fee market.

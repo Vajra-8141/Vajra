@@ -45,6 +45,10 @@ Times are from one machine, on a warm mirror.
 | Recovery, step by step, on the demo account | `vajra recover-setup`, `recover-prove --secret <file>`, `recover --proof <file>` | 1 min | the new tree signs |
 | The shielded pool, and every attack | `vajra shielded` | 80 s | 12 mined, 30 refused, 0 failures |
 | One note in, one note out | `vajra shield`, `vajra unshield 0xAddress` | 10 s each | the recipient holds 0.095 ETH: a 0.1 ETH note, less its fee |
+| Notes rebuilt after the machine is gone, what the pool hides, a failed payment that stays money, and every attack | `vajra pool-e2e` | 9 min | 50 mined, 27 refused, 0 failures. **The claim is in the source and on the mirror, not in the V2 on the public devnet** |
+| What a pool hides, on any account | `vajra pool 0xAddress` | 2 s | how little, and what no chain can show. Needs no key |
+| Your own notes on a new machine | `vajra notes-restore --seed-file <file> --account 0xAddress` | 10 s | every note, and what became of it |
+| A refused payment, paid to someone else | `vajra unshield 0xRefuses --no-check`, then `vajra claim 0xAnother --key-file <file>` | 15 s | the note reads as owed, then the new address holds 0.095 ETH |
 | The same proof on the sidecar as deployed and as patched | `make unpatched`, then `vajra compare` | 2 min | refused, refused, mined |
 | The flaw in the contract as first deployed, and its fix | `vajra nonce-burn`, then `vajra nonce-burn fixed` | 2 min | 64 of 64 leaves burned and the escape refused, then 0 of 64 and admitted |
 | A thief banning the account on a node, and the way round it | `vajra rep-burn`, then `vajra rep-burn fixed` | 1 min each | banned in about 8 seconds, and escape, veto, recovery and a paymaster all refused. Then all three mined from the exit |
@@ -99,6 +103,7 @@ Tests that need no chain:
 | Try to break in | 17 real attacks through the bridge, each with its named refusal and the node's raw error. The same attacks `vajra e2e` builds, from `packages/cli/src/attacks.ts` |
 | Mempools | One signed transaction to the canonical and alt mempools side by side, with raw errors and gas per frame. Reuses `vajra pin` and `vajra budget` |
 | Your nominee | Load a rescue file, with no wallet. It says whether the rescue would work, what is waiting, and when it goes, and sends it by itself or by hand. `apps/dashboard/test/nominee.mjs` drives it, 0 failures |
+| Account, once it has a pool | What the pool hides, read from the chain with no key, and what no chain can show. A failed read says unknown. `apps/dashboard/test/pool.mjs` drives it with real deposits and a real refused payment |
 | Lifecycle | New, Submitted, then Mined or Cancelled with a reason, and reputation, from the sidecar's `skandha_explorer` methods |
 | Proof | Every file in `docs/evidence/`, grouped by where it really ran |
 

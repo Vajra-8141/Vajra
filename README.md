@@ -82,6 +82,9 @@ evidence, on the local mirror and nowhere else.
 | Nominee: a rescue signed in advance, held by someone with no key | BUILT, LOCAL | `vajra nominee-e2e`: 23 mined, 17 refused, 0 failures, with a real process holding no key. Its page, in a real browser. **No contract change**, and **not run on the public devnet**. It cannot tell you from a thief: see below |
 | Recovery by proof, Groth16 v1 | BUILT, PUBLIC | `vajra recover`: 12 mined, 24 refused, 0 failures, on the public devnet and on the mirror. **Not post-quantum**: see below |
 | Shielded pool, fixed denomination v1 | BUILT, LOCAL, ONE NOTE ON PUBLIC | `vajra shielded`, on the mirror: 12 mined, 30 refused, 0 failures. One 0.01 ETH note in and out on the public devnet. **Does not hide that the account paid the recipient**: see below |
+| Notes rebuilt from one seed | BUILT, LOCAL | `vajra notes-restore`: every note found again on a machine that starts empty, from the seed and the chain, and spent from there. A rotation does not touch it, and a backup carries it. **The seed can spend, so it is as sensitive as a key.** No contract change. See [`docs/FINDINGS.md`](docs/FINDINGS.md#24-notes-rebuilt-from-one-seed) |
+| What the pool hides: a meter | BUILT, LOCAL | `vajra pool <address>`, and a card on the account page. Counts addresses and not notes, keeps what the chain shows apart from what no chain can show, and has no top setting. A failed read gives no figure. No contract change |
+| A failed payment stays money: a claim | BUILT, LOCAL, **NOT ON PUBLIC** | `vajra pool-e2e`: 50 mined, 27 refused, 0 failures, for all three of these. A recipient that refuses no longer costs the holder the money: it stays out of a thief's reach until they claim it. The note's fee is still gone. It changes `unshield`, so it needs a redeploy, which has not happened. **It has had no review** |
 | STARK recovery and shielded v2 | DESIGNED | spec §9, §10; **no STARK proof exists** |
 | Variable amounts, note-to-note transfers, viewing keys, ERC-8441 note delivery | DESIGNED | spec §10; **not built** |
 
@@ -97,7 +100,7 @@ bridge connects to Arkiv directly, which shows it your IP and key tree.
 public queue as a large spend, so the master key can veto it if the paper was stolen, and the new tree signs once the delay passes.
 
 **The pool:** fixed-size notes inside the account, spent with a proof and no key. **The rulebook survives inside the shielded world:** a
-freeze blocks an unshield in validation, an escape drains the pool to the sealed harbor, and the daily key cannot reach it at all.
+freeze blocks an unshield in validation, an escape drains the pool to the sealed harbor, and the daily key cannot reach it at all. Every note comes from one seed, so a stolen laptop does not take them. On the mirror, a payment that fails stays owed, out of a thief's reach, until its holder claims it.
 
 Both need more validation gas than 100,000, and pairing precompiles. The canonical mempool refuses them, so the alt mempool is their only route. **On the public devnet, on 6 November:** the whole recovery story mined, 12 transactions and 24 refusals with 0 failures, a proof at 301,552 VERIFY gas ([`0xc06b…c5`](https://explorer.altmempool.wtf/tx/0xc06b44afa41b13237d812c24c3bbd17b106453e02096959f3a4e3e3107eb7cc5), `docs/evidence/recovery-public-latest.json`), and one note went in and came out (`docs/evidence/shield-public-latest.json`). The sidecar's maintainer lifted the cap and allowed precompiles after we reported both.
 
@@ -116,7 +119,7 @@ Say these before anyone asks. [`docs/ZK.md`](docs/ZK.md) has the rest.
 - **Groth16 is not post-quantum.** It rests on pairings. The recovery path is weaker against a quantum computer than the key it replaces.
   v2 is a STARK verified in the account, per EF guidance, and it is not built.
 - **The trusted setup has one contributor, us.** Whoever ran it could have forged proofs.
-- **The anonymity set starts tiny.** It is one account's pool.
+- **The anonymity set starts tiny.** It is one account's pool. `vajra pool` says how small, and it counts addresses, which may all be one person.
 - **The chain still shows that this account paid that recipient.** The pool hides which deposit paid. An outside depositor gets real, small
   unlinkability, and an owner shielding their own balance gets almost none. That is the cost of a pool the rulebook can govern.
 - **Lost master key plus stolen paper means the thief wins.** The veto needs a master key.
@@ -223,7 +226,7 @@ cost the account anything, with the named refusal shown.
 A spend over the limit is not refused: it queues, in public, and the master key can cancel it. A hostile token cannot block
 an escape: malformed returns, return bombs and gas burners are all tested.
 
-On the local mirror, by `vajra recover` and `vajra shielded`, each sent for real:
+On the local mirror, by `vajra recover`, `vajra shielded` and `vajra pool-e2e`, each sent for real:
 
 | Attack | Refusal |
 |---|---|
@@ -239,7 +242,13 @@ On the local mirror, by `vajra recover` and `vajra shielded`, each sent for real
 | An old note, against money that arrived after the escape | `ValueNotConserved` |
 | An outsider opens a pool on someone else's account | `PoolClosed` |
 | One note, proved to several recipients at once | `Frame transaction cannot be replaced: fee too low`. Fixed: all were admitted before |
-| A note paid to a contract that refuses it, to burn the owner's fees | the note is spent, once. Fixed: this burned 0.0072 ETH in 3 tries, and the note lived on |
+| A note paid to a contract that refuses it, to burn the owner's fees | the note is spent, once, and its fee paid. Fixed: this burned 0.0072 ETH in 3 tries, and the note lived on |
+| A daily spend of what a refused payment left behind | its frame fails with `ValueNotConserved`. Fixed: 0.15 ETH left an account with 0.085 ETH free before the note failed |
+| A claim with a corrupted proof, a seen proof moved to a thief, or a proof for another account or a larger note | `ShieldProofInvalid`, and the account pays nothing |
+| A claim with half a note, proved in a tree of the thief's own | `RootUnknown` |
+| A claim on a note never spent, one already paid, or the same claim twice | `NothingOwed` |
+| A claim while frozen, or against money that arrived after an escape | `AccountFrozen`, `PoolClosed` |
+| A recipient that burns its gas, reverts with a huge blob, or eats the frame's state gas, at the longest walk of the root ring | the frame succeeds, and the note is owed |
 | A recovery's public ticket, reused so that nodes run pairings for nothing | `RecoveryGateInvalid`. Fixed: it reached the pairing |
 | A recovery seen on the account, resent from the exit so that the reserve pays | `RecoveryGateInvalid`. Fixed: the reserve paid |
 | A proof of work solved once, spent on other recipients and roots | `ProofWorkMissing`. Fixed: each reached the pairing |

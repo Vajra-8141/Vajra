@@ -50,7 +50,7 @@ Next: make dashboard, then open http://localhost:3000. It walks through the thef
     vajra shield                   one note in, on the demo account
     vajra unshield 0xSomeAddress   one note out, with no key
     vajra pool                     what the pool hides, and what no chain can show
-    vajra pool-e2e                 notes rebuilt, the meter, a failed payment, every attack   about 6 min
+    vajra pool-e2e                 notes rebuilt, the meter, a failed payment, every attack   about 9 min
     vajra e2e                      the rulebook and every attack                about 2.5 min
     vajra pin                      the blocked escape, both mempools            about 15s
     vajra stealth                  stealth payment and paymaster                about 20s

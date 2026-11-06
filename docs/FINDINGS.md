@@ -330,11 +330,11 @@ Suspected by a review of the unshield nonce key, then reproduced. **Real, and th
 
 **Weighing the two keys.** The recipient-bound key stops no copy of a proof: a proof is already bound to its recipient, and a copy moved to another address dies with `ShieldProofInvalid` under either key. What the key bought was a retry after a recipient refused. The nullifier alone gives that up, so a note has one mined attempt. To keep that from being a trap, `unshield` no longer reverts once VERIFY has passed:
 
-- The note is spent whatever the recipient does. If it refuses, the money stays in the account and the holder has lost the note. `vajra unshield` asks the recipient first.
+- The note is spent whatever the recipient does. If it refuses, the money stays in the account and the holder has lost the note. `vajra unshield` asks the recipient first. Section 26 changed this: the money stays owed, and that closed a hole this left.
 - The copy attack in section 8 stays closed, because the gas is still pinned. VERIFY checks everything `unshield` checks, against the same state.
 - Our first version of this could still be made to revert, and an independent review of the fix found both ways. A recipient returning a huge blob ran the frame out of gas in the copy, so the call is now in assembly and copies nothing. And the circuit takes any field element as a recipient, so high bits passed the proof and failed the decoder. VERIFY now refuses them.
 
-Same attacks after the fix: 1 of 6 admitted, the rest `Frame transaction cannot be replaced: fee too low`. One mined attempt at a refusing contract, the note spent, the second refused. The account's balance fell by a 0.0027 ETH fee and it keeps the rest of the note, so the holder paid. `vajra shielded` now attempts a second valid proof to another recipient, before and after the note is spent, and the old key.
+Same attacks after the fix: 1 of 6 admitted, the rest `Frame transaction cannot be replaced: fee too low`. One mined attempt at a refusing contract, the note spent, the second refused. The account's balance fell by a 0.0027 ETH fee and it keeps the rest of the note, so the holder paid. Section 26 has since changed what happens to the rest: it stays held for the note, and the holder can claim it. `vajra shielded` now attempts a second valid proof to another recipient, before and after the note is spent, and the old key.
 
 **What is left.** A second proof with a 10% higher fee is a replacement, and counts as seen until the sidecar rule is in. Fees run out at the proof cost cap, a few rungs above an honest fee. Anyone can do the same to a pending proof transaction, since nothing signs its fee.
 
@@ -522,3 +522,111 @@ Built on the mirror. `vajra nominee-e2e`, `apps/dashboard/test/nominee.mjs`, `do
 - **A leaf is revealed and stays out in the world.** The exit's tree is not in the Arkiv registry, so a restored signer state could sign that leaf again, and two signatures from one leaf let someone forge a third. The exit's key can only reach `veto`, `freeze` and `escape` to the sealed harbor, so that forgery cannot steal. A stateless exit key, as section 20 decided, ends this. It is not built.
 - **It is not a will.** The money goes to the harbor. A claim that pays the nominee would be inheritance, with no thief in it, and it would blur the one story, so it is not built. An owner can choose a harbor their family could reach.
 
+## 24. Notes rebuilt from one seed
+
+Built on the mirror. `vajra pool-e2e`, `docs/evidence/pool-latest.json`. **It was not run on the public devnet. It needs no contract change,** so it should work on the V2 deployed there, and that is reasoning and not a run.
+
+**The gap.** A note lived in one file on one machine. A stolen or wiped laptop took it, because nothing else could prove it. An owner still had the escape, which sweeps the pool to the harbor. An outside depositor had nothing.
+
+**What it is.** One seed makes every note. A note's `secret` and `nullifierSeed` are a keccak of a label, the seed, the account, the chain and a number, cut to 248 bits to fit the field. `vajra notes-restore` walks the numbers, looks for each commitment in the pool's `Shielded` log, and asks the chain what became of it. `notes.json` is now a cache of what the seed and the chain already say. No circuit changed: a note is still `Poseidon(secret, nullifierSeed)`.
+
+**Why it is not the master seed,** which is where spec 04 section 10.3 put a viewing key:
+
+- An outside depositor has no master key, and needs this most.
+- The hardware signer never lets its seed out.
+- A rotation installs a new seed, and a recovery is for the day the old one is lost. Neither may lose a note.
+- A stolen master seed would take the notes as well.
+
+The price is one more secret to keep. `vajra backup` carries it, encrypted.
+
+**What the run shows,** with the real commands, from a folder that starts empty:
+
+- The machine is gone. A new one knows nothing, says that is not the same as none, and refuses to spend. Given the seed and the account, it finds every note among other people's, and which are spent.
+- A rebuilt note is spent from the new machine, and the recipient holds 0.095 ETH.
+- A failed deposit leaves a gap in the numbers, and the walk crosses it. `vajra notes` says that note never reached the pool, and it does not read as money.
+- A note the chain has seen spent, sent again from a rebuilt machine, dies with `NullifierSpent`.
+- Another seed finds nothing, and is not kept, so a mistyped paper cannot lock out the right one. The right seed on another account finds nothing. An outsider's seed finds only the outsider's note.
+- A restore over a different seed on this machine is refused, because it may be the only copy of other notes.
+- A rotation of the master key changes nothing, and a backup restored on a fresh machine rebuilds them.
+- A note from before there was a seed stays in the file through a rebuild.
+- After an escape, a rebuild says swept to the harbor, and no note reads as money still in the pool.
+
+**What it does not do:**
+
+- **The seed can spend.** It is not a viewing key, so it cannot be handed to an auditor. Viewing keys are still not built.
+- **A stolen seed is worse than a stolen file.** The file held the notes so far, and the seed holds every note it will ever make. A note leaves at once, with no queue, so a thief with the seed is a race. Only a freeze or an escape beats it, and only on an account you own. After a theft, move to a new seed.
+- **You need the account's address as well.** It is public, but you have to know it. An outsider with notes in two pools rebuilds each.
+- **One seed, one machine at a time.** `vajra shield` skips any number already in the pool. A deposit still in flight from another machine cannot be seen, and a second copy of one note could never be spent, because the nullifier is the same.
+- **The walk stops after 20 numbers in a row with no deposit.** It says so, and `--gap` looks further. Twenty failed deposits in a row would hide what came after.
+- **A note made before there was a seed** is still only in the file. A rebuild keeps it and cannot make it.
+
+## 25. A meter for what the pool hides
+
+Built on the mirror. `vajra pool <address>`, a card on the account page, `vajra pool-e2e`, `apps/dashboard/test/pool.mjs`. **It was not run on the public devnet.** It reads only what is already public, and needs no key and no contract change.
+
+**The gap.** The docs said the pool hides little while it is small, and nothing told a person how little. A count of notes would have been worse than nothing: thirty notes from one address look like a crowd and hide nobody.
+
+**What it counts.** Addresses, not notes, from each deposit's transaction. One address means it hides nothing, and it says so. More than one means it hides little, with the ceiling, and the odds of a guess at the largest depositor, in the words a person would use: "right about 3 times in 4". On the page a bar has one block for each address, so a pool that hides nothing is one solid block.
+
+**How it avoids overstating:**
+
+- **It has no top setting.** No number of addresses makes it say the pool hides you well, because a count cannot show they are different people. `packages/core/test/pool.test.ts` holds this at 5,000 addresses.
+- **The count is a ceiling and never a floor.** It says at most, and that the real number could be one.
+- **It keeps three things apart.** What the chain shows, what this read could not find out, and what no chain can show. The last list is always on the screen: whether addresses are people, which note left, your IP, and how much timing gives away.
+- **It always says the other limit,** that any withdrawal shows this account paid that recipient.
+- **Unknown stays unknown.** A sender the chain did not answer for makes the count unknown, not smaller. A chain that does not answer gives no figure. A read that does not add up gives none either: the log has to match `noteCount`, and the notes and what is owed have to come to `poolHeld` exactly, so a node that drops logs cannot produce a confident wrong number.
+- **Having no pool is not an empty pool,** and neither is a failed read. A V1 account reverts, an address with no code answers nothing, and a dead connection throws. The tests tell all three apart.
+
+**What it does not do:**
+
+- It does not weigh timing. A withdrawal soon after a deposit is easy to match, and the chain shows that, so a better attacker than this guess exists. It says so.
+- It counts the address that sent a deposit. Deposits made through one contract or relayer count as one, which understates and never overstates.
+- The odds assume every note is as likely to leave as any other.
+- It reads the logs from the first block on each poll, which is fine on this chain and would not be on a long one.
+
+## 26. A failed payment fell where a stolen key could spend it
+
+Found while designing the claim, then reproduced on the real client. **Real, and small: it needs a payment to fail. Fixed in the source. It reaches the public devnet with the next redeploy, which has not happened,** so the V2 deployed there still has it.
+
+Section 13 made a note spent whatever its recipient does. The money then stayed in the account, with nothing holding it. `poolHeld` fell by the whole note, so what the note was owed became free balance, and the rulebook's only limit on free balance is the daily limit. On the mirror, against the bytes before the fix, kept in `artifacts/VajraAccountV2.pre-section-26.json` (`vajra pool-e2e`, step 9): a note paid to a contract that refuses it, `poolHeld` at zero, and a daily spend of 0.15 ETH mined, from an account with only 0.085 ETH free before the note failed. A thief cannot make a payment fail alone, since the holder picks the recipient. The holder had lost the note either way.
+
+**The fix.** What the recipient would have got stays in `poolHeld`, and the note is marked owed. `claim` pays it, once, to whichever address the holder proves it to now. It changes `unshield`, one line of `validateUnshield`, and the `noteSpent` view, which reads the new state. No circuit changed: the holder makes a new proof of the same note, with a new recipient, against the same verifier.
+
+**Keeping it in `poolHeld` is what makes the rulebook hold, with no other change.** `_transfer`, `validateDaily`, `_checkRecovery`, `shield` and `escape` already protect that number, and none of them was touched:
+
+| Rule | How a claim obeys it | Tested on the mirror by |
+|---|---|---|
+| A freeze stops it | `claim` refuses | `AccountFrozen`, really sent, and by `vajra claim` |
+| An escape sweeps it and ends it | the sweep takes the balance, and `claim` refuses a closed pool | `PoolClosed`, against money that arrived later |
+| The daily key cannot reach it | `validateDaily` allows neither the selector nor a proof | `EscapeKeyOutranks` |
+| A spend cannot reach it | `_transfer` counts `poolHeld` | the same 0.15 ETH spend, whose frame now fails |
+| Fees cannot eat it | `validateDaily` and `_checkRecovery` count `poolHeld` | `ValueNotConserved`, on a daily transaction and on a recovery |
+| A nominee's rescue still works | `escape` did not change | a rescue signed before any claim existed, landing with one outstanding |
+
+**Why `claim` is an ordinary call,** and not a second proof transaction. A retry from the account would need a fee, so a nonce key, and that is section 13 again: one note holding many slots, and refused payments burning a fee each. It would also need a VERIFY function, with V2 near its size limit. As an ordinary call, whoever sends it pays its gas. It has no nonce key of the account's, nothing is counted against the account's address, and a failure costs the account nothing: each failed claim in the run checks that the balance and `poolHeld` did not move. A recipient that refuses reverts it, which is safe here, and the claim stays.
+
+**Retrying to the same recipient with no proof** was the other way. It would need the recipient stored after the call, a new slot in a frame that must not fail, and a contract that refuses for good would strand the money.
+
+**The frame still cannot fail.** `unshield` must not revert once VERIFY has passed, and a failure after the call would be worse than before: the note alive, its nonce key gone, and the fee paid by the owner.
+
+- Both slots written after the call were written before it, so they cost no state gas at all. Each refused frame in the run used 97,920 state gas, which is one new slot, whatever the recipient did. `noteSpent` became `noteState`, in the same place: 0, 1 for spent, and 2 for owed.
+- `UNSHIELD_KEPT_GAS` keeps 30,000 back from the recipient. A recipient that burns everything used to leave a sixty-fourth. The call and the writes after it took 8,574 of the 30,000, measured.
+- `UNSHIELD_EXECUTION_GAS` and `UNSHIELD_STATE_GAS` did not change.
+
+On the mirror, at the longest walk of the root ring, with the proof's root in the ring's last slot: a recipient that burns all its gas, one that reverts with 450,000 bytes, and one that writes new slots until it dies, to leave no state gas. Each frame succeeded, and each note is owed. An ordinary payment to a fresh address, which needs 183,600 spare gas at the call, was paid on the same walk. The frame used at most 478,574 of its 500,000, so what it keeps back was enough with 21,426 to spare, and that is the frame's worst case.
+
+**Attacks, each really sent:** a corrupted proof, a seen proof moved to a thief, a proof for another account, a larger denomination, a note never spent, a note that was paid, the same claim twice, the public first proof after a claim, a recipient that still refuses, and half a note: someone who learned the `nullifierSeed` and not the `secret` can make a real proof in a tree of their own, and only the root check stops it. A recipient that re-enters for a second payment is in `VajraAccountV2.t.sol`.
+
+**What is left:**
+
+- **It needs someone with gas.** A claim is an ordinary transaction, and its sender is public beside it. The proof fixes the recipient, so a friend can send it and cannot change where it goes.
+- **It links the two recipients.** The same nullifier is on both attempts, so the chain shows that the same note tried one address and then another. `vajra claim` says so.
+- **The first proof stays valid, and it is public.** If the first recipient ever takes money, anyone can send it there, until the holder claims. It cannot go anywhere the holder did not name.
+- **The fee is gone.** A refused payment costs its fee, and a claim pays the same 0.095 ETH a good payment would. The sender also pays the claim's gas.
+- **It has no expiry.** A claim nobody makes stays in `poolHeld` until an escape, and the owner cannot spend it.
+- **It is only as good as the master key,** like any note. An escape sends it to the owner's harbor. A note's holder from outside should know that.
+- **A master transaction's fee is not held to `poolHeld`,** and never was. The master key can take the pool anyway, so this is not a new reach.
+
+**It has had no independent review.** Nothing here has been audited.
+
+**Size.** V2's runtime went from 23,332 to 23,918 bytes, under the 24,576 limit. **That limit does not apply on this fork,** which section 20 said had not been checked: on the mirror, contracts of 24,577 and 30,000 bytes deployed, and their code is on chain (`vajra pool-e2e`, step 15). That is one client on the mirror, and no reason to rely on it elsewhere.
