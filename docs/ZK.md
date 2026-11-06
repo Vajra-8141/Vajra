@@ -10,7 +10,7 @@ Both run on the public devnet and on the local mirror. On public, `vajra recover
 - **The trusted setup has one contributor.** Phase 1 is PSE's perpetual powers of tau, 80 contributions, pinned by hash. Phase 2 was
   run once, by us, in `circuits/scripts/build.sh`. Whoever ran it could have kept the entropy, and with it could forge any proof in
   either circuit. The script discards it, but nothing proves that. A real deployment needs a phase 2 ceremony.
-- **The anonymity set starts tiny.** It is the notes in one account's pool. On day one that is a handful.
+- **The anonymity set starts tiny.** It is the notes in one account's pool. On day one that is a handful, and `vajra pool` says how small it is.
 - **The pool does not cut the owner's link to a recipient.** See [what the pool hides](#what-the-pool-hides). This is the limit that
   matters most.
 - **Poseidon is younger than keccak.** It has had far less cryptanalysis.
@@ -95,7 +95,7 @@ withdrawal circuit proves membership without saying which leaf.
 | The daily key cannot touch it | neither selector is allowed, and a daily frame cannot carry value |
 | A spend cannot reach into the notes | `_transfer` keeps `poolHeld` out of reach, even of a spend inside the limit |
 | Fees cannot eat the notes | a note pays its own fee, out of its value. A daily transaction or a recovery needs the balance to cover the notes and the fee. A staked sender may read its balance in validation, so an account with a pool must be staked |
-| Nobody can use the pool to burn the owner's money | a note pays its own way, because it is spent even if its recipient refuses the money, and it gets one mined attempt. This claim was false until `FINDINGS.md` section 13: a reverting recipient left the note alive and the owner paying |
+| Nobody can use the pool to burn the owner's money | a note pays its own way, because it is spent even if its recipient refuses the money, and it gets one mined attempt. This claim was false until `FINDINGS.md` section 13: a reverting recipient left the note alive and the owner paying. A claim costs the account nothing: see [a failed payment](#a-failed-payment-stays-money) |
 | Only the owner opens a pool | the first note has to come from the account, so an outsider cannot switch the balance check on for an unstaked account |
 
 **The root ring is 32 deep.** A proof takes time to reach a block, and the tree moves under it. The EF's guidance is that validity
@@ -103,11 +103,44 @@ resting on fast-changing state leaks reputation, so an unshield may prove agains
 ring gets `RootUnknown`, which is a tier, not an error: the note is fine, and `vajra unshield` proves again. A retry of the same proof
 is the same bytes. `vajra shielded` tests both sides of the edge: mined 30 deposits behind, refused 32 behind.
 
-**A note has one mined attempt.** If its recipient refuses the money, the note is spent and the money stays in the account. `vajra unshield` asks the
-recipient first, so that this takes a recipient that changes its mind. A note cannot be retried to someone else any more. That is the price of the two attacks it closes.
+**A note has one mined attempt.** If its recipient refuses the money, the note is spent and its fee is gone, and what the recipient would have got stays held for it: see [a failed payment](#a-failed-payment-stays-money). `vajra unshield` asks the recipient first, so that this takes a recipient that changes its mind, or `--no-check`. The note cannot be retried as a note. That is the price of the two attacks it closes.
 
 **The master key can take the pool.** That is the point of a pool that obeys the rulebook, and it also means this is not trustless: a
 note in someone else's pool is only as good as that account's master key, and anyone paying in should know it.
+
+### Notes come from one seed
+
+Every note comes from one seed, kept apart from the master seed. `vajra shield` makes it on first use. With the seed and the account, `vajra notes-restore` finds every note on the chain, and what became of each, on a machine that starts empty. A depositor from outside gets the same. A rotation or a recovery does not touch it, and `vajra backup` carries it.
+
+**The seed can spend.** Whoever holds it can spend every note it made and every note it will make, at once, with no queue. It is not a viewing key. See `FINDINGS.md` section 24. This ran on the mirror and not on the public devnet. It needs no contract change.
+
+### How much it hides
+
+`vajra pool <address>` and the account page read this from the chain, with no key. They count addresses and not notes, because thirty notes from one address hide nobody:
+
+    Hides nothing. Every note came from this account, so a withdrawal is plainly yours.
+    Hides little. A withdrawal could have been paid for by any of at most 2 addresses.
+
+Then what the chain shows, and what no chain can show. The number is a ceiling on the people and never a floor, it has no top setting, and a read that fails or does not add up says unknown and gives no figure. See `FINDINGS.md` section 25. This ran on the mirror and not on the public devnet.
+
+### A failed payment stays money
+
+If a note's recipient refuses, the note is spent and its fee is gone, and what the recipient would have got stays in `poolHeld`, marked as owed. The holder makes a new proof of the same note to any address, and `claim` pays it, once.
+
+    vajra unshield 0xRefuses --no-check     mined, and the recipient refused
+    vajra notes                             owed
+    vajra claim 0xAnother --key-file gas.key
+
+| Rule | How a claim obeys it |
+|---|---|
+| A freeze stops it | `claim` refuses |
+| An escape sweeps it to the harbor and ends it | the sweep takes the balance, and `claim` refuses a closed pool, whatever arrives later |
+| The daily key cannot reach it | it cannot reach the selector, and it has no proof |
+| A spend and fees cannot reach it | it is inside `poolHeld`, which `_transfer`, `validateDaily` and `_checkRecovery` already count |
+| A nominee's rescue still works | `escape` did not change, and a rescue signed before any claim existed landed with one outstanding |
+| Only the holder can move it | the proof is bound to its recipient, and only the note's secret makes a new one |
+
+A claim is an ordinary transaction, so whoever sends it pays its gas and is public beside it. A failed claim costs the account nothing, which is what keeps `FINDINGS.md` section 13 closed. **The chain shows that the same note tried two addresses.** The first proof stays valid and public, so if the first recipient ever takes money, anyone can send it there until the holder claims. See `FINDINGS.md` section 26. It is in the source, on the mirror, and **not in the V2 on the public devnet**: that needs a redeploy.
 
 ### What the pool hides
 
@@ -125,7 +158,7 @@ remove this limit.
 Each of these is a design in spec 04 §10. **None exists.**
 
 - Variable amounts, and note-to-note transfers. v1 notes are one size, and can only leave.
-- Viewing keys. Notes sit in a local file, not derived from the master seed.
+- Viewing keys. A note seed can spend as well as see, so it cannot be handed to anyone just to look.
 - Note delivery over ERC-8441.
 - USDC. v1 is ETH.
 - STARK verification, for both circuits. That is v2, and it is what would make these paths post-quantum.
