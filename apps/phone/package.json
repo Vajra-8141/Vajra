@@ -1,0 +1,15 @@
+{
+  "name": "@vajra/phone",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "playwright-core": "1.55.0",
+    "typescript": "^5.7.2"
+  }
+}

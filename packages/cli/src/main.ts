@@ -182,7 +182,6 @@ switch (command) {
   case "move":
     await (await import("./move.ts")).moveCommand(flags);
     break;
-  case "phone-e2e":
   case "backup-e2e":
   case "move-e2e":
     await import(`./${command}.ts`);

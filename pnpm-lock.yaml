@@ -45,6 +45,18 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  apps/phone:
+    devDependencies:
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+      playwright-core:
+        specifier: 1.55.0
+        version: 1.55.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   circuits:
     dependencies:
       circomlib:
