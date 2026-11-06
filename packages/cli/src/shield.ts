@@ -11,7 +11,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { DEVNET, type FrameTx, LEGACY_GAS_PRICE, RpcError, accountV2Abi, claimCall, deployments, framesSucceeded, opsV2, poolMeter, poolWords, publicClient, readPoolFacts, refusalNameV2, submit, unshieldTx, waitForSuccess, walletFor } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
-import { installNoteSeed, localNoteSeed, noteSeed } from "./note-seed.ts";
+import { checkNoteSeed, installNoteSeed, localNoteSeed, noteSeed } from "./note-seed.ts";
 import { type Note, SEED_GAP, noteCommitment, noteFromSeed, noteNullifier, notesInPool, proveUnshield } from "./proving.ts";
 import { loadWallet, requireWallet, runCalls } from "./wallet.ts";
 
@@ -165,7 +165,7 @@ export async function notesRestoreCommand(o: { seedFile?: string; account?: stri
   if (!account) throw new Error("no account here: name it with --account <address>");
   const seed = (o.seedFile ? readFileSync(o.seedFile, "utf8").trim() : localNoteSeed()) as Hex | null;
   if (!seed) throw new Error("no note seed on this machine: name it with --seed-file <file>");
-  installNoteSeed(seed);
+  checkNoteSeed(seed);
 
   const leaves = await poolLeaves(account);
   const gap = o.gap === undefined ? SEED_GAP : Number(o.gap);
@@ -183,9 +183,13 @@ export async function notesRestoreCommand(o: { seedFile?: string; account?: stri
     saved.spent = status === "spent";
     if (!known) notes.push(saved);
   }
-  saveNotes(notes);
+  // A seed that found nothing may be a mistyped paper, and keeping it would refuse the right one.
+  if (found.length) {
+    installNoteSeed(seed);
+    saveNotes(notes);
+  }
   const summary = [...counts].map(([status, count]) => `${count} ${status}`).join(", ");
-  console.log(`${found.length} notes found in ${leaves.length} deposits${found.length ? `: ${summary}` : ""}`);
+  console.log(`${found.length} notes found in ${leaves.length} deposits${found.length ? `: ${summary}` : ", so this seed was not kept"}`);
   console.log(`a run of ${gap} numbers with no deposit ended the search, so a note past a longer gap would not be found: raise --gap to look further`);
 }
 

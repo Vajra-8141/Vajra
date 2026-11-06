@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type Address, type Hex, concat, formatEther, keccak256, numberToHex, parseEther, size, toHex } from "viem";
+import { type Address, type Hex, concat, formatEther, keccak256, numberToHex, parseEther, size, toFunctionSelector, toHex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   DEVNET,
@@ -30,7 +30,8 @@ import {
   readPoolFacts,
   sendRescue,
   signDaily,
-  simulate,
+  simulateFrames,
+  submit,
   unshieldTx,
   waitForSuccess,
   walletFor,
@@ -181,6 +182,8 @@ const wrongPaper = join(dir, "wrong-paper.txt");
 writeFileSync(wrongPaper, generatePrivateKey());
 const wrong = done("another seed", stranger, ["notes-restore", "--seed-file", wrongPaper, "--account", account]);
 check(wrong.includes("0 notes found in 6 deposits"), "another seed finds nothing");
+const typo = done("the right seed, on the machine that just tried the wrong one", stranger, ["notes-restore", "--seed-file", paper, "--account", account]);
+check(typo.includes("5 notes found"), "a wrong paper was not kept, so it cannot lock the right one out");
 const friendPaper = join(dir, "friend-paper.txt");
 copyFileSync(join(friend.state, "note-seed.key"), friendPaper);
 const friendMachine = join(dir, "friend-machine");
@@ -328,9 +331,16 @@ check((await held(after.address)) === PAID, `${formatEther(PAID)} ETH is held fo
 const freeAfter = await free(after.address);
 check(freeAfter >= freeBefore, `the note paid its own fee: the owner's free balance did not fall, ${formatEther(freeBefore)} to ${formatEther(freeAfter)} ETH`);
 await refused("One note, the same proof sent again", { ...refusedTx, nonceSeq: 1n }, "NullifierSpent");
-const loot = await simulate(await after.thief([ops.spend(ETH, fresh(), parseEther("0.15"))]));
-check(loot.frames?.[1]?.succeeded === false, `The thief's same spend: its frame fails (${loot.executionError ?? "no error text"})`);
-refusals.push({ attack: "A daily spend reaching into a claim", refusal: "ValueNotConserved, in the SENDER frame" });
+// Valid in VERIFY, so it is really mined, and has to fail in its frame. The name comes from the client's own trace of the same bytes.
+const lootAddress = fresh();
+const raid = await after.thief([ops.spend(ETH, lootAddress, parseEther("0.15"))]);
+const traced = JSON.stringify(await simulateFrames(raid, "latest", true));
+const named = traced.includes(toFunctionSelector("ValueNotConserved()").slice(2));
+const raided = await submit(raid);
+steps.push({ step: "the thief's same spend, mined with its frame failed", hash: raided.hash });
+const kept = !framesSucceeded(raided.receipt) && (await publicClient.getBalance({ address: lootAddress })) === 0n && (await held(after.address)) === PAID;
+check(named && kept, `The thief's same spend, really sent: ${named ? "ValueNotConserved" : "no name in the trace"}, its frame failed, and the thief holds nothing`);
+refusals.push({ attack: "A daily spend reaching into a claim, really sent", refusal: named ? "ValueNotConserved, in the SENDER frame" : "no name in the trace" });
 await refused("The daily key reaches for the claim with no proof", await after.thief([{ data: claimCall({ ...refusedProof }), execution: 500_000n, state: 200_000n }]), "EscapeKeyOutranks");
 // As far as a spend can: the maximum cost is taken before the frame runs, so `_transfer` needs that much left. What comes back after is less than it.
 const draft = await after.thief([ops.spend(ETH, fresh(), freeAfter - parseEther("0.003"))]);
@@ -371,6 +381,14 @@ await waitForSuccess(await walletFor(deployer).sendTransaction({ to: relents, da
 await claimDies("The first proof, public since it failed, once its recipient takes money", after.address, "NothingOwed", refusedProof);
 await mined("the second note leaves as usual", sendNote(after.address, unspentProof));
 await claimDies("A note that was paid", after.address, "NothingOwed", unspentProof);
+// A limit, held here so that the docs cannot overstate it: the first proof is public, and it stays good for the address it names.
+const third = await depositNote("a third note", after);
+const relentsLater = await place(RELENTS);
+const thirdProof = await proofOf(after.address, third.note, third.leaf, relentsLater);
+await mined("it goes to a contract that refuses it", sendNote(after.address, thirdProof));
+await waitForSuccess(await walletFor(deployer).sendTransaction({ to: relentsLater, data: "0x01", gas: 200_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" }), "that contract relents");
+await claimLands("a stranger sends the public first proof, and it pays the address it names", after.address, thirdProof);
+check((await publicClient.getBalance({ address: relentsLater })) === PAID, "the first recipient got it, and nobody else could have");
 
 console.log("\n12. The real commands, across a lost machine");
 const { state: claims, account: claimsAccount, harbor: claimsHarbor } = await newHome("claims");
@@ -383,7 +401,8 @@ const rescueFile = join(dir, "rescue.json");
 done("the owner signs a rescue in advance, before any claim exists", claims, ["nominee-setup", "--out", rescueFile]);
 const claimSeed = readFileSync(join(claims, "note-seed.key"), "utf8").trim() as Hex;
 const refusesAll = await deployRefuser(deployer);
-stops("A recipient the trial shows will refuse, with nothing spent", claims, ["unshield", refusesAll], "refuses a plain payment");
+stops("A recipient the trial shows will refuse, with nothing spent", claims, ["unshield", await place(RELENTS)], "refuses a plain payment");
+stops("A recipient the trial cannot read, with nothing spent", claims, ["unshield", refusesAll], "could not check");
 const refusalSaid = done("the holder sends anyway, with --no-check", claims, ["unshield", refusesAll, "--no-check"]);
 check(refusalSaid.includes("refused the money") && !refusalSaid.includes(`ETH to ${refusesAll}`), "the command says the recipient refused, and does not say it was paid");
 const secondNote = noteFromSeed(claimSeed, claimsAccount, chainId, 1);
@@ -455,6 +474,17 @@ await claimLands("a claim to a fresh address", worst.address, lastClaim);
 const held32 = await held(worst.address);
 check(held32 === DENOM * 29n + PAID * 2n, `what is held adds up: 29 notes and two claims, ${formatEther(held32)} ETH`);
 
+console.log("\n15. Whether the 24,576-byte limit on contract size holds on this fork");
+const sizes: { bytes: number; deployed: boolean; codeBytes: number; gas: number }[] = [];
+for (const bytes of [24_576, 24_577, 30_000]) {
+  // PUSH2 length, PUSH0, RETURN: a contract of that many zero bytes.
+  const hash = await walletFor(deployer).sendTransaction({ data: concat(["0x61", numberToHex(bytes, { size: 2 }), "0x5ff3"]), gas: 55_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" });
+  const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 60_000, pollingInterval: 1000 });
+  const code = receipt.contractAddress ? await publicClient.getCode({ address: receipt.contractAddress }) : undefined;
+  sizes.push({ bytes, deployed: receipt.status === "success", codeBytes: code ? size(code) : 0, gas: Number(receipt.gasUsed) });
+  console.log(`  ${bytes} bytes: ${receipt.status}, ${code ? size(code) : 0} bytes of code on chain`);
+}
+
 const record = {
   ranAt: new Date().toISOString(),
   stack: "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
@@ -464,8 +494,9 @@ const record = {
   account,
   denomination: DENOM.toString(),
   v2RuntimeBytes: size((await publicClient.getCode({ address: deployments().v2!.implementation }))!),
+  contractSizes: sizes,
   failures: tally.failures,
-  steps,
+  transactions: steps,
   meter: readings,
   claims: claimed,
   hostileFrames: frames,

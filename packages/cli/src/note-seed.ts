@@ -21,11 +21,15 @@ export function noteSeed(): Hex {
 /** The seed on this machine, if there is one. */
 export const localNoteSeed = (): Hex | null => (existsSync(seedPath) ? (readFileSync(seedPath, "utf8").trim() as Hex) : null);
 
-/** Refuses to replace a different seed: it may be the only copy of other notes. */
-export function installNoteSeed(seed: Hex) {
+/** Refuses to stand in for a different seed: that one may be the only copy of other notes. */
+export function checkNoteSeed(seed: Hex) {
   if (!/^0x[0-9a-fA-F]{64}$/.test(seed)) throw new Error("that is not a note seed: it should be 32 bytes of hex");
   const local = localNoteSeed();
   if (local && local.toLowerCase() !== seed.toLowerCase()) throw new Error(`REFUSED: a different note seed is already in ${seedPath}. Move it aside first: it may be the only copy of other notes.`);
+}
+
+export function installNoteSeed(seed: Hex) {
+  checkNoteSeed(seed);
   mkdirSync(dirname(seedPath), { recursive: true });
   writeFileSync(seedPath, seed, { mode: 0o600 });
 }
