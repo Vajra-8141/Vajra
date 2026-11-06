@@ -1,76 +1,76 @@
 {
- "ranAt": "2026-11-06T04:56:03.752Z",
+ "ranAt": "2026-11-06T05:30:16.478Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch",
  "chainId": 13370,
  "genesis": "0x74f05f1d3d0589fbf8e763a064aefe6d9941f6ab907cb52993142ede6c23cf3c",
  "verifier": "0x0bbae1e5766c24010a08080299fa91eaa973185a",
  "implementation": "0x668e5b07b106c3ea01e113830636e19262d4db12",
- "account": "0xA64343dfcf2D3845E48D74B8c5f9E4fFb479215d",
- "proverMs": 305,
+ "account": "0x061f750da813d6A84AC8b18f8F1E37FC43969B06",
+ "proverMs": 296,
  "verifyGas": 298084,
  "failures": 0,
  "mined": [
   {
    "step": "set recovery",
-   "hash": "0x4ca97b93e1f3ea9824e4eb1508fb692fab193898a77a3b407ba94e83e8d3e98c",
-   "block": 119,
-   "verifyGas": 87276,
+   "hash": "0x7ff7ef4a3e69c4864b93a25a54d3d119714172ced01b4e009ba4d3a187df3faf",
+   "block": 32,
+   "verifyGas": 89625,
    "totalGas": 367354,
    "attempts": 1
   },
   {
    "step": "queue recovery",
-   "hash": "0x9908ee8c925d51a00cd25519b79d24a1ee1d2bd64b417d7a2691a827c6a534ef",
-   "block": 121,
+   "hash": "0x9f66b36450a637da0e36a07dda6388fd7b81a43bd7adba0a59c1b7a95137739c",
+   "block": 34,
    "verifyGas": 298084,
    "totalGas": 876877,
    "attempts": 1
   },
   {
    "step": "install root",
-   "hash": "0xe942dfa9bec50647ca9bbd3d63f1ef4be00156997a38f9f7d966e2f10c238d75",
-   "block": 133,
+   "hash": "0xae2935bbad86a47d729426d41c417a168423d9fb728bc7db79ae183ffb6aa0d5",
+   "block": 46,
    "verifyGas": 0,
    "totalGas": 53572,
    "attempts": 1
   },
   {
    "step": "freeze, signed by the NEW tree",
-   "hash": "0x98c881dc2586a861ad1af7a3e26f5d52d5c47aa5e8575052a2ca1104870b61a7",
-   "block": 135,
-   "verifyGas": 90672,
+   "hash": "0x3319baa347dde89e0b768c83f325729f4a9a55036664b4b9e1fc4307c9d3c3c5",
+   "block": 48,
+   "verifyGas": 89073,
    "totalGas": 167418,
    "attempts": 1
   },
   {
    "step": "unfreeze, signed by the NEW tree",
-   "hash": "0xbb24309d84d4f7a8a5d47f936a34dec11c4a3c52980275be84951de7a1c81c7d",
-   "block": 136,
-   "verifyGas": 94350,
+   "hash": "0x0c26b5eb6213f7215a72dee4edd4e54dbcd59000503f8c3e6ac513fb506ddbb3",
+   "block": 50,
+   "verifyGas": 93855,
    "totalGas": 167418,
    "attempts": 1
   },
   {
    "step": "set recovery on the second account",
-   "hash": "0xd5915397d4f08e1a9640a5564b8ee970c04cbac4f1e3b28b81796f1c53be07b9",
-   "block": 140,
-   "verifyGas": 91521,
+   "hash": "0xd5769a5407665d0493c8fd55b7eebd46bfc04cb0e5b3de26660b9284a4dc1a2a",
+   "block": 53,
+   "verifyGas": 90573,
    "totalGas": 367354,
    "attempts": 1
   },
   {
    "step": "thief queues a root, with a stolen paper",
-   "hash": "0x3e887327a0ab85d098dceb28374a8cf5834c44be284364b8ae5cf43f4c313aee",
-   "block": 143,
+   "hash": "0x3e7c3dabd5ff7d4710a9ec77dc554e9745a42868779d34aa1775344475d8881d",
+   "block": 55,
    "verifyGas": 298084,
-   "totalGas": 876889,
+   "totalGas": 876901,
    "attempts": 1
   },
   {
    "step": "owner vetoes it",
-   "hash": "0x9d03f5bc99e80fa5a0208b8c8fd0d31f17d2c0dec107276a46e439815908f628",
-   "block": 146,
-   "verifyGas": 91407,
+   "hash": "0x650664a0148c97b1479d3194ce2f669824f7911e80e7899b7375457efd499fa0",
+   "block": 58,
+   "verifyGas": 87417,
    "totalGas": 169466,
    "attempts": 1
   }

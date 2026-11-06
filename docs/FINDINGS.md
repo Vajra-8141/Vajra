@@ -138,8 +138,13 @@ be cancelled, so the thief takes everything after one queue delay. This is worse
 **It was not run on the public devnet.** The mirror runs the same source and the same client, and the deployed sidecar's limits are no looser for a
 daily transaction, but that is reasoning, not a measurement. Accounts on chain 1337 should be taken to be exposed.
 
-**The fix is one check,** in `VajraAccountV2`: the daily key stays on the linear nonce, or `DailyNonceKeyInvalid`. Same attack: 0 of 64, and the escape
-is admitted (`docs/evidence/nonce-burn-v2-latest.json`). The deployed contract does not have it, and a fix there needs a redeploy.
+**The fix is one check,** now in `VajraAccount.sol` and `VajraAccountV2`: the daily key stays on the linear nonce, or `DailyNonceKeyInvalid`. Same attack: 0 of 64,
+and the escape is admitted (`docs/evidence/nonce-burn-fixed-contract-latest.json`, `nonce-burn-v2-latest.json`). `vajra e2e` now attempts it too.
+
+**It is not on the public devnet yet.** `stack/redeploy-public.sh` does that, and needs the deployer key. It redeploys the w=16 implementation and factory, and the paymaster,
+which sponsors the implementation by code hash. Measured on the mirror, the two deploys cost 0.015 ETH, nearly all of it the paymaster's funding. w=256 stays as it is.
+**An account is a clone of one implementation, so every account created before the redeploy keeps the flaw.** The bytes first deployed are kept in
+`packages/core/src/artifacts/VajraAccount.pre-fix.json`, so that `vajra nonce-burn` still reproduces it.
 
 The same review found a bug of the same family in the first version of V2, also reproduced live, and fixed. A proof transaction has no signature, so anyone
 could copy a pending one and cut its SENDER frame's gas. The proof passes, the nonce is spent, the frame fails, and the transaction is mined. The

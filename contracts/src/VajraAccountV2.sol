@@ -36,8 +36,8 @@ interface IPoseidon {
 
 /// VajraAccount, with recovery by proof and a shielded pool. It runs on the local mirror only.
 ///
-/// `VajraAccount.sol` is what is deployed on the public devnet, and it stays byte for byte as it is, so everything recorded
-/// against it stays true. This file starts from a copy, because recovery has to go through `executeQueued`, and that is
+/// `VajraAccount.sol` is the public devnet's contract, and it stays free of all this, so that what is recorded against it stays
+/// true. This file starts from a copy, because recovery has to go through `executeQueued`, and that is
 /// not virtual, and the pool's funds have to be kept out of `spend` and swept by `escape`, which are not virtual either. Every
 /// difference from the original is marked `V2:`.
 ///

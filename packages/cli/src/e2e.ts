@@ -161,6 +161,11 @@ await refused("daily key raises its own limit", await dailySigned([ops.setRule(E
 await refused("daily key replaces itself", await dailySigned([ops.setDailyKey(thief)]), "EscapeKeyOutranks");
 await refused("daily key vetoes", await dailySigned([ops.veto(0n)]), "EscapeKeyOutranks");
 await refused(
+  "daily key burns a master leaf's nonce key",
+  await signDailyTx({ ...dailyTx({ account, dailyKey: daily, nonce: 0n, calls: [ops.spend(ETH, daily, 0n)], verifyGas: 97_000n }), nonceSeq: 0n, nonceKeys: [leafNonceKey(signer.root, 63)] }, dailyPrivate),
+  "DailyNonceKeyInvalid",
+);
+await refused(
   "daily key adds a second SENDER frame straight to the thief",
   await dailySigned([ops.spend(ETH, friend, 1n), { target: thief, data: "0x", value: parseEther("0.003"), execution: 50_000n, state: 200_000n }]),
   "FrameNotAllowed",

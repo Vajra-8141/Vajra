@@ -10,9 +10,10 @@ If your seed phrase is stolen, a thief can take a day's limit and no more. Anyth
 cancel it. And when you press escape, a thief's pending transaction cannot stop you.
 
 > **A known flaw in the deployed contract.** A thief holding only the daily key can spend every nonce key the master key will ever
-> need, which ends the master key: no veto, no freeze, no escape. We reproduced it on the local mirror against the deployed source,
-> 64 of 64 leaves in about 90 seconds, and did not run it on the public devnet. The fix is one check, and it is in `VajraAccountV2`,
-> where the same attack gets 0 of 64. The deployed contract does not have it. See [`docs/FINDINGS.md`](docs/FINDINGS.md) section 8.
+> need, which ends the master key: no veto, no freeze, no escape. We reproduced it on the local mirror against the deployed bytes,
+> 64 of 64 leaves in about 90 seconds, and did not run it on the public devnet. The fix is one check. It is in this repo's source, where
+> the same attack gets 0 of 64, but **it is not on the public devnet yet**, so `contracts/src/VajraAccount.sol` is now one check ahead of
+> the addresses in `1337.json`. Accounts already created there keep the flaw. See [`docs/FINDINGS.md`](docs/FINDINGS.md) section 8.
 
 Built on [EIP-8141](https://eips.ethereum.org/EIPS/eip-8141) frame transactions and the ERC-8421 alternative mempool.
 The core runs on the public devnet (chain 1337). Recovery by proof and the shielded pool run on a local mirror of it, because the
@@ -101,7 +102,7 @@ Say these before anyone asks. [`docs/ZK.md`](docs/ZK.md) has the rest.
   unlinkability, and an owner shielding their own balance gets almost none. That is the cost of a pool the rulebook can govern.
 - **Lost master key plus stolen paper means the thief wins.** The veto needs a master key.
 - **Nothing here is audited.** An independent review of the first version found two critical bugs, both reproduced, both fixed in V2. One of
-  them is the deployed contract's flaw above, and that one is not fixed on chain.
+  them is the deployed contract's flaw above, which is fixed in the source and not yet on chain.
 
 ## Leaf registry on Arkiv
 
@@ -236,8 +237,8 @@ reaches a master function never becomes valid.
 
 ## What this does not prove
 
-0. **The deployed contract's master key can be disabled by a thief holding only the daily key.** See the top of this page. Until it is
-   redeployed, "a thief cannot stop your escape" holds only against a pending transaction, and not against this.
+0. **On the deployed contract, a thief holding only the daily key can disable the master key.** See the top of this page. Until it is
+   redeployed, and for any account created before that, "a thief cannot stop your escape" holds only against a pending transaction.
 1. **This is not production post-quantum cryptography.** The parameters are unreviewed and there is no formal proof. Plain
    keccak chains give multi-target attacks a discount of about 19 bits that WOTS+ or XMSS would remove. Production means
    LMS, XMSS or SPHINCS+, which are heavier.

@@ -18,10 +18,10 @@ Both run on the local mirror only, never on the public devnet. [`JUDGES.md`](../
 
 ## Where it runs, and why
 
-`contracts/src/VajraAccount.sol` is what is deployed on the public devnet, and it is unchanged. New code lives in
+`contracts/src/VajraAccount.sol` is the public devnet's contract, and its only change is the one check in `FINDINGS.md` section 8. New code lives in
 `contracts/src/VajraAccountV2.sol`, a copy with every difference marked `V2:`. It had to be a copy: recovery goes through
 `executeQueued`, and the pool has to reach into `spend`, `escape` and `validateDaily`, none of which are virtual.
-`VajraAccountV2Parity.t.sol` runs all 48 rulebook tests against V2. V2 also carries one fix the deployed contract lacks: see `FINDINGS.md` section 8.
+`VajraAccountV2Parity.t.sol` runs all 48 rulebook tests against V2.
 
 A pairing check cannot pass the deployed sidecar. The same transaction, byte for byte, from a staked account, on the same chain
 (`vajra compare`, recorded in `docs/evidence/compare-latest.json`):

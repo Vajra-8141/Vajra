@@ -1,19 +1,21 @@
 /**
  * A thief with only the daily key tries to burn the master key's nonce keys. They are public: keccak(root, leaf).
- * `validateDaily` in the deployed VajraAccount does not look at nonce keys, so this attacks the mirror's copy of that contract, and
- * V2. It refuses to run anywhere else: it has no business on the public devnet.
+ * The first deployed `validateDaily` did not look at nonce keys. This attacks a copy of that contract on the mirror, and the fixed ones. It
+ * refuses to run anywhere else: it has no business on the public devnet.
  *
- *     vajra nonce-burn         the deployed contract, on the mirror
+ *     vajra nonce-burn         the contract as first deployed, with no fix: artifacts/VajraAccount.pre-fix.json
+ *     vajra nonce-burn fixed   VajraAccount as it is now
  *     vajra nonce-burn v2      VajraAccountV2
  */
 import { randomBytes } from "node:crypto";
-import { writeFileSync } from "node:fs";
-import { keccak256, parseEther, toHex } from "viem";
+import { readFileSync, writeFileSync } from "node:fs";
+import { type Address, type Hex, keccak256, parseEther, toHex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   DEVNET,
   ETH,
   type FrameTx,
+  LEGACY_GAS_PRICE,
   MasterSigner,
   RpcError,
   WOTS_W16,
@@ -31,6 +33,8 @@ import {
   signDailyTx,
   signMasterTx,
   submit,
+  waitForSuccess,
+  walletFor,
 } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
@@ -39,17 +43,32 @@ import { V2_STAKE } from "./wallet.ts";
 if (!isLocalStack) throw new Error("this is an attack: it runs on the local mirror only, with VAJRA_STACK=local");
 
 const v2 = process.argv.includes("v2");
+const fixed = process.argv.includes("fixed");
 const { w16, v2: zk, genesis } = deployments();
 const deployer = loadOrCreateKey(keyPath("deployer.key"));
+
+/** The bytes first deployed, put on the mirror, so that the flaw stays reproducible after the source is fixed. */
+async function preFixFactory(): Promise<Address> {
+  const load = (name: string) => JSON.parse(readFileSync(new URL(`../../core/src/artifacts/${name}.json`, import.meta.url), "utf8"));
+  const wallet = walletFor(deployer);
+  const place = async (artifact: { abi: never; bytecode: Hex }, args: unknown[]) => {
+    const hash = await wallet.deployContract({ ...artifact, args: args as never, gas: 30_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" });
+    return (await waitForSuccess(hash, "placing the pre-fix contract")).contractAddress!;
+  };
+  return place(load("VajraFactory"), [await place(load("VajraAccount.pre-fix"), [4, 3, DEVNET.stakingRegistry])]);
+}
+
+const factory = v2 ? zk!.factory : fixed ? w16.factory : await preFixFactory();
 const dailyKey = generatePrivateKey();
 const daily = privateKeyToAccount(dailyKey).address;
 const signer = new MasterSigner(WOTS_W16, memoryStore(), () => new Uint8Array(randomBytes(32)));
 const harbor = privateKeyToAccount(generatePrivateKey()).address;
 const salt = keccak256(toHex("harbor"));
 
+const label = v2 ? "VajraAccountV2" : fixed ? "VajraAccount, fixed" : "VajraAccount as first deployed";
 const account = await createAccount(
   deployer,
-  v2 ? zk!.factory : w16.factory,
+  factory,
   {
     dailyKey: daily,
     wotsRoot: signer.root,
@@ -65,7 +84,7 @@ const account = await createAccount(
   },
   parseEther("0.5"),
 );
-console.log(`${v2 ? "VajraAccountV2" : "the deployed VajraAccount"}: ${account}`);
+console.log(`${label}: ${account}`);
 
 /** A daily-signed no-op, on nonce keys that belong to the master key's leaves. */
 async function burn(leaves: number[]): Promise<FrameTx> {
@@ -99,13 +118,13 @@ const outcome = await sendAlt(escape.tx).then(
 console.log(`the owner's escape, on leaf ${escape.leaf}: ${outcome}`);
 console.log(`account balance ${await publicClient.getBalance({ address: account })}, harbor balance ${await publicClient.getBalance({ address: harbor })}`);
 writeFileSync(
-  new URL(`../../../docs/evidence/nonce-burn-${v2 ? "v2" : "deployed-contract"}-latest.json`, import.meta.url),
+  new URL(`../../../docs/evidence/nonce-burn-${v2 ? "v2" : fixed ? "fixed-contract" : "deployed-contract"}-latest.json`, import.meta.url),
   JSON.stringify(
     {
       ranAt: new Date().toISOString(),
       stack: "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
       chainId: DEVNET.chainId,
-      contract: v2 ? "VajraAccountV2" : "VajraAccount, the same source the public devnet runs",
+      contract: label,
       account,
       leavesBurned: burned,
       firstRefusal,

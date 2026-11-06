@@ -172,6 +172,7 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     error RootRequired();
     error StakeFailed();
     error CoSignerRequired();
+    error DailyNonceKeyInvalid();
 
     // ---------------------------------------------------------------------------------------- construction --------
 
@@ -223,6 +224,10 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         Layout storage s = _layout();
         if (s.frozen) revert AccountFrozen();
         _requireDailySignature(s.dailyKey);
+
+        // The daily key stays on the linear nonce. Approving a transaction spends whatever nonce keys it names, and the master
+        // key's are public: keccak(root, leaf). Left open, a thief spends all 64 of them and the master key can never sign again.
+        if (txparam(TxParam.NONCE_KEY_COUNT) != 1 || txparam(TxParam.NONCE_KEY_0) != 0) revert DailyNonceKeyInvalid();
 
         // Fees are paid before the rulebook runs, so they are the one way value can leave without passing it. The scope
         // is the signer's to choose, and payment can be approved in a frame of its own, so this has to hold whenever

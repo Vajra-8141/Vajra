@@ -52,8 +52,8 @@ do not run them live. Beats 2:55 and 3:20 are on the local mirror: chain 13370, 
 ## Say these first, before anyone asks
 
 - **"A thief with the daily key can disable the master key on the deployed contract."** They spend the master key's public nonce keys. We found it reviewing our own new code,
-  reproduced it locally, and fixed it in V2, but the deployed contract does not have the fix. `docs/FINDINGS.md` section 8. **Do not say "the thief cannot stop your escape"
-  without "while a transaction is pending", unless the contract has been redeployed with the fix.**
+  reproduced it locally, and fixed it in the source. `docs/FINDINGS.md` section 8. **Until `stack/redeploy-public.sh` has run and the demo account is new, do not say "the thief
+  cannot stop your escape" without "while a transaction is pending".** After that, say what was found and fixed, and that older accounts keep the flaw.
 - **"Groth16 is not post-quantum."** The recovery path is weaker against a quantum computer than the key it replaces. v2 is a STARK, and it is not built.
 - **"The pool hides which deposit paid, not that this account paid that recipient."** That is the price of a pool the rulebook can govern.
 - **"Recovery and the pool run locally."** The deployed sidecar refuses them, and the EF said a local sidecar is fine for judging.

@@ -2,8 +2,8 @@
 
 State at commit `ba303e5`, Friday 6 November 2026, 04:10 IST, with sections 3 and 7 updated later that day for recovery, the pool and the local mirror.
 
-> **Read `docs/FINDINGS.md` section 8 first.** A thief with only the daily key can disable the master key on the deployed contract. Reproduced on the local mirror. Not fixed on
-> chain 1337. Whether to redeploy is the owner's call.
+> **Read `docs/FINDINGS.md` section 8 first.** A thief with only the daily key can disable the master key on the deployed contract. Reproduced on the local mirror. The owner has
+> approved the redeploy, and the source is fixed. **Not on chain 1337 yet:** whoever holds `.vajra/deployer.key` runs `stack/redeploy-public.sh`, then makes new demo accounts (task 9).
 
 **Deadline: submit by 06:00 IST on Saturday 7 November.** That is the team's target from the spec. The event closes at 09:00 IST.
 
@@ -143,7 +143,7 @@ Status follows the spec's rule: a module is BUILT only if it runs on the live de
 | Shielded pool, fixed denomination v1 | BUILT, LOCAL | `docs/evidence/shielded-latest.json`. Local mirror only |
 | STARK recovery and shielded v2 | DESIGNED | Spec §9, §10. **No STARK proof exists** |
 
-See [`JUDGES.md`](JUDGES.md) for the mirror, and [`docs/ZK.md`](docs/ZK.md) for the design. New contracts go in `VajraAccountV2.sol`: `VajraAccount.sol` is what is deployed, and stays as it is.
+See [`JUDGES.md`](JUDGES.md) for the mirror, and [`docs/ZK.md`](docs/ZK.md) for the design. New contract work goes in `VajraAccountV2.sol`, not `VajraAccount.sol`.
 
 ### Live results
 
