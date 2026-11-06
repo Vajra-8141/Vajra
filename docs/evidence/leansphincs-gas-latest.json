@@ -1,0 +1,657 @@
+{
+ "ranAt": "2026-11-06T18:49:09.153Z",
+ "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
+ "chainId": 13370,
+ "genesis": "0x74f05f1d3d0589fbf8e763a064aefe6d9941f6ab907cb52993142ede6c23cf3c",
+ "method": "ethrex_simulateFrameTransaction for the rows, a fresh digest per sample, then each shape mined",
+ "upstream": {
+  "repository": "https://github.com/nconsigny/SPHINCs-",
+  "commit": "4c76aaf113d326df9adede63d015f3b394ab84f4",
+  "verifierSha256": "5d8e024fe23be273a78d1f4fdacf269f8ffdde9773f7b417a42ea70bf5a161c8"
+ },
+ "scheme": {
+  "name": "leanSphincs-S over keccak256",
+  "n": 16,
+  "h": 26,
+  "d": 1,
+  "a": 12,
+  "k": 13,
+  "w": 4,
+  "targetSum": 128,
+  "signatureBytes": 4164,
+  "publicKeyBytes": 32
+ },
+ "signer": {
+  "code": "packages/core/src/leansphincs.ts, written from the spec, TypeScript with @noble/hashes, one thread. Upstream's Rust signer was not run",
+  "tier": "Light: b = 13, rated 20000 signatures by upstream, an estimate",
+  "machine": "AMD Ryzen 7 6800H with Radeon Graphics, node v26.13.0",
+  "keygen": {
+   "ms": 21292,
+   "keccakCalls": 1851418
+  },
+  "cacheBytes": 16384,
+  "signMs": {
+   "samples": 181,
+   "min": 1383,
+   "median": 1554,
+   "max": 3403,
+   "mean": 1681
+  },
+  "signKeccakCalls": {
+   "samples": 181,
+   "min": 137425,
+   "median": 154150,
+   "max": 245824,
+   "mean": 158276
+  },
+  "theHashKeyBesideIt": {
+   "keygenMs": 1346,
+   "signMs": {
+    "samples": 48,
+    "min": 6.8,
+    "median": 11.8,
+    "max": 30.2,
+    "mean": 13
+   }
+  }
+ },
+ "deployment": {
+  "verifier": {
+   "address": "0x08546a2e532776c779020ac71da79abbc3ee32e5",
+   "deployGas": 6189395,
+   "runtimeBytes": 3872
+  },
+  "implementation": {
+   "address": "0x0947d8b9188ec94f32604701b9934cbcc5cd7dd4",
+   "deployGas": 5788126,
+   "runtimeBytes": 2541
+  },
+  "factory": {
+   "address": "0xb256f1af154924097123ff8162ea3de738343f81",
+   "deployGas": 1610617,
+   "runtimeBytes": 906
+  }
+ },
+ "rows": {
+  "hash key, V2 validateMaster, new nonce key, a payment": {
+   "verify": {
+    "samples": 24,
+    "min": 86992,
+    "median": 90799,
+    "max": 93175,
+    "mean": 90783
+   },
+   "wholeTx": {
+    "samples": 24,
+    "min": 173162,
+    "median": 173162,
+    "max": 173162,
+    "mean": 173162
+   },
+   "maxCostEth": "0.001514042",
+   "signatureBytes": 2337,
+   "encodedBytes": 2511,
+   "canonical": "admitted",
+   "alt": "admitted"
+  },
+  "leanSphincs-S, master shape, new nonce key, a payment": {
+   "verify": {
+    "samples": 24,
+    "min": 90581,
+    "median": 90775,
+    "max": 90879,
+    "mean": 90769
+   },
+   "wholeTx": {
+    "samples": 24,
+    "min": 288042,
+    "median": 288042,
+    "max": 288042,
+    "mean": 288042
+   },
+   "maxCostEth": "0.001571914",
+   "signatureBytes": 4164,
+   "encodedBytes": 4305,
+   "canonical": "admitted",
+   "alt": "admitted"
+  },
+  "leanSphincs-S, master shape, nonce key used before, a payment": {
+   "verify": {
+    "samples": 24,
+    "min": 70654,
+    "median": 70722,
+    "max": 70820,
+    "mean": 70734
+   },
+   "wholeTx": {
+    "samples": 24,
+    "min": 288042,
+    "median": 288042,
+    "max": 288042,
+    "mean": 288042
+   },
+   "maxCostEth": "0.001571914",
+   "signatureBytes": 4164,
+   "encodedBytes": 4305,
+   "canonical": "admitted",
+   "alt": "admitted"
+  },
+  "leanSphincs-S, master shape, linear nonce, a payment": {
+   "verify": {
+    "samples": 24,
+    "min": 70649,
+    "median": 70776,
+    "max": 70922,
+    "mean": 70763
+   },
+   "wholeTx": {
+    "samples": 24,
+    "min": 285994,
+    "median": 285994,
+    "max": 285994,
+    "mean": 285994
+   },
+   "maxCostEth": "0.001570962",
+   "signatureBytes": 4164,
+   "encodedBytes": 4273,
+   "canonical": "admitted",
+   "alt": "admitted"
+  },
+  "hash key, VajraExit, veto": {
+   "verify": {
+    "samples": 24,
+    "min": 95565,
+    "median": 97392,
+    "max": 97773,
+    "mean": 97148
+   },
+   "wholeTx": {
+    "samples": 24,
+    "min": 171004,
+    "median": 172867,
+    "max": 173188,
+    "mean": 172610
+   },
+   "maxCostEth": "0.000662106",
+   "signatureBytes": 2337,
+   "encodedBytes": 2516,
+   "canonical": "admitted",
+   "alt": "admitted"
+  },
+  "leanSphincs-S, exit shape, linear nonce, veto": {
+   "verify": {
+    "samples": 24,
+    "min": 81476,
+    "median": 81544,
+    "max": 81676,
+    "mean": 81564
+   },
+   "wholeTx": {
+    "samples": 24,
+    "min": 282298,
+    "median": 282298,
+    "max": 282298,
+    "mean": 282298
+   },
+   "maxCostEth": "0.000764596",
+   "signatureBytes": 4164,
+   "encodedBytes": 4311,
+   "canonical": "admitted",
+   "alt": "admitted"
+  },
+  "leanSphincs-S, exit shape, new nonce key, veto": {
+   "verify": {
+    "samples": 24,
+    "min": 101402,
+    "median": 101554,
+    "max": 101680,
+    "mean": 101550
+   },
+   "wholeTx": {
+    "samples": 24,
+    "min": 284346,
+    "median": 284346,
+    "max": 284346,
+    "mean": 284346
+   },
+   "maxCostEth": "0.000768692",
+   "signatureBytes": 4164,
+   "encodedBytes": 4343,
+   "canonical": "refused: prefix gas budget exceeded: 120100 > 100000 (MAX_VERIFY_GAS)",
+   "alt": "refused: entity 0x0B0E43787768cEBdb4258473861C18d936170693 declares 120100 validation gas, which exceeds MAX_VERIFY_GAS_PER_ENTITY 100000"
+  },
+  "hash key, VajraExit, escape": {
+   "verify": {
+    "samples": 24,
+    "min": 94666,
+    "median": 97441,
+    "max": 97837,
+    "mean": 97047
+   },
+   "wholeTx": {
+    "samples": 24,
+    "min": 487514,
+    "median": 490229,
+    "max": 490673,
+    "mean": 489882
+   },
+   "maxCostEth": "0.002504092",
+   "signatureBytes": 2337,
+   "encodedBytes": 2613,
+   "canonical": "admitted",
+   "alt": "admitted"
+  },
+  "leanSphincs-S, exit shape, linear nonce, escape": {
+   "verify": {
+    "samples": 24,
+    "min": 81358,
+    "median": 81499,
+    "max": 81626,
+    "mean": 81498
+   },
+   "wholeTx": {
+    "samples": 24,
+    "min": 569962,
+    "median": 569962,
+    "max": 569962,
+    "mean": 569962
+   },
+   "maxCostEth": "0.002561386",
+   "signatureBytes": 4164,
+   "encodedBytes": 4408,
+   "canonical": "admitted",
+   "alt": "admitted"
+  }
+ },
+ "feeBump": {
+  "outcome": "admitted",
+  "lowMined": false,
+  "highMined": true
+ },
+ "lifetimeBitsAfterSignatures": {
+  "64": 170.4,
+  "1000": 158.6,
+  "20000": 135.9,
+  "43715": 127,
+  "100000": 116
+ },
+ "namedExitWithNoWalk": {
+  "what": "FINDINGS section 21: a flaw in what V2 trusts, shown on purpose, on a sender only this run deploys",
+  "account": "0x40c4a0FE1465ECfA6645f17c833faa2bdFd7b7CF",
+  "hash": "0x4187e8bae6af32c9282065712bb313db831bf5d869d4a87151156c80bf1ac47d",
+  "masterTreeReplaced": true
+ },
+ "publicKey": "0x07d71f64c4a782439e49ed308a6ded012d763eb98c4519199b54ae25809dd0e1",
+ "account": "0x3C537227Bb4b6B0aFBBaa0567a63aF72E15A417b",
+ "exit": "0x0B0E43787768cEBdb4258473861C18d936170693",
+ "masterSender": "0xfC730E14Fbee33079098cA674F34328C38820366",
+ "failures": 0,
+ "mined": [
+  {
+   "step": "hash key exit: the master key names the exit",
+   "hash": "0xce183b936b0fc05eec2d7ea4732ea7b6bfb1f79f55d742e9bcabac0a47aab17b",
+   "block": 63,
+   "verifyGas": 90079,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "hash key exit: the thief queues 0.6 ETH",
+   "hash": "0xec249a817e68017c7957150f177f4dc3b8a11d839e881e728feafeda93db9945",
+   "block": 64,
+   "verifyGas": 36230,
+   "totalGas": 620122,
+   "attempts": 1
+  },
+  {
+   "step": "leanSphincs-S exit: the master key names the exit",
+   "hash": "0xcb7f212304d888691eaee2acf2437cac23e32c51645724987ea02f185ecb4d56",
+   "block": 70,
+   "verifyGas": 92725,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "leanSphincs-S exit: the thief queues 0.6 ETH",
+   "hash": "0xcc0b3bf8e14b4682a083d4d39d42d848bc6cfa1afed82671cfef54cf3b0cb36e",
+   "block": 73,
+   "verifyGas": 36230,
+   "totalGas": 620086,
+   "attempts": 1
+  },
+  {
+   "step": "leanSphincs-S, master shape: the first transaction on a nonce key it keeps",
+   "hash": "0x16350bbce62633cbccdc94355017a7fb5d6abefbf79cbac6e4270002c9f23877",
+   "block": 101,
+   "verifyGas": 90713,
+   "totalGas": 288042,
+   "attempts": 1
+  },
+  {
+   "step": "leanSphincs-S, master shape, new nonce key, through the canonical mempool",
+   "hash": "0x672a60507a0599e842950d9f880cfa3802fbb64cd7443af42ade4785978623da",
+   "block": 228,
+   "verifyGas": 90762,
+   "totalGas": 288042,
+   "attempts": 1
+  },
+  {
+   "step": "leanSphincs-S, master shape, new nonce key, through the alt mempool",
+   "hash": "0x2d9a301d300b39170c499e306410e434128124f58797c2105aaecb87e445e228",
+   "block": 232,
+   "verifyGas": 90557,
+   "totalGas": 288042,
+   "attempts": 1
+  },
+  {
+   "step": "leanSphincs-S, master shape, nonce key used before, through the alt mempool",
+   "hash": "0xc0c3571abbc38ef2cea1efe84f678ab24f525622957a67b05a173d80dd2e9181",
+   "block": 236,
+   "verifyGas": 70722,
+   "totalGas": 288042,
+   "attempts": 1
+  },
+  {
+   "step": "hash key exit: veto, through the alt mempool",
+   "hash": "0x42263d9452f91ed992aa4ea50caaef0e50679f9bb562700da73aca5655cd4a81",
+   "block": 239,
+   "verifyGas": 97038,
+   "totalGas": 172501,
+   "attempts": 1
+  },
+  {
+   "step": "hash key exit: escape past a thief's pending transaction, through the canonical mempool",
+   "hash": "0xda5bf0295316116b10c77e5ce39d0a3452b62c738cc900b5a2f731e5bf94d1c7",
+   "block": 243,
+   "verifyGas": 96592,
+   "totalGas": 489464,
+   "attempts": 1
+  },
+  {
+   "step": "leanSphincs-S exit: veto, through the alt mempool",
+   "hash": "0x93f36c88b02c0631ce985081ea23acd0aad407c59e02a3037a94e85e8bc11ef6",
+   "block": 247,
+   "verifyGas": 81509,
+   "totalGas": 282298,
+   "attempts": 1
+  },
+  {
+   "step": "leanSphincs-S exit: escape past a thief's pending transaction, through the canonical mempool",
+   "hash": "0x7a769be9a9788b53273c041eec881ff47df02b8d58140de6af7fa679a6df1d2e",
+   "block": 251,
+   "verifyGas": 81459,
+   "totalGas": 569962,
+   "attempts": 1
+  },
+  {
+   "step": "Another transaction on the same nonce, signed after that",
+   "hash": "0xccbe8f795a354c2843d6f14cf1ae9c5f0f0a26b7e3368c5844f6be684f579c41",
+   "block": 259,
+   "verifyGas": 70829,
+   "totalGas": 285994,
+   "attempts": 1
+  },
+  {
+   "step": "Signed by that copy, which knows nothing of what the first signed",
+   "hash": "0xc533e093bf46d5090d2ae0dd0ca6b7e9840a562280ec49bb6819aefb3757569c",
+   "block": 281,
+   "verifyGas": 70844,
+   "totalGas": 285994,
+   "attempts": 1
+  },
+  {
+   "step": "A retry of one payment, on a new nonce key",
+   "hash": "0x188bbde7c3c7be7c7914dcfffa03a43481c021c19583eb4a3dbda84b39d50899",
+   "block": 287,
+   "verifyGas": 90537,
+   "totalGas": 288042,
+   "attempts": 1
+  },
+  {
+   "step": "The first attempt, sent later, and it still lands",
+   "hash": "0x34394fb2699bbe3f08d983256b0bdc8963eb2ea17bbde0f33bc7bdd94d807b7d",
+   "block": 290,
+   "verifyGas": 90732,
+   "totalGas": 288042,
+   "attempts": 1
+  },
+  {
+   "step": "a sender with no walk, named by mistake: the master key names the exit",
+   "hash": "0xcf5979acc93ec1e51a60b58d0d8c9811d52c9d3c26320f0c0f60a25013f6cd1c",
+   "block": 295,
+   "verifyGas": 92824,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "a sender with no walk, named by mistake: the thief queues 0.6 ETH",
+   "hash": "0xe7c3d9de2d5af30186c82f0b68bee2a950017ba155ae4f4d6ce40bc36b53195e",
+   "block": 298,
+   "verifyGas": 36230,
+   "totalGas": 620098,
+   "attempts": 1
+  },
+  {
+   "step": "No proof and no paper: queueRecovery, then executeQueued, in one transaction",
+   "hash": "0x4187e8bae6af32c9282065712bb313db831bf5d869d4a87151156c80bf1ac47d",
+   "block": 303,
+   "verifyGas": 70825,
+   "totalGas": 776725,
+   "attempts": 1
+  }
+ ],
+ "refusals": [
+  {
+   "attack": "One bit of randomizer flipped",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "One bit of a FORS secret flipped",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "One bit of a FORS path flipped",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "One bit of the counter flipped",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "One bit of a WOTS value flipped",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "One bit of the auth path flipped",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "One bit of the last byte flipped",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "A signature from another key",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "The real key, signing for the account's address instead of this sender's",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "The real key, signing under another epoch",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "A signature for a veto, moved onto a freeze",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "A copy with its SENDER frame's gas cut, so that it dies",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "A copy with a higher fee, to burn the reserve",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "A copy with frame 0's data padded",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "A copy with frame 0's limit cut, to trade it for padding",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "A copy on another nonce key",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "A copy with a message put in the signature entry",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "A copy with a second signature entry",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "A signature from one sender, moved to another holding the same key",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "A copy padded by one byte, to burn the reserve",
+   "refusal": "SignatureLengthInvalid"
+  },
+  {
+   "attack": "A copy padded by 8 KB, to burn the reserve",
+   "refusal": "SignatureLengthInvalid"
+  },
+  {
+   "attack": "A signature one byte short",
+   "refusal": "SignatureLengthInvalid"
+  },
+  {
+   "attack": "No signature at all",
+   "refusal": "SignatureLengthInvalid"
+  },
+  {
+   "attack": "The exit key tries to unfreeze",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The exit key tries to replace the daily key",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The exit key tries to move the harbor",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The exit key tries a spend",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The exit key tries to queue a root with no proof",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The exit key tries to move value in a frame",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The exit key tries a frame to another contract",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The exit key sends a veto with a spend behind it",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The exit key sends a veto with an unfreeze behind it",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The exit key sends a veto with a root with no proof behind it",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The exit key sends a DEFAULT frame",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "Its VERIFY frame aimed at it from another sender's transaction, to make its reserve pay",
+   "refusal": "NotAuthorized"
+  },
+  {
+   "attack": "The daily key signs this sender's own VERIFY frame",
+   "refusal": "SignatureLengthInvalid"
+  },
+  {
+   "attack": "The daily key sends from this sender's address",
+   "refusal": "validation frame 0: reverted"
+  },
+  {
+   "attack": "The daily key names an exit of its own",
+   "refusal": "EscapeKeyOutranks"
+  },
+  {
+   "attack": "Exit shape, a keyed nonce: one bit flipped",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "Exit shape, a keyed nonce: from another key",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "Exit shape, a keyed nonce: a copy with a higher fee",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "Exit shape, a keyed nonce: a copy padded by one byte",
+   "refusal": "SignatureLengthInvalid"
+  },
+  {
+   "attack": "Exit shape, a keyed nonce: the exit key tries a spend",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "No walk, the linear nonce: one bit flipped",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "No walk, the linear nonce: from another key",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "No walk, the linear nonce: a copy with a higher fee",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "No walk, the linear nonce: a copy padded by one byte",
+   "refusal": "SignatureLengthInvalid"
+  },
+  {
+   "attack": "No walk, a keyed nonce: one bit flipped",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "No walk, a keyed nonce: from another key",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "No walk, a keyed nonce: a copy with a higher fee",
+   "refusal": "BadSignature"
+  },
+  {
+   "attack": "No walk, a keyed nonce: a copy padded by one byte",
+   "refusal": "SignatureLengthInvalid"
+  },
+  {
+   "attack": "The same bytes again, on a keyed nonce",
+   "refusal": "Invalid Transaction: Nonce mismatch: expected 1, got 0"
+  },
+  {
+   "attack": "A signature resent after the sender's nonce moved",
+   "refusal": "Invalid Transaction: Nonce mismatch: expected 3, got 1"
+  }
+ ]
+}

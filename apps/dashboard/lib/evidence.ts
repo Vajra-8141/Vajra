@@ -89,6 +89,18 @@ const LABELS: Record<string, { title: string; what: string; command?: string; fa
   "rep-burn-fixed-latest.json": { title: "The way round a banned account", what: "The same attack, then escape, veto and recovery from the exit.", command: "vajra rep-burn fixed" },
   "rep-burn-sidecar-rule-latest.json": { title: "The same attack on the proposed sidecar rule", what: "With docs/upstream/sidecar-reputation.patch on the sidecar.", command: "vajra rep-burn rule" },
   "zk-gas-latest.json": { title: "Gas of the proof paths", what: "Measured with ethrex_simulateFrameTransaction, a fresh proof per sample.", command: "vajra measure-zk", facts: (r) => [["Recovery VERIFY, median", count((r.recoveryVerify as Raw)?.median)], ["Unshield VERIFY, median", count((r.unshieldVerify as Raw)?.median)]] },
+  "leansphincs-gas-latest.json": {
+    title: "leanSphincs-S beside the hash key",
+    what: "A benchmark, and no account relies on it: a hash key with no leaves to run out of, through a real VERIFY frame and both mempools, with every attack on that path.",
+    command: "vajra sphincs-bench",
+    facts: (r) => [
+      ["Signature, bytes", count((r.scheme as Raw)?.signatureBytes)],
+      ["VERIFY of a veto, linear nonce, median", count(((r.rows as Raw)?.["leanSphincs-S, exit shape, linear nonce, veto"] as Raw & { verify?: Raw })?.verify?.median)],
+      ["The same veto, new nonce key, median. Over the 100,000 cap", count(((r.rows as Raw)?.["leanSphincs-S, exit shape, new nonce key, veto"] as Raw & { verify?: Raw })?.verify?.median)],
+      ["The hash key's veto, new nonce key, median", count(((r.rows as Raw)?.["hash key, VajraExit, veto"] as Raw & { verify?: Raw })?.verify?.median)],
+      ["Failures", count(r.failures)],
+    ],
+  },
   "device-esp32-latest.json": { title: "The hash key on an ESP32", what: "Master operations signed on a real board, each confirmed on its screen.", command: "vajra device-e2e" },
   "device-emulator-latest.json": { title: "The device path on an emulator", what: "The same protocol against a test harness. This is not hardware.", command: "vajra device-e2e" },
   "device-dashboard-latest.json": {

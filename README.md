@@ -78,6 +78,7 @@ evidence, on the local mirror and nowhere else.
 | Encrypted backup, and a restore that proves itself | BUILT, LOCAL | `vajra backup-e2e`: root match, stale leaves refused |
 | One-transaction move from an EOA | BUILT, LOCAL | `vajra move-e2e`, and from the extension's move page |
 | Passkey before **Pay, it's me** | BUILT, LOCAL | Client-side only: the phone and the local service check it, and **the contracts do not know about it** |
+| leanSphincs-S, a hash key with no leaves | BENCHMARK, LOCAL | `vajra sphincs-bench`. Fits a VERIFY frame under the 100,000 cap, with no stake, on both mempools, if its sender keeps one nonce: about 81,500 gas for a veto. About the same as the hash key like for like, and a transaction costs 63% more. No account relies on it. Research parameters, not audited: see [`docs/GAS.md`](docs/GAS.md) and [`docs/FINDINGS.md`](docs/FINDINGS.md#20-leansphincs-s-measured) |
 | Nominee | NOT STARTED | |
 | Recovery by proof, Groth16 v1 | BUILT, PUBLIC | `vajra recover`: 12 mined, 24 refused, 0 failures, on the public devnet and on the mirror. **Not post-quantum**: see below |
 | Shielded pool, fixed denomination v1 | BUILT, LOCAL, ONE NOTE ON PUBLIC | `vajra shielded`, on the mirror: 12 mined, 30 refused, 0 failures. One 0.01 ETH note in and out on the public devnet. **Does not hide that the account paid the recipient**: see below |
@@ -294,7 +295,7 @@ The tests that run against the devnet, and write to it:
     packages/sdk        viem-style actions: simulate, send, explain, spend, veto, escape status
     apps/dashboard      Next.js: the guided theft, account, break-in panel, mempool panel, lifecycle, exposure scanner, proof page
     firmware            the ESP32 signer, and its logic as a portable library
-    contracts           VajraAccount (deployed), VajraAccountV2, VajraExit, Wots, VajraFactory, SponsorPaymaster, paymasters/ (local), generated verifiers
+    contracts           VajraAccount (deployed), VajraAccountV2, VajraExit, Wots, VajraFactory, SponsorPaymaster, paymasters/ (local), bench/ (local), generated verifiers
     circuits            the two Groth16 circuits, their keys, and the build
     stack               the local mirror: Compose, genesis, block producer
     docs                measured gas, devnet findings, proofs, stealth design, demo runbook, upstream patch
@@ -330,7 +331,7 @@ staked budget and precompiles.
 0. **Without an exit, a thief with the daily key can shut an account out of a node.** The ban lasts as long as the thief keeps at it, and with one transaction pending the canonical mempool is shut too. An exit has to be set up and funded before the thief arrives, and it is software only. The sidecar rule that fixes the cause is a proposal. See [`docs/FINDINGS.md`](docs/FINDINGS.md) section 10.
 1. **This is not production post-quantum cryptography.** The parameters are unreviewed and there is no formal proof. Plain
    keccak chains give multi-target attacks a discount of about 19 bits that WOTS+ or XMSS would remove. Production means
-   LMS, XMSS or SPHINCS+, which are heavier.
+   LMS, XMSS or SPHINCS+. We measured one candidate from that last family, leanSphincs-S. It costs about the same to verify and more to send: see [`docs/GAS.md`](docs/GAS.md).
 2. **Stealth spending has a remaining case, even with the fix.** A sender who also owns a quantum computer can spend what it sent. See
    [`docs/STEALTH.md`](docs/STEALTH.md).
 3. **By default the master key is a software signer, on the same machine as the wallet.** Its seed sits in a file, so a

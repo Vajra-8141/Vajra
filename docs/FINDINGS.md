@@ -420,3 +420,58 @@ An account that names nobody refuses every DEFAULT frame, as before, so a daily 
 **What is left.** Naming a paymaster is a real grant. A stolen daily key can then spend what the account approved to it on gas, up to `maxDailyTxCost` a transaction, with no limit on how many, and use up the day's quota. The tip part can reach a colluding block producer, up to the paymaster's `feeCap`. So keep the approval small, and name only what the daily key should use. V1 keeps its gap: `VajraAccount` is unchanged. And only the two frames' positions and target are held: what they do is up to the named paymaster.
 
 **The fixes in sections 16 to 19 are in the V2 deployed on the public devnet on 6 November, but only recovery and one note were run there. Their tests ran on the mirror.** They have had no second independent review, and nothing here has been audited.
+
+## 20. leanSphincs-S, measured
+
+A benchmark, on the mirror, of a hash key with no leaves to run out of. `vajra sphincs-bench`, `docs/evidence/leansphincs-gas-latest.json`, and the numbers are in [`GAS.md`](GAS.md). **It was not run on the public devnet, and no account relies on it.**
+
+**It fits in a VERIFY frame, if the sender keeps one nonce.** About 81,500 gas for a veto or an escape from a sender of its own, on its linear nonce, with no stake. Both mempools admitted it and mined it, and an escape went through the canonical mempool past a thief's pending transaction, which is the shape section 12 argues for. On a new nonce key every time, as `VajraExit` runs, the same veto takes about 101,550, which is over the cap. The admission simulator says both mempools refuse that, and it was not sent.
+
+**It is not cheaper to verify.** Like for like, on a new nonce key, a veto is about 4% dearer than the hash key's and a payment costs the same. Our first write-up said cheaper, by comparing a linear nonce with a keyed one, and an independent review caught it. What a stateless key can do is keep one nonce and skip the 20,000 a new nonce key costs.
+
+**It needs no change to `VajraAccountV2`.** `setExit` takes any address, so a real V2 account named this sender and took its `veto` and `escape` unchanged. Holding the key to those functions is the sender's job, and it does that with the same walk as `VajraExit`. Section 21 is what that trust costs.
+
+**It removes the one-time key problem, as far as this run can show.** Each of these is a thing a one-time key must not do, done here and mined:
+
+- Sign, show the signature to a node, never send it, then sign something else on the same nonce.
+- Sign the same payment again at twice the fee, and have it replace the first. A one-time key can only rebroadcast the same bytes, as section 4 says, so it is stuck at the fee it first signed.
+- Rebuild the key from its seed on a second device, with no record of what the first signed, and sign. There is no leaf to reconcile, so no registry and no restore check are needed for this key.
+
+**Signing twice being safe brings a rule of its own.** A retry has to stay on the same nonce, so that it replaces. Signed again on a new nonce key, the first attempt stays valid for good, and anyone holding it can send it. The run does that, and the payment lands twice. A real path should pin the nonce it uses. This bench does not.
+
+**What it does not remove:**
+
+- **A lifetime.** Upstream rates the Light tier for 20,000 signatures. That is an estimate, and it has not been proved for these parameters. Nothing counts them: not the signer, the key or the verifier. It wears down rather than breaking: 127 bits at 43,715 signatures and 116 at 100,000, by upstream's formula, which we reproduced.
+- **One seed, one key.** A seed used with two tree sizes lets a signature under one become a signature under the other, with no secret. Nothing can detect that.
+- **The software key.** It sits in memory here, as the master key sits in a file. It has not run on a board, and the firmware has no such signer.
+
+**What it costs:**
+
+- **A transaction costs more.** 63% on a veto and 66% on a payment, because a byte has a floor of 64 gas and the signature is 4,164 bytes.
+- **Half the hash.** These are 16-byte hashes, where our chains use 32, so there is a smaller margin against a quantum computer. That is the class of SLH-DSA-128, and it comes with tweaks our plain chains do not have, but it is not simply stronger.
+- **A research parameter set.** It comes from a fork of the sphincs.art parameter work. The candidate in EthLib and leanVM is a different one, with three layers and 7,740 bytes, and it is still being settled. EIP-8288's 3,000 gas figure is for a signature checked outside the EVM, which this devnet does not have, so it says nothing about these numbers. The verifier here is unaudited, and upstream's formal proofs do not cover it.
+
+**The length check closes one open hole, on this path.** Section 15 left the signature blob's padding open, because the check did not fit. It fits here on the linear nonce: `validateExit` reads the length, and a padded copy dies with `SignatureLengthInvalid`. `VajraAccountV2` and `VajraExit` keep that hole.
+
+**The bench sender is not a whole exit.** It cannot take its reserve back, so that money is stranded. It cannot replace its key, so a leaked key means a new clone and a new reserve. It cannot carry a recovery, so a banned owner who lost the master key has no way round through it, which section 12 says `VajraExit` gives. It has been reviewed once, and that review found section 21 and the claims corrected above. The fixes have had no second review.
+
+**Against V2 as a second master key.** A clean one takes a new path in `VajraAccountV2`, which is a contract change and a public redeploy, and V2's code is 23,178 bytes against the 24,576 limit on contract size. Whether that limit applies on this fork has not been checked. The back way in section 21 is a hole to close, not a route to use.
+
+## 21. A named exit can replace the master tree, if nothing holds it back
+
+Found by the independent review of section 20, then reproduced on the real client. **A design limit, and it needs a master signature on the wrong address.** Not fixed: the fix is a contract change.
+
+`queueRecovery` is `onlySelfOrExit`, and it checks no proof. The proof is checked in VERIFY, and only a proof transaction's VERIFY. The account relies on the exit to refuse the selector in its walk, and `VajraExit` does. `setExit` takes any address, so a contract named with no such walk can call `queueRecovery` with a root it chose. With no paper set the delay is 0, so `executeQueued` installs that root in the same transaction, and a freeze does not stop a recovery.
+
+On the mirror (`vajra sphincs-bench`, step 8), a V2 account names a bench sender with no walk, and that sender's key signs `[VERIFY, queueRecovery(root, 1), executeQueued(id)]`. Mined, with no proof and no paper, and the account's master tree is the new root. **It was not run on the public devnet,** where V2 has the same code.
+
+**Who can reach this.** Only the master key can call `setExit`, and the master key can do anything anyway. So this is about a mistake or a phished signature, and about what we hand a second key. Outside this bench, every client path that names an exit in this repository names a clone of `VajraExit`.
+
+**With a paper set**, from the code, not run: the same call spends the paper. The gate closes and the commitment is marked used, so the owner's real recovery is gone, and the root waits out the delay in the queue. The master key can veto it, and an owner who lost the master key cannot.
+
+**The fixes we propose, for the next redeploy, and neither is built:**
+
+- `queueRecovery` refuses when no commitment is set. No honest recovery reaches it in that state, since `_checkRecovery` refuses first. That closes the one-transaction replacement.
+- `setExit` asks the contract for its `account()` and refuses another answer. That catches naming the wrong clone, and it does not stop a contract written to lie.
+
+**The lesson is the one in section 19.** Naming a contract is a real grant, and this one was wider than the three functions `VajraExit` allows. The list lived in the exit, where the account cannot see it.

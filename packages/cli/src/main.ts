@@ -245,6 +245,9 @@ switch (command) {
   case "measure-zk":
     await import("./measure-zk.ts");
     break;
+  case "sphincs-bench":
+    await import("./sphincs-bench.ts");
+    break;
   case "shielded":
     await import("./shielded.ts");
     break;
@@ -294,6 +297,7 @@ pool:     shield | unshield <recipient>  (one note in, one note out)
           shielded                       (the whole pool on a fresh account, with every attack)
           compare                        (the same proof, offered to the sidecar as deployed and as patched)
           measure-zk                     (the gas rows for proofs)
+          sphincs-bench                  (leanSphincs-S beside the hash key: gas, size, both mempools, every attack)
           These need the mirror: VAJRA_STACK=local.
 gas:      explain <hash>                 (why a mined, pending or refused transaction went the way it did)
           paymaster-e2e                  (both paymasters, every attack; needs the mirror)
