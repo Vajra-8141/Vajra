@@ -27,7 +27,7 @@ async function read(hash: string): Promise<Found> {
   const [tx, receipt] = (await Promise.all([rpc("eth_getTransactionByHash", [hash]), rpc("eth_getTransactionReceipt", [hash])])) as [unknown, { blockNumber: string; logs: { topics: string[]; data: string }[] } | null];
   if (!tx || !receipt) throw new Error("The public node doesn't have that transaction.");
   const move = receipt.logs.find((log) => log.topics[0] === TRANSFER && log.topics.length === 3);
-  if (!move) throw new Error("That transaction didn't move any ETH.");
+  if (!move) throw new Error("This page only reads private payments and plain sends, and this is another kind of transaction.");
   const address = (topic: string) => `0x${topic.slice(-40)}`;
   return { from: address(move.topics[1]!), to: address(move.topics[2]!), amount: eth(String(Number(BigInt(move.data)) / 1e18)), block: Number(BigInt(receipt.blockNumber)), raw: JSON.stringify({ transaction: tx, receipt }, null, 1) };
 }
