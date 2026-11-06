@@ -38,8 +38,8 @@ services:
     command: ["node", "/miner.mjs"]
 
   sidecar:
-    image: vajra-sidecar:2e22ff0-budget010
-    build: ../.stack/sidecar
+    image: ${VAJRA_SIDECAR_IMAGE:-vajra-sidecar:2e22ff0-budget010}
+    build: ../.stack/${VAJRA_SIDECAR_DIR:-sidecar}
     restart: on-failure
     depends_on: [ethrex]
     volumes:

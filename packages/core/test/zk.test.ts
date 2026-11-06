@@ -23,16 +23,16 @@ describe("proof transactions", () => {
   it("derives the nonce key the contract derives", () => {
     const word = numberToHex(9n, { size: 32 });
     expect(recoveryNonceKey(9n, root)).toBe(BigInt(keccak256(concat([keccak256(toBytes("vajra.recovery.v1")), word, root]))));
-    const padded = numberToHex(BigInt(recipient), { size: 32 });
-    expect(unshieldNonceKey(9n, recipient)).toBe(BigInt(keccak256(concat([keccak256(toBytes("vajra.unshield.v1")), word, padded]))));
+    expect(unshieldNonceKey(9n)).toBe(BigInt(keccak256(concat([keccak256(toBytes("vajra.unshield.v1")), word]))));
   });
 
   it("keeps recovery and unshield on separate nonce keys", () => {
-    expect(recoveryNonceKey(9n, root)).not.toBe(unshieldNonceKey(9n, recipient));
+    expect(recoveryNonceKey(9n, root)).not.toBe(unshieldNonceKey(9n));
   });
 
-  it("gives another recipient another nonce key, so a note survives a recipient that reverts", () => {
-    expect(unshieldNonceKey(9n, recipient)).not.toBe(unshieldNonceKey(9n, account));
+  it("gives a note one nonce key, whoever it pays", () => {
+    const pay = (to: `0x${string}`) => unshieldTx({ account, root: 5n, nullifierHash: 9n, recipient: to, proof, work: 0n }).nonceKeys;
+    expect(pay(recipient)).toEqual(pay(account));
   });
 
   it("sends the SENDER frame exactly the gas the contract pins", () => {

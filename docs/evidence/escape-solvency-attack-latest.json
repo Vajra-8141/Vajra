@@ -1,0 +1,17 @@
+{
+ "ranAt": "2026-11-06T13:05:33.598Z",
+ "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
+ "chainId": 13370,
+ "account": "0x963ba913606070f4405111e99fD78B1Cd88cd1af",
+ "exit": null,
+ "outcomes": {
+  "thiefPending": "ADMITTED 0x7efe009dc66776f2a7299d6abda574d635f02bf5b9a082aef28f335fa525e16d",
+  "escapeAgainstPending": "REFUSED 0x963ba913606070f4405111e99fD78B1Cd88cd1af cannot cover its pending frame transactions: they would owe 11634156570333100 wei (2505228000000000 for this one), its balance ",
+  "raid": "ADMITTED 0x0968c5c2cbe6ac5dbeabc1265377156fabaaf8f7b0d733877c29b50105d93911",
+  "escapeAdmitted": "ADMITTED 0xf5387cc607bb91a61cb092fc223671fd1bbefd10627f1db93ec9ffbe4e18e76e",
+  "escapeStatus": "Cancelled: 0x963ba913606070f4405111e99fD78B1Cd88cd1af can no longer cover its pending frame transactions as of block 416: balance 1499999999283158 wei",
+  "escapeShort": "REFUSED validation frame 0: the payer 0x963ba913606070f4405111e99fd78b1cd88cd1af has 1499999999283158 wei, the transaction's maximum cost is 2505228000000000 wei"
+ },
+ "tokensStuck": "25000000",
+ "result": null
+}

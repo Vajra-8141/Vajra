@@ -71,8 +71,17 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// Spending is tracked in hourly buckets. 25 of them keep the window at or above a full 24 hours.
     uint256 private constant BUCKETS = 25;
 
-    /// Domain of the digest a stock wallet signs.
-    bytes32 private constant WALLET_TAG = keccak256("vajra.daily.v1");
+    /// V2: what a stock wallet signs is EIP-712 typed data, so that it can show the asset, the recipient and the amount. A blind
+    /// 32-byte personal_sign showed nothing, and a person cannot check nothing. See `_typedDigest`.
+    bytes32 private constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    bytes32 private constant DOMAIN_NAME_HASH = keccak256("VAJRA");
+    bytes32 private constant DOMAIN_VERSION_HASH = keccak256("2");
+    bytes32 private constant SPEND_TYPEHASH = keccak256(
+        "DailySpend(address asset,address recipient,uint256 amount,uint256 nonce,uint256 maxFeePerGas,uint256 maxPriorityFeePerGas,uint256 executionGas,uint256 stateGas)"
+    );
+    bytes32 private constant EXECUTE_TYPEHASH = keccak256(
+        "DailyExecute(uint256 id,uint256 nonce,uint256 maxFeePerGas,uint256 maxPriorityFeePerGas,uint256 executionGas,uint256 stateGas)"
+    );
     /// Gas a single token gets during a sweep, enough for a proxied USDC transfer with room to spare.
     uint256 private constant SWEEP_GAS = 300_000;
 
@@ -207,6 +216,10 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         mapping(uint256 level => uint256) filled;
         uint256[ROOT_HISTORY] roots;
         mapping(uint256 nullifierHash => bool) noteSpent;
+        /// A commitment or gate a recovery has already used. Both are public from then on, so neither may be set again.
+        mapping(bytes32 value => bool) recoveryUsed;
+        /// The second route's sender: see `VajraExit`.
+        address exit;
     }
 
     // ------------------------------------------------------------------------------------- events and errors ------
@@ -234,6 +247,8 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     event Shielded(uint256 indexed commitment, uint256 leaf, uint256 root);
     event Unshielded(uint256 indexed nullifierHash, address indexed recipient);
     event PoolDrained(address indexed harbor, uint256 amount);
+    event ExitChanged(address exit);
+    event UnshieldUnpaid(uint256 indexed nullifierHash, address indexed recipient);
 
     // The refusal registry, spec §3.
     error AccountFrozen();
@@ -268,6 +283,7 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     error NullifierSpent(uint256 nullifier);
     error ProofTxShapeInvalid();
     error RecoveryGateInvalid();
+    error RecoveryAlreadyUsed();
     error ProofWorkMissing();
     error ProofTxCostExceeded(uint256 cost);
     error DailyNonceKeyInvalid();
@@ -367,7 +383,10 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
 
         uint256 frames = txparam(TxParam.FRAME_COUNT);
         for (uint256 i = txparam(TxParam.CURRENT_FRAME_INDEX) + 1; i < frames; ++i) {
-            if (frameparam(i, FrameParam.MODE) != uint256(FrameMode.SENDER)) continue;
+            uint256 mode = frameparam(i, FrameParam.MODE);
+            if (mode == uint256(FrameMode.VERIFY)) continue;
+            // V2: refused, not skipped. Only VERIFY frames are known to be harmless here, and a daily key has no use for any other.
+            if (mode != uint256(FrameMode.SENDER)) revert FrameNotAllowed(i);
             if (address(uint160(frameparam(i, FrameParam.RESOLVED_TARGET))) != address(this)) revert FrameNotAllowed(i);
             if (frameparam(i, FrameParam.VALUE) != 0) revert FrameNotAllowed(i);
             bytes4 selector = bytes4(framedataload(0, i));
@@ -389,39 +408,61 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// unchecked, any signature this key ever produced, for any message on any site, would pass here. A stock wallet
     /// cannot produce the empty form, since it cannot sign a frame transaction, and `msg` cannot commit to the signature
     /// hash either, since an entry with a `msg` keeps its own bytes inside that hash. So for a wallet the digest is
-    /// rebuilt here from the transaction's fields, and personal_sign is applied to that.
+    /// rebuilt here from the transaction's fields.
     function _requireDailySignature(address key) private view {
         if (key == address(0) || address(uint160(sigparam(0, SigParam.RESOLVED_SIGNER))) != key) revert NotDailyKey();
         uint256 signed = sigparam(0, SigParam.MSG);
-        if (signed != 0 && bytes32(signed) != _walletDigest()) revert SignatureNotBoundToTransaction();
+        if (signed != 0 && bytes32(signed) != _typedDigest()) revert SignatureNotBoundToTransaction();
     }
 
-    /// Covers everything a wallet signature leaves open. The shape is pinned to `[VERIFY, SENDER]` so that no frame can
-    /// sit outside the digest, and the body frame's target and value are held to the account and zero by `validateDaily`.
-    function _walletDigest() private view returns (bytes32) {
-        // V2: the digest leaves out the body frame's mode, and the frame walk skips anything that is not SENDER, so a copy could turn
-        // the body into a no-op under the same signature, spending the nonce and the fee and paying nobody.
+    /// V2: the EIP-712 digest of what the wallet showed. The shape is pinned to `[VERIFY, SENDER]` so that no frame can sit outside
+    /// it, and the body frame's target and value are held to the account and zero by `validateDaily`.
+    ///
+    /// The arguments are hashed as the raw words in the frame, not as decoded values. A copy with dirty high bits in an address
+    /// word would pass a decoded check here and revert in the SENDER frame, spending the nonce and fee and paying nobody. As raw
+    /// words it no longer matches what was signed. The exact length holds for the same reason: trailing bytes are in no field.
+    function _typedDigest() private view returns (bytes32) {
+        // The frame walk skips anything that is not SENDER, so a copy could otherwise turn the body into a no-op under the same signature.
         if (
             txparam(TxParam.CURRENT_FRAME_INDEX) != 0 || txparam(TxParam.FRAME_COUNT) != 2
                 || frameparam(1, FrameParam.MODE) != uint256(FrameMode.SENDER)
         ) {
             revert SignatureNotBoundToTransaction();
         }
-        bytes32 message = keccak256(
-            abi.encode(
-                WALLET_TAG,
-                block.chainid,
-                address(this),
-                txparam(TxParam.NONCE),
-                txparam(TxParam.NONCE_KEYS_HASH),
-                txparam(TxParam.MAX_FEE),
-                txparam(TxParam.MAX_PRIORITY_FEE_PER_GAS),
-                frameparam(1, FrameParam.EXECUTION_GAS_LIMIT),
-                frameparam(1, FrameParam.STATE_GAS_LIMIT),
-                keccak256(framedatacopy(0, frameparam(1, FrameParam.DATA_LENGTH), 1))
-            )
-        );
-        return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", message));
+        bytes4 selector = bytes4(framedataload(0, 1));
+        uint256 length = frameparam(1, FrameParam.DATA_LENGTH);
+        bytes32 structHash;
+        if (selector == this.spend.selector && length == 100) {
+            structHash = keccak256(
+                abi.encode(
+                    SPEND_TYPEHASH,
+                    framedataload(4, 1),
+                    framedataload(36, 1),
+                    framedataload(68, 1),
+                    txparam(TxParam.NONCE),
+                    txparam(TxParam.MAX_FEE),
+                    txparam(TxParam.MAX_PRIORITY_FEE_PER_GAS),
+                    frameparam(1, FrameParam.EXECUTION_GAS_LIMIT),
+                    frameparam(1, FrameParam.STATE_GAS_LIMIT)
+                )
+            );
+        } else if (selector == this.executeQueued.selector && length == 36) {
+            structHash = keccak256(
+                abi.encode(
+                    EXECUTE_TYPEHASH,
+                    framedataload(4, 1),
+                    txparam(TxParam.NONCE),
+                    txparam(TxParam.MAX_FEE),
+                    txparam(TxParam.MAX_PRIORITY_FEE_PER_GAS),
+                    frameparam(1, FrameParam.EXECUTION_GAS_LIMIT),
+                    frameparam(1, FrameParam.STATE_GAS_LIMIT)
+                )
+            );
+        } else {
+            revert SignatureNotBoundToTransaction();
+        }
+        bytes32 domain = keccak256(abi.encode(DOMAIN_TYPEHASH, DOMAIN_NAME_HASH, DOMAIN_VERSION_HASH, block.chainid, address(this)));
+        return keccak256(abi.encodePacked("\x19\x01", domain, structHash));
     }
 
     /// VERIFY frame for the master key. The signature rides in an ARBITRARY entry so that the signature hash, which
@@ -476,6 +517,19 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// @param proof Groth16 `a`, `b` and `c`, flattened. The statement's public values come from storage, the chain, and
     /// the SENDER frame this transaction is pinned to.
     function validateRecovery(uint256[8] calldata proof, bytes32 ticket) external {
+        _checkRecovery(proof, ticket, true);
+        approve(Scope.EXECUTION_AND_PAYMENT);
+    }
+
+    /// V2: the same check, for a recovery the exit carries, which is what a node that has banned this address still lets through.
+    /// The exit is the sender and pays, so what the notes are owed is not at stake. `_requireProofShape` reads the transaction, not
+    /// the caller, so it holds this frame to everything it holds a recovery from the account to.
+    function checkRecovery(uint256[8] calldata proof, bytes32 ticket) external view {
+        if (!_isExit()) revert NotAuthorized();
+        _checkRecovery(proof, ticket, false);
+    }
+
+    function _checkRecovery(uint256[8] calldata proof, bytes32 ticket, bool paysItself) private view {
         Layout storage s = _layout();
         uint256 commitment = s.recoveryCommitment;
         if (commitment == 0) revert RecoveryNotSet();
@@ -493,8 +547,10 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
             RECOVERY_STATE_GAS
         );
         // The fee must not come out of what the notes are owed. Anyone can top an account up if it is short.
-        uint256 held = s.poolHeld;
-        if (held != 0 && address(this).balance < held + txparam(TxParam.MAX_COST)) revert ValueNotConserved();
+        if (paysItself) {
+            uint256 held = s.poolHeld;
+            if (held != 0 && address(this).balance < held + txparam(TxParam.MAX_COST)) revert ValueNotConserved();
+        }
 
         uint256 salt = uint256(s.epochSalt);
         uint256[8] memory input = [
@@ -508,8 +564,6 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
             nullifier
         ];
         if (!_verifyRecovery(proof, input)) revert RecoveryProofInvalid();
-
-        approve(Scope.EXECUTION_AND_PAYMENT);
     }
 
     function _verifyRecovery(uint256[8] calldata p, uint256[8] memory input) private view returns (bool) {
@@ -526,7 +580,11 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         uint256 nullifierHash = uint256(framedataload(36, 1));
         uint256 recipient = uint256(framedataload(68, 1));
         if (s.noteSpent[nullifierHash]) revert NullifierSpent(nullifierHash);
-        bytes32 nonceKey = keccak256(abi.encodePacked(UNSHIELD_TAG, nullifierHash, recipient));
+        // The circuit takes any field element. High bits would pass the proof and revert in `unshield`'s decoder, after the fee.
+        if (recipient >> 160 != 0) revert ProofTxShapeInvalid();
+        // V2: the nullifier alone. With the recipient in the key, one note had a nonce key per recipient, so its holder could keep
+        // many valid transactions pending at once. Now a note has one slot, and one mined attempt. See `unshield`.
+        bytes32 nonceKey = keccak256(abi.encodePacked(UNSHIELD_TAG, nullifierHash));
         _requireProofShape(this.unshield.selector, 100, nonceKey, UNSHIELD_EXECUTION_GAS, UNSHIELD_STATE_GAS);
         if (uint256(keccak256(abi.encode(address(this), proof, nonceKey, work))) >> (256 - PROOF_WORK_BITS) != 0) {
             revert ProofWorkMissing();
@@ -563,10 +621,8 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// against, and exactly the gas it needs. The fee is capped for the same reason: a copy with a higher fee would still carry
     /// a valid proof.
     ///
-    /// The nonce key comes from the nullifier and what the proof installs or pays, so a retry is the same bytes, and a thief's
-    /// pending daily transaction cannot hold it up on a mempool that keeps the two nonce domains apart. That is the same reason
-    /// an escape uses one. If an unshield's recipient reverts, the nonce is spent and the note is not, so a fresh proof to another
-    /// recipient, on its own nonce key, can still spend it.
+    /// The nonce key comes from the nullifier, so a retry is the same bytes, and a thief's pending daily transaction cannot hold
+    /// it up on a mempool that keeps the two nonce domains apart. That is the same reason an escape uses one.
     function _requireProofShape(bytes4 selector, uint256 dataLength, bytes32 nonceKey, uint256 executionGas, uint256 stateGas)
         private
         view
@@ -699,8 +755,25 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
 
     // ---------------------------------------------------------------------------------- master-key operations -----
 
+    /// V2: what the second route may do. `veto`, `freeze` and `escape` only stop or leave. `queueRecovery` is here too, but the exit
+    /// can reach it only with a proof: `VajraExit.validateExit` refuses the selector, and `validateRecovery` there asks `checkRecovery`.
+    modifier onlySelfOrExit() {
+        if (msg.sender != address(this) && !_isExit()) revert NotAuthorized();
+        _;
+    }
+
+    /// Unset is zero, and zero must not match a caller.
+    function _isExit() private view returns (bool) {
+        address exit_ = _layout().exit;
+        return exit_ != address(0) && msg.sender == exit_;
+    }
+
     /// Cancels a queued spend.
-    function veto(uint256 id) external onlySelf {
+    ///
+    /// V2: the exit may not cancel a recovery. That is for an owner who still holds the master key, and a stolen exit key must not be
+    /// able to kill the one way back of an owner who lost it: a paper gets one attempt.
+    function veto(uint256 id) external onlySelfOrExit {
+        if (msg.sender != address(this) && _layout().isRecovery[id]) revert NotAuthorized();
         QueuedItem storage item = _layout().queue[id];
         if (item.state != ItemState.Pending) revert ItemNotPending(id);
         item.state = ItemState.Vetoed;
@@ -708,7 +781,7 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     }
 
     /// Stops the world: every daily-key transaction is refused in VERIFY until the master key says otherwise.
-    function freeze() external onlySelf {
+    function freeze() external onlySelfOrExit {
         _layout().frozen = true;
         emit FrozenSet(true);
     }
@@ -726,7 +799,7 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// @param harbor The harbor address the commitment seals.
     /// @param salt The salt the commitment was made with.
     /// @param extraAssets Tokens to sweep beyond the configured list.
-    function escape(address payable harbor, bytes32 salt, address[] calldata extraAssets) external onlySelf {
+    function escape(address payable harbor, bytes32 salt, address[] calldata extraAssets) external onlySelfOrExit {
         Layout storage s = _layout();
         if (keccak256(abi.encodePacked(harbor, salt)) != s.harborCommitment) revert HarborMismatch();
         s.frozen = true;
@@ -768,6 +841,8 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         if (commitment != 0 && delay == 0) revert RecoveryDelayRequired();
         if (commitment != 0 && gate == bytes32(0)) revert RecoveryGateInvalid();
         Layout storage s = _layout();
+        // A used paper's nullifier is spent and its ticket public, so setting it again would arm a recovery that can never work.
+        if (commitment != 0 && (s.recoveryUsed[bytes32(commitment)] || s.recoveryUsed[gate])) revert RecoveryAlreadyUsed();
         s.recoveryCommitment = commitment;
         s.recoveryDelay = delay;
         s.recoveryGate = gate;
@@ -779,11 +854,18 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     ///
     /// A nullifier is spent here even if the item is later vetoed, so a stolen secret gets one attempt. After a veto
     /// the owner, who still holds the master key, sets a new commitment.
-    function queueRecovery(bytes32 newRoot, uint256 nullifier) external onlySelf {
+    ///
+    /// The ticket went public with this transaction, so the gate closes here: without that, anyone could copy the ticket and make
+    /// every node run a pairing on a junk proof, for nothing. Only this closes it. A rotation of the key tree leaves the paper as
+    /// it was, and an unused paper still works after one. The next paper comes from `setRecovery`, which the new tree can sign.
+    function queueRecovery(bytes32 newRoot, uint256 nullifier) external onlySelfOrExit {
         Layout storage s = _layout();
         if (s.recoverySpent[nullifier]) revert NullifierSpent(nullifier);
         if (newRoot == bytes32(0)) revert RootRequired();
         s.recoverySpent[nullifier] = true;
+        s.recoveryUsed[bytes32(s.recoveryCommitment)] = true;
+        s.recoveryUsed[s.recoveryGate] = true;
+        s.recoveryGate = bytes32(0);
         uint256 id = s.nextItem++;
         uint64 executeAfter = uint64(block.timestamp) + s.recoveryDelay;
         s.isRecovery[id] = true;
@@ -837,6 +919,11 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     }
 
     /// V2: the SENDER half of an unshield. Its arguments are what VERIFY checked the proof against.
+    ///
+    /// This must not revert once VERIFY has passed. A reverted frame still pays its fee, out of the account and not the note, and
+    /// the note would live on: a contract that refuses money would let a note's holder burn the owner's balance for as long as
+    /// they cared to. So the note is spent whatever the recipient does. If it refuses, the money stays with the account, and the
+    /// holder has lost the note. `vajra unshield` simulates first for that reason.
     function unshield(uint256 root, uint256 nullifierHash, address recipient) external onlySelf {
         Layout storage s = _layout();
         if (s.frozen) revert AccountFrozen();
@@ -845,8 +932,14 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         if (s.poolHeld < DENOMINATION) revert ValueNotConserved();
         s.noteSpent[nullifierHash] = true;
         s.poolHeld -= DENOMINATION;
-        _transfer(address(0), recipient, DENOMINATION - MAX_PROOF_TX_COST);
-        emit Unshielded(nullifierHash, recipient);
+        // In assembly so that nothing is copied back: a recipient returning a huge blob would otherwise run this frame out of gas.
+        uint256 amount = DENOMINATION - MAX_PROOF_TX_COST;
+        bool paid;
+        assembly ("memory-safe") {
+            paid := call(gas(), recipient, amount, 0, 0, 0, 0)
+        }
+        if (paid) emit Unshielded(nullifierHash, recipient);
+        else emit UnshieldUnpaid(nullifierHash, recipient);
     }
 
     /// Replaces a daily key known to be stolen.
@@ -854,6 +947,13 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         Layout storage s = _layout();
         emit DailyKeyChanged(s.dailyKey, newKey);
         s.dailyKey = newKey;
+    }
+
+    /// V2: names the second route's sender. Only the master key can reach this: `validateDaily` does not allow the selector, and a
+    /// proof transaction is pinned to its own. Zero turns the route off.
+    function setExit(address exit_) external onlySelf {
+        _layout().exit = exit_;
+        emit ExitChanged(exit_);
     }
 
     function setRule(address asset, uint128 dailyLimit, uint128 coolingAllowance) external onlySelf {
@@ -976,6 +1076,31 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
 
     function recoverySpent(uint256 nullifier) external view returns (bool) {
         return _layout().recoverySpent[nullifier];
+    }
+
+    function recoveryGate() external view returns (bytes32) {
+        return _layout().recoveryGate;
+    }
+
+    function exit() external view returns (address) {
+        return _layout().exit;
+    }
+
+    /// ERC-5267. A client also reads this to learn that the account takes typed data: a V1 account has no such function.
+    function eip712Domain()
+        external
+        view
+        returns (
+            bytes1 fields,
+            string memory name,
+            string memory version,
+            uint256 chainId,
+            address verifyingContract,
+            bytes32 salt,
+            uint256[] memory extensions
+        )
+    {
+        return (hex"0f", "VAJRA", "2", block.chainid, address(this), bytes32(0), new uint256[](0));
     }
 
     function poolHeld() external view returns (uint256) {

@@ -1,0 +1,33 @@
+{
+ "ranAt": "2026-11-06T12:59:49.561Z",
+ "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
+ "chainId": 13370,
+ "account": "0x30878C72d38642b47c856F2aFB013505c1635ac0",
+ "exit": null,
+ "admitted": 550,
+ "refused": 0,
+ "seconds": 8.061,
+ "minedByThief": 3,
+ "feesPaidByAccount": "5595605",
+ "reputation": {
+  "address": "0x30878C72d38642b47c856F2aFB013505c1635ac0",
+  "opsSeen": 552,
+  "opsIncluded": 2,
+  "status": "banned",
+  "isWhitelisted": false,
+  "isBlacklisted": false,
+  "stake": "0x2aa1efb94e0000",
+  "unstakeDelaySec": 86400,
+  "withdrawTime": "0x0",
+  "isStaked": true
+ },
+ "outcomes": {
+  "vetoDirect": "REFUSED payer 0x30878C72d38642b47c856F2aFB013505c1635ac0 is banned",
+  "recovery": "REFUSED entity 0x30878C72d38642b47c856F2aFB013505c1635ac0 declares 500000 validation gas, which exceeds MAX_VERIFY_GAS_PER_ENTITY 100000",
+  "separatePayer": "REFUSED sender 0x30878C72d38642b47c856F2aFB013505c1635ac0 is banned",
+  "pin": "ADMITTED 0x6b2ee78d1ed68b9447d4a5cd689f9b561db4deacef8a17fbe3fcf0f069aab0dd",
+  "escapeCanonical": "REFUSED Invalid params: A frame transaction in the other nonce-key domain is already pending for this sender",
+  "escapeAlt": "REFUSED payer 0x30878C72d38642b47c856F2aFB013505c1635ac0 is banned"
+ },
+ "exitResult": null
+}

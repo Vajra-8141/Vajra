@@ -41,3 +41,23 @@ Ran against the patched sidecar on 2026-11-06, with ethrex `9aa3645`.
 | The same bytes refused unpatched and mined patched | **Passed**, `docs/evidence/compare-latest.json` |
 
 [`REPRO.md`](REPRO.md) reproduces all of this in a few commands.
+
+# Sidecar patch: replacements are not new evidence
+
+`sidecar-reputation.patch`, on top of the one above, and separate from it. It is a proposal, and the mirror does not use it unless you ask: `VAJRA_SIDECAR_RULE=1 make judge`.
+
+    patch -p1 < sidecar-reputation.patch
+
+Today every admission counts as seen, a replacement included, and a bump is `old * 11 / 10` in integers, so under ten wei it is no bump at all. Whoever can sign for a sender can walk it to a ban in one nonce slot, in seconds, and that takes the sender's other nonce domains down with it. For an account with two keys of unequal rank, it lets the lower key shut out the higher one. See `../FINDINGS.md` section 10.
+
+- **`MempoolService/service.ts`.** Replacing a live entry does not call `updateSeenStatus`. A slot whose entry already ended is a new admission, and counts.
+- **`entities/FrameTxMempoolEntry.ts`.** `canReplace` compares `new * 10` with `old * 11`, so a fee cannot be raised to itself.
+
+| Check | Status |
+|---|---|
+| Applies to `2e22ff0` with the budget patch | **Passed**, by `stack/up.sh` |
+| The sidecar's own tests for what it touches | **Passed**, 74 of 74, `test/services/MempoolService` and `test/entities/FrameTxMempoolEntry.test.ts`. No test was added for the rule itself |
+| Running on a node | **Passed**, `vajra rep-burn rule`: 210 replacements, seen unchanged, escape, veto and recovery admitted |
+| The sidecar's full test suite | **Not run** |
+
+It does not touch `obligations.ts`. That problem, in `../FINDINGS.md` section 11, has a fix on our side, and the sum it makes is right for what it is: what a sender could be charged.

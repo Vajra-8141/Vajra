@@ -9,6 +9,7 @@ import {
   accountAbi,
   coSignTx,
   dailyTx,
+  exitTx,
   leafNonceKey,
   masterDigest,
   masterTx,
@@ -19,6 +20,8 @@ import {
 } from "./frame.ts";
 import { ChainStateUnknown, type MasterSigner } from "./signer.ts";
 import { type WotsParams, verifyHashCount } from "./wots.ts";
+import VajraAccountV2 from "./artifacts/VajraAccountV2.json" with { type: "json" };
+import VajraExitFactory from "./artifacts/VajraExitFactory.json" with { type: "json" };
 import VajraFactory from "./artifacts/VajraFactory.json" with { type: "json" };
 import deployed from "./deployments/1337.json" with { type: "json" };
 
@@ -40,7 +43,7 @@ export interface Deployments {
   /** The local mirror only. Both need the patched sidecar's staked budget. */
   paymasters?: { quota: Address; usdc: Address; feeCap: string; usdcPerEth: string };
   /** The local mirror only: everything that needs the patched sidecar. */
-  v2?: { implementation: Address; factory: Address; recoveryVerifier: Address; shieldVerifier: Address; poseidon: Address; denomination: string; noteFee: string; workBits: number };
+  v2?: { implementation: Address; factory: Address; exitImplementation?: Address; exitFactory?: Address; recoveryVerifier: Address; shieldVerifier: Address; poseidon: Address; denomination: string; noteFee: string; workBits: number };
 }
 
 let active = deployed as unknown as Deployments;
@@ -109,6 +112,24 @@ export async function createAccount(key: Hex, factory: Address, config: AccountC
     chain: undefined,
   });
   await waitForSuccess(hash, "creating the account");
+  return address;
+}
+
+/** The account's second sender, funded with `reserve`. The master key still has to name it: `opsV2.setExit`. */
+export async function createExit(key: Hex, factory: Address, account: Address, root: Hex, epochSalt: Hex, reserve: bigint, stake = 0n): Promise<Address> {
+  const address = (await publicClient.readContract({ address: factory, abi: VajraExitFactory.abi, functionName: "addressOf", args: [account, root, epochSalt] })) as Address;
+  const hash = await walletFor(key).writeContract({
+    address: factory,
+    abi: VajraExitFactory.abi,
+    functionName: "create",
+    args: [account, root, epochSalt, stake, stake === 0n ? 0 : 86_400],
+    value: reserve + stake,
+    gas: 3_000_000n,
+    gasPrice: LEGACY_GAS_PRICE,
+    type: "legacy",
+    chain: undefined,
+  });
+  await waitForSuccess(hash, "creating the exit");
   return address;
 }
 
@@ -275,6 +296,36 @@ export function signMasterTx(a: {
   const { tx, hashes, digest } = prepareMasterTx({ ...a, root: a.signer.root, leaf, params: a.signer.params });
   return { tx: withMasterSignature(tx, a.signer.sign(leaf, digest)), leaf, hashes, digest };
 }
+
+/**
+ * `validateExit` walks the frames, which `validateMaster` does not, so it has about 18,000 gas less for hashing. The mean digest
+ * needs about 500 hashes, so few pass this, and drawing a new one costs a hash.
+ */
+export const EXIT_MAX_HASHES = 430;
+
+/**
+ * Signs a transaction from the account's second sender, with the exit tree. As in `prepareMasterTx`, a digest that would not fit
+ * under the VERIFY limit is redrawn before anything is revealed.
+ */
+export function signExitTx(a: { signer: MasterSigner; exit: Address; account: Address; epochSalt: Hex; calls: Call[]; leaf?: number; maxHashes?: number; verifyGas?: bigint; fees?: Fees }): { tx: FrameTx; leaf: number; hashes: number; digest: Hex } {
+  const leaf = a.leaf ?? a.signer.nextLeaf();
+  const nonceKey = leafNonceKey(a.signer.root, leaf);
+  const limit = a.maxHashes ?? EXIT_MAX_HASHES;
+  for (let tweak = 0n; tweak < 10_000n; tweak++) {
+    const calls = a.calls.map((c, i) => (i === 0 ? { ...c, execution: c.execution + tweak } : c));
+    const tx = exitTx({ exit: a.exit, account: a.account, root: a.signer.root, leaf, calls, verifyGas: a.verifyGas, fees: a.fees });
+    const digest = masterDigest({ chainId: DEVNET.chainId, epochSalt: a.epochSalt, account: a.exit, nonceKey, sigHash: sigHash(tx) });
+    const hashes = a.signer.hashCount(digest);
+    if (hashes <= limit) return { tx: withMasterSignature(tx, a.signer.sign(leaf, digest)), leaf, hashes, digest };
+  }
+  throw new Error("no digest under the hash limit");
+}
+
+/** True when the account takes EIP-712 typed data for the daily key. A V1 account has no such function, and takes personal_sign. */
+export const takesTypedData = (account: Address): Promise<boolean> =>
+  publicClient
+    .readContract({ address: account, abi: VajraAccountV2.abi as never, functionName: "eip712Domain" } as never)
+    .then(() => true, () => false);
 
 /**
  * Signs a stealth spend: the WOTS signature over the digest, then the co-signature over the signature hash. As in

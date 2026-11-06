@@ -43,7 +43,7 @@ import { claimLeaf, publishUse, theRegistry } from "./registry.ts";
 import { withSignerLock } from "./signer-lock.ts";
 
 /** Above this, the fitted cost would pass the VERIFY limit; the digest is redrawn before anything is revealed. */
-const MAX_HASHES = 660;
+const MAX_HASHES = 520;
 
 const useDevice = () => process.env.VAJRA_SIGNER === "device";
 

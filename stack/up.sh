@@ -18,6 +18,14 @@ if [ ! -f "$work/sidecar/.vajra-patched" ]; then
   git -C "$work/sidecar" apply "$root/docs/upstream/sidecar-budget-010.patch"
   touch "$work/sidecar/.vajra-patched"
 fi
+# Opt-in: a copy of the sidecar with docs/upstream/sidecar-reputation.patch on top. The mirror's default stays what JUDGES.md says it is.
+if [ -n "${VAJRA_SIDECAR_RULE:-}" ]; then
+  rm -rf "$work/sidecar-rule"
+  mkdir -p "$work/sidecar-rule"
+  tar -C "$work/sidecar/" --exclude=./node_modules --exclude=./.git -cf - . | tar -C "$work/sidecar-rule" -xf -
+  patch -s -d "$work/sidecar-rule" -p1 < "$root/docs/upstream/sidecar-reputation.patch"
+  export VAJRA_SIDECAR_DIR=sidecar-rule VAJRA_SIDECAR_IMAGE=vajra-sidecar:2e22ff0-budget010-rule
+fi
 [ -f "$work/jwt.hex" ] || node -e 'console.log(require("crypto").randomBytes(32).toString("hex"))' > "$work/jwt.hex"
 
 "${compose[@]}" down --remove-orphans >/dev/null 2>&1 || true

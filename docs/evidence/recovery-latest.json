@@ -1,77 +1,109 @@
 {
- "ranAt": "2026-11-06T06:20:08.138Z",
+ "ranAt": "2026-11-06T12:54:57.685Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch",
  "chainId": 13370,
  "genesis": "0x74f05f1d3d0589fbf8e763a064aefe6d9941f6ab907cb52993142ede6c23cf3c",
  "verifier": "0x0bbae1e5766c24010a08080299fa91eaa973185a",
  "implementation": "0x668e5b07b106c3ea01e113830636e19262d4db12",
- "account": "0x4869969D3eA19433Aa09b988F0C7dBBF81D51311",
- "proverMs": 304,
- "verifyGas": 298084,
+ "account": "0xfCE91532eF69187b3A2343F2fa11b0be3708357A",
+ "proverMs": 306,
+ "verifyGas": 301530,
  "failures": 0,
  "mined": [
   {
    "step": "set recovery",
-   "hash": "0x2cbf0bcaf17614b3072bac7eb1500fd07fc2b8f8d53deba3b1d69a358d74e24e",
-   "block": 135,
-   "verifyGas": 91986,
-   "totalGas": 367354,
+   "hash": "0x74846208e722b75604081367410351ce084c42506e4eb2de69d3c7d215d37683",
+   "block": 68,
+   "verifyGas": 90906,
+   "totalGas": 480562,
    "attempts": 1
   },
   {
    "step": "queue recovery",
-   "hash": "0x452058ca14bfd8aa8ccf5f2c4c3bf1a48a533c032e558d9b5ad7c877fda029e8",
-   "block": 138,
-   "verifyGas": 298084,
-   "totalGas": 876901,
+   "hash": "0x1ea45fa4648ad1fc9287a6235c64a9874b8e7e8d28de5140f53da41000e0858a",
+   "block": 70,
+   "verifyGas": 301530,
+   "totalGas": 1100155,
    "attempts": 1
   },
   {
    "step": "install root",
-   "hash": "0x1b885395bee6224a2e2a91cc87687a2a2dabeba8d5cee5cf9c4ecee933761138",
-   "block": 150,
+   "hash": "0x441d54b4b884b1c2ffb28b29f623ef7e58b05cd679b8993c9bc086770434cfd2",
+   "block": 82,
    "verifyGas": 0,
-   "totalGas": 53572,
+   "totalGas": 53645,
    "attempts": 1
   },
   {
    "step": "freeze, signed by the NEW tree",
-   "hash": "0x46339038e25f3a04406821caccd913788d7f9a9f14fabf6b5ab27246d61e9d0b",
-   "block": 152,
-   "verifyGas": 90387,
+   "hash": "0xf38a6d493cea7c6d706ad14baa73cec4b0a372361fa900c662db7737fa839f7b",
+   "block": 84,
+   "verifyGas": 91203,
    "totalGas": 167418,
    "attempts": 1
   },
   {
    "step": "unfreeze, signed by the NEW tree",
-   "hash": "0x581d57479617023d65a8ceedc8320545c61c8cfb84106cce041e8a6a02d2159f",
-   "block": 154,
-   "verifyGas": 90372,
+   "hash": "0x0d5415acdc79e170e44e97634231138e2d935e8f282281320dc817de52ca947c",
+   "block": 85,
+   "verifyGas": 92886,
    "totalGas": 167418,
    "attempts": 1
   },
   {
    "step": "set recovery on the second account",
-   "hash": "0xeb685c602fbc121bc618d78d451d949b02895d1a39ba1a94818daf143ca4f2f0",
-   "block": 158,
-   "verifyGas": 93033,
-   "totalGas": 367948,
+   "hash": "0x02aa5e74e2439ade5e1f2d2b6a9fcc798b4f04c4d07f166dc02d2d9b96cdd151",
+   "block": 89,
+   "verifyGas": 89406,
+   "totalGas": 479074,
    "attempts": 1
   },
   {
    "step": "thief queues a root, with a stolen paper",
-   "hash": "0xfe676636d6a11630bbd4c780fdaffc5b9615e0c26574ebe87ff877faf9ec31de",
-   "block": 160,
-   "verifyGas": 298084,
-   "totalGas": 876877,
+   "hash": "0x79c5b025e59afb4ad723c781cb4a779ec6aacffcea3286783d02619afbc7a06d",
+   "block": 90,
+   "verifyGas": 301530,
+   "totalGas": 1100179,
    "attempts": 1
   },
   {
    "step": "owner vetoes it",
-   "hash": "0x56532579eb68294622dd6a22836c398a6654ae3d4ecead44c70f52913d13d4d5",
-   "block": 162,
-   "verifyGas": 92523,
+   "hash": "0xe351e0171392ea821cf274c0975da27bb4d882693221209178bb137c659b175d",
+   "block": 92,
+   "verifyGas": 88599,
    "totalGas": 169466,
+   "attempts": 1
+  },
+  {
+   "step": "a new paper, after the old one was used",
+   "hash": "0x05952de3274adf943ce569addc34ee66d7dc8b337127e04171fac12cab1dc832",
+   "block": 94,
+   "verifyGas": 91173,
+   "totalGas": 275001,
+   "attempts": 1
+  },
+  {
+   "step": "rotate the key tree",
+   "hash": "0x49ade7d274f3ffe00de964e5ff9651c39028ab142822db48de23d005351fdb36",
+   "block": 96,
+   "verifyGas": 96611,
+   "totalGas": 169466,
+   "attempts": 1
+  },
+  {
+   "step": "recovery with an unused paper, after a rotation",
+   "hash": "0xa29bb7e03bafaaab4ba23dea893df7538826baef11cc23d9b10f2ba531bc82d1",
+   "block": 98,
+   "verifyGas": 301530,
+   "totalGas": 1002235,
+   "attempts": 1
+  },
+  {
+   "step": "the rotated tree sets the next paper",
+   "hash": "0xc828b706d1595d64a91c1c6859da441d5edb797339b4dff1f396556670a2b178",
+   "block": 101,
+   "verifyGas": 91203,
+   "totalGas": 275007,
    "attempts": 1
   }
  ],
@@ -79,6 +111,10 @@
   {
    "attack": "A proof, before any commitment is set",
    "refusal": "RecoveryNotSet"
+  },
+  {
+   "attack": "A proof with a guessed ticket, which must die for a hash and not a pairing",
+   "refusal": "RecoveryGateInvalid"
   },
   {
    "attack": "Daily key changes the commitment",
@@ -159,6 +195,14 @@
   {
    "attack": "The thief tries again with the same paper",
    "refusal": "NullifierSpent"
+  },
+  {
+   "attack": "A used ticket, on a fresh nullifier, with a proof that cannot pass",
+   "refusal": "RecoveryGateInvalid"
+  },
+  {
+   "attack": "A used paper, set again",
+   "refusal": "RecoveryAlreadyUsed, in the SENDER frame"
   }
  ]
 }

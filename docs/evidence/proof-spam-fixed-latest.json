@@ -1,0 +1,28 @@
+{
+ "ranAt": "2026-11-06T12:59:18.936Z",
+ "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
+ "chainId": 13370,
+ "contract": "VajraAccountV2",
+ "account": "0xc51D8283A1222D356aaF9a6100355214C751007F",
+ "copies": {
+  "proofs": 6,
+  "pendingAtOnce": 1,
+  "seen": 1,
+  "refusals": [
+   "Frame transaction cannot be replaced: fee too low"
+  ]
+ },
+ "refusingRecipient": {
+  "mined": 1,
+  "refusal": "prefix gas budget exceeded: 500000 > 100000 (MAX_VERIFY_GAS)",
+  "accountBalanceFell": "2685999000000000",
+  "noteStillGood": false
+ },
+ "usedTicket": {
+  "tries": 10,
+  "refusals": [
+   "RecoveryGateInvalid"
+  ],
+  "msPerTry": 5
+ }
+}

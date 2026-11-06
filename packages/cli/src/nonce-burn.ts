@@ -97,7 +97,7 @@ for (let leaf = 0; leaf < 64; leaf += PER_TX) {
 }
 console.log(`${burned} of 64 leaves burned`);
 
-const escape = signMasterTx({ signer, account, epochSalt: genesis, calls: [ops.escape(harbor, salt)], leaf: burned === 64 ? 0 : burned, maxHashes: 660 });
+const escape = signMasterTx({ signer, account, epochSalt: genesis, calls: [ops.escape(harbor, salt)], leaf: burned === 64 ? 0 : burned, maxHashes: 520 });
 const outcome = await sendAlt(escape.tx).then(
   (hash) => `admitted ${hash}`,
   (error: Error) => `REFUSED ${error instanceof RpcError ? refusalNameV2(error.message).slice(0, 160) : error.message}`,

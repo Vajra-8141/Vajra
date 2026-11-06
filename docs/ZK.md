@@ -47,8 +47,9 @@ The gas is pinned because a mined failure is permanent. A copy with too little g
 frame, and the nullifier's nonce key could never be used again. That attack worked against the first version: see `FINDINGS.md` section 8.
 
 The nonce key means a retry is the identical bytes, and that a thief's pending daily transaction cannot hold a recovery up on a
-mempool that keeps the two nonce domains apart. That is the same reason an escape uses one. It includes the recipient, so if a recipient
-reverts, the note is not spent and a fresh proof to another address still works.
+mempool that keeps the two nonce domains apart. That is the same reason an escape uses one. An unshield's key is the nullifier alone, so a
+note has one slot however many proofs its holder makes, and one mined attempt. It used to include the recipient, and that let one note
+hold many pending transactions, and burn the owner's fees: see `FINDINGS.md` section 13.
 
 ## Recovery
 
@@ -61,6 +62,12 @@ root, on this account, under this salt, on this chain. The nullifier is `Poseido
 - **A freeze does not stop a recovery.** Freeze stops spending, and an owner who lost the master key cannot unfreeze.
 - **A secret gets one attempt per account.** The nullifier is spent when the root is queued, even if it is then vetoed. So a thief with
   a stolen paper gets one try and the owner a veto, and after that the owner, who still has the master key, sets a new commitment.
+- **A ticket closes when it is used.** It goes public with the recovery, so `queueRecovery` closes the gate, and a junk proof then dies for a
+  hash. A rotation leaves an unused paper alone. A used paper cannot be set again: `RecoveryAlreadyUsed`. The next one needs a new secret.
+  While a recovery is pending the ticket is public and the gate open, so until that block a junk proof still costs a node a pairing.
+- **A ban does not have to stop a recovery.** A thief with the daily key can get the account banned on a node, and that refuses a recovery
+  from the account. A staked `VajraExit` carries the same proof from its own address. See `FINDINGS.md` sections 10 and 12. A proof has no second
+  door otherwise: it is over the canonical cap.
 - **If the master key is lost and the paper is stolen, the thief wins.** Nothing can tell them apart. The veto only helps an owner who
   still has the master key.
 - The daily key cannot reach any of this: `validateDaily` allows neither selector.
@@ -86,13 +93,16 @@ withdrawal circuit proves membership without saying which leaf.
 | The daily key cannot touch it | neither selector is allowed, and a daily frame cannot carry value |
 | A spend cannot reach into the notes | `_transfer` keeps `poolHeld` out of reach, even of a spend inside the limit |
 | Fees cannot eat the notes | a note pays its own fee, out of its value. A daily transaction or a recovery needs the balance to cover the notes and the fee. A staked sender may read its balance in validation, so an account with a pool must be staked |
-| Nobody can use the pool to burn the owner's money | since a note pays its own way, a shield-and-unshield loop costs whoever runs it |
+| Nobody can use the pool to burn the owner's money | a note pays its own way, because it is spent even if its recipient refuses the money, and it gets one mined attempt. This claim was false until `FINDINGS.md` section 13: a reverting recipient left the note alive and the owner paying |
 | Only the owner opens a pool | the first note has to come from the account, so an outsider cannot switch the balance check on for an unstaked account |
 
 **The root ring is 32 deep.** A proof takes time to reach a block, and the tree moves under it. The EF's guidance is that validity
 resting on fast-changing state leaks reputation, so an unshield may prove against any of the last 32 roots. A root that has left the
 ring gets `RootUnknown`, which is a tier, not an error: the note is fine, and `vajra unshield` proves again. A retry of the same proof
 is the same bytes. `vajra shielded` tests both sides of the edge: mined 30 deposits behind, refused 32 behind.
+
+**A note has one mined attempt.** If its recipient refuses the money, the note is spent and the money stays in the account. `vajra unshield` asks the
+recipient first, so that this takes a recipient that changes its mind. A note cannot be retried to someone else any more. That is the price of the two attacks it closes.
 
 **The master key can take the pool.** That is the point of a pool that obeys the rulebook, and it also means this is not trustless: a
 note in someone else's pool is only as good as that account's master key, and anyone paying in should know it.

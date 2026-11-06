@@ -15,8 +15,6 @@ import {
   queuedEvents,
   refusalName,
   submit,
-  walletMessage,
-  withWalletSignature,
 } from "@vajra/core";
 import { FirstRun } from "../../components/checklist";
 import { OneTimeKeys } from "../../components/leaves";
@@ -25,7 +23,7 @@ import { useAccount } from "../../lib/account";
 import { type BridgeStatus, createOnBridge, demoExecute, demoSpend, master } from "../../lib/bridge";
 import { countdown, eth, explain, short } from "../../lib/format";
 import { NETWORKS, useReads } from "../../lib/reads";
-import { connectWallet, hasWallet, personalSign } from "../../lib/wallet";
+import { connectWallet, hasWallet, signWithWallet } from "../../lib/wallet";
 
 /** How long `submit` keeps watching for a receipt, which over a mixnet is several slow round trips per check. */
 const SUBMIT_TIMEOUT_MS = 420_000;
@@ -208,8 +206,7 @@ export default function AccountPage() {
       const nonce = BigInt(await publicClient.getTransactionCount({ address: account! }));
       const unsigned = dailyTx({ account: account!, dailyKey: wallet!, nonce, calls: [ops.spend(ETH, to as Address, parseEther(amount))] });
       say("asking your wallet to sign");
-      const signature = await personalSign(walletMessage(unsigned), wallet!);
-      const { hash, receipt } = await submit(withWalletSignature(unsigned, signature), { log: say, timeoutMs: SUBMIT_TIMEOUT_MS });
+      const { hash, receipt } = await submit(await signWithWallet(unsigned, wallet!), { log: say, timeoutMs: SUBMIT_TIMEOUT_MS });
       if (!framesSucceeded(receipt)) throw new Error(`${hash} was mined but the spend failed`);
       const [queued] = queuedEvents(receipt.frameReceipts[1]!.logs as { topics: `0x${string}`[]; data: `0x${string}` }[]);
       say(`mined ${short(hash)} in block ${Number(receipt.blockNumber)}`);
@@ -244,8 +241,7 @@ export default function AccountPage() {
     run("execute", async () => {
       const nonce = BigInt(await publicClient.getTransactionCount({ address: account! }));
       const unsigned = dailyTx({ account: account!, dailyKey: wallet!, nonce, calls: [ops.executeQueued(id)] });
-      const signature = await personalSign(walletMessage(unsigned), wallet!);
-      const { hash, receipt } = await submit(withWalletSignature(unsigned, signature), { log: say, timeoutMs: SUBMIT_TIMEOUT_MS });
+      const { hash, receipt } = await submit(await signWithWallet(unsigned, wallet!), { log: say, timeoutMs: SUBMIT_TIMEOUT_MS });
       if (!framesSucceeded(receipt)) throw new Error(`${hash} was mined but the item did not run`);
       say(`mined ${short(hash)} in block ${Number(receipt.blockNumber)}`);
       setNotice(`Item ${id} ran.`);

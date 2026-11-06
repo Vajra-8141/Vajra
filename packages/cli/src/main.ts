@@ -209,6 +209,27 @@ switch (command) {
   case "explain":
     await (await import("./explain.ts")).explainCommand(rest[0] as Hex);
     break;
+  case "rep-burn":
+    await import("./rep-burn.ts");
+    break;
+  case "escape-solvency":
+    await import("./escape-solvency.ts");
+    break;
+  case "proof-spam":
+    await import("./proof-spam.ts");
+    break;
+  case "clear-sign":
+    await import("./clear-sign.ts");
+    break;
+  case "exit-e2e":
+    await import("./exit-e2e.ts");
+    break;
+  case "exit-setup":
+    await (await import("./exit.ts")).exitSetup({ reserve: flags.reserve ?? "0.01" });
+    break;
+  case "exit":
+    await (await import("./exit.ts")).exitEscape();
+    break;
   case "pay-e2e":
     await import("./pay-e2e.ts");
     break;
@@ -263,6 +284,7 @@ move:     move --key-file file --harbor <address> [--tokens a,b] [--limit eth] [
           (a new account, with an EOA's ETH and tokens in it, in one transaction; mirror only)
 demo:     thief [eth]                    (the same daily key, sending over the limit to a fresh address)
 master:   pay <id> | veto <id> | freeze | unfreeze | escape | rotate | set-daily <address>
+second route: exit-setup [--reserve eth] | exit  (a sender of its own, with its own key tree and money: docs/FINDINGS.md section 12)
 service:  bridge
 signer:   device | device wipe          (VAJRA_SIGNER=device keeps the master key on the hardware)
 registry: leaves [root]                 (what Arkiv knows about a key tree; needs no keys)
@@ -276,6 +298,8 @@ pool:     shield | unshield <recipient>  (one note in, one note out)
 gas:      explain <hash>                 (why a mined, pending or refused transaction went the way it did)
           paymaster-e2e                  (both paymasters, every attack; needs the mirror)
 devnet:   deploy [w16|w256|stealth] | e2e | device-e2e | stealth | measure | pin | budget | arkiv`);
+devnet:   deploy [w16|w256|stealth] | e2e | device-e2e | stealth | measure | pin | budget | arkiv
+attacks:  rep-burn [fixed|rule] | escape-solvency [fixed] | proof-spam [fixed] | clear-sign | exit-e2e  (the mirror only)`);
     process.exit(1);
 }
 

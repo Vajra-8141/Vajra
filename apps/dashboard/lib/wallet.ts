@@ -1,5 +1,6 @@
-/** The daily key is whatever wallet the user already has. All it is ever asked for is one personal_sign. */
-import type { Address, Hex } from "viem";
+/** The daily key is whatever wallet the user already has. All it is ever asked for is one signature, as typed data it can show. */
+import { type Address, type Hex, serializeTypedData } from "viem";
+import { type FrameTx, dailyTypedData, takesTypedData, walletMessage, withTypedSignature, withWalletSignature } from "@vajra/core";
 
 interface Eip1193 {
   request(args: { method: string; params?: unknown[] }): Promise<unknown>;
@@ -28,4 +29,15 @@ export async function connectWallet(): Promise<Address> {
   return address!;
 }
 
-export const personalSign = (message: Hex, address: Address) => provider()!.request({ method: "personal_sign", params: [message, address] }) as Promise<Hex>;
+/**
+ * Signs a daily transaction. A V2 account takes EIP-712 typed data, which the wallet can show as asset, recipient and amount. A V1
+ * account still needs the blind personal_sign, because that is what it rebuilds.
+ */
+export async function signWithWallet(tx: FrameTx, address: Address): Promise<FrameTx> {
+  const eth = provider()!;
+  if (await takesTypedData(tx.sender)) {
+    const signature = (await eth.request({ method: "eth_signTypedData_v4", params: [address, serializeTypedData(dailyTypedData(tx) as never)] })) as Hex;
+    return withTypedSignature(tx, signature);
+  }
+  return withWalletSignature(tx, (await eth.request({ method: "personal_sign", params: [walletMessage(tx), address] })) as Hex);
+}

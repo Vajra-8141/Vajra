@@ -1,0 +1,79 @@
+{
+ "ranAt": "2026-11-06T12:53:45.053Z",
+ "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. A scripted wallet, not MetaMask",
+ "chainId": 13370,
+ "account": "0x550C2fB933eAE11DDFf54eF5eeF1B0BF92d7b42c",
+ "failures": 0,
+ "mined": [
+  {
+   "step": "a spend, signed as typed data",
+   "hash": "0xf213c2e006bb9068cc314c5cd953e71a34f3915097c5c40c495e3ea2f561dd3d",
+   "block": 58,
+   "verifyGas": 48129,
+   "totalGas": 504740,
+   "attempts": 1
+  },
+  {
+   "step": "a spend over the limit, signed as typed data, which queues",
+   "hash": "0xace6f2d95fd95a317e004ed7d0805fac86630d4bdfe35c84da222321edc891cc",
+   "block": 59,
+   "verifyGas": 48129,
+   "totalGas": 632497,
+   "attempts": 1
+  },
+  {
+   "step": "executing it, signed as typed data",
+   "hash": "0xcb6981449b8812fba4f763dd7cb3e360bc6a74b2bc2e531cd0d2d9af2a025897",
+   "block": 64,
+   "verifyGas": 46487,
+   "totalGas": 283462,
+   "attempts": 1
+  }
+ ],
+ "refusals": [
+  {
+   "attack": "Moved onto another recipient",
+   "refusal": "SignatureNotBoundToTransaction"
+  },
+  {
+   "attack": "Moved onto a larger amount",
+   "refusal": "SignatureNotBoundToTransaction"
+  },
+  {
+   "attack": "Resent with another fee",
+   "refusal": "SignatureNotBoundToTransaction"
+  },
+  {
+   "attack": "Resent with dirty high bits in the recipient word, to die in the SENDER frame",
+   "refusal": "SignatureNotBoundToTransaction"
+  },
+  {
+   "attack": "Resent with trailing bytes",
+   "refusal": "SignatureNotBoundToTransaction"
+  },
+  {
+   "attack": "Resent with the body's gas cut, to die in the SENDER frame",
+   "refusal": "SignatureNotBoundToTransaction"
+  },
+  {
+   "attack": "Resent with the body turned into a no-op frame",
+   "refusal": "SignatureNotBoundToTransaction"
+  },
+  {
+   "attack": "Signed for another account",
+   "refusal": "SignatureNotBoundToTransaction"
+  },
+  {
+   "attack": "Signed for another chain",
+   "refusal": "SignatureNotBoundToTransaction"
+  },
+  {
+   "attack": "The old blind personal_sign, on a V2 account",
+   "refusal": "SignatureNotBoundToTransaction"
+  },
+  {
+   "attack": "Typed data signed by another key",
+   "refusal": "Invalid frame transaction signature"
+  }
+ ]
+}
