@@ -4,7 +4,7 @@
  * real client and the patched sidecar. Exits non-zero if anything behaves differently from the claim.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
-import { type Address, formatEther, keccak256, parseEther, toHex } from "viem";
+import { type Address, formatEther, keccak256, parseEther, toHex, zeroHash } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import * as lib from "@forshtat/hegota-support/tx";
 import {
@@ -26,6 +26,8 @@ import {
   recoveryTx,
   signDaily,
   signDailyTx,
+  signMasterTx,
+  simulate,
   sleep,
   waitForSuccess,
   walletFor,
@@ -158,6 +160,30 @@ await reverts("Installing a vetoed root", "RecoveryVetoed", { address: account2,
 const again = await proveRecovery({ secret: paper, newRoot: keccak256(toHex("second try")), account: account2, epochSalt, chainId: DEVNET.chainId });
 // A new root is a new nonce key, so this reaches the contract on nonce 0, and the nullifier is what stops it.
 await refused("The thief tries again with the same paper", recoveryTx({ account: account2, ticket: recoveryTicket(paper), newRoot: keccak256(toHex("second try")), nullifier: again.nullifier, proof: again.proof }), "NullifierSpent");
+
+console.log("\n10. A ticket after use, and a paper after a rotation");
+// The ticket went public with the thief's transaction. Without the gate closing, this would cost every node a pairing.
+await refused(
+  "A used ticket, on a fresh nullifier, with a proof that cannot pass",
+  recoveryTx({ account: account2, ticket: recoveryTicket(paper), newRoot: keccak256(toHex("junk")), nullifier: randomFieldElement(), proof: theft.proof }),
+  "RecoveryGateInvalid",
+);
+check((await read<string>(account2, "recoveryGate")) === zeroHash, "the gate closed when the paper was used");
+const rearm = await simulate(master(owner, account2, epochSalt, [opsV2.setRecovery(await recoveryCommitment(paper), DELAY, recoveryGate(keccak256(toHex("a new ticket"))))]));
+check(rearm.frames?.[1]?.succeeded === false, "A used paper cannot be set again, even with a new gate: its nullifier is spent, so it could never work");
+refusals.push({ attack: "A used paper, set again", refusal: "RecoveryAlreadyUsed, in the SENDER frame" });
+
+const paper2 = randomFieldElement();
+await mined("a new paper, after the old one was used", master(owner, account2, epochSalt, [opsV2.setRecovery(await recoveryCommitment(paper2), DELAY, recoveryGate(recoveryTicket(paper2)))]));
+const rotated = newSigner();
+const rotation = signMasterTx({ signer: owner, account: account2, epochSalt, calls: [ops.rotateRoot(rotated.root)], rotation: true, maxHashes: 600 });
+await mined("rotate the key tree", rotation.tx);
+const afterRotation = newSigner();
+const reuse = await proveRecovery({ secret: paper2, newRoot: afterRotation.root, account: account2, epochSalt, chainId: DEVNET.chainId });
+await mined("recovery with an unused paper, after a rotation", recoveryTx({ account: account2, ticket: recoveryTicket(paper2), newRoot: afterRotation.root, nullifier: reuse.nullifier, proof: reuse.proof }));
+const paper3 = randomFieldElement();
+await mined("the rotated tree sets the next paper", master(rotated, account2, epochSalt, [opsV2.setRecovery(await recoveryCommitment(paper3), DELAY, recoveryGate(recoveryTicket(paper3)))]));
+check((await read<string>(account2, "recoveryGate")) === recoveryGate(recoveryTicket(paper3)), "the gate is open again, on a ticket nobody has seen");
 
 const queueGas = evidence.find((e) => e.step === "queue recovery")?.verifyGas ?? null;
 mkdirSync(new URL("../../../docs/evidence/", import.meta.url), { recursive: true });

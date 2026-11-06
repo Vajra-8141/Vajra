@@ -22,7 +22,9 @@ import {
   publicClient,
   signDaily,
   simulate,
+  preFixUnshieldNonceKey,
   proofWork,
+  sendAlt,
   unshieldNonceKey,
   unshieldTx,
   waitForSuccess,
@@ -109,7 +111,7 @@ const tx = (over: Partial<Parameters<typeof unshieldTx>[0]> = {}) =>
 
 const bent = [...proofA.proof] as unknown as bigint[];
 bent[2] = bent[2]! + 1n;
-await refused("A real proof, with no work done", tx({ work: proofWork(account, proofA.proof, unshieldNonceKey(proofA.nullifierHash, recipient)) + 1n }), "ProofWorkMissing");
+await refused("A real proof, with no work done", tx({ work: proofWork(account, proofA.proof, unshieldNonceKey(proofA.nullifierHash)) + 1n }), "ProofWorkMissing");
 await refused("A corrupted proof", tx({ proof: bent as unknown as FlatProof }), "ShieldProofInvalid");
 await refused("A seen proof, moved to the attacker's address", tx({ recipient: fresh() }), "ShieldProofInvalid");
 const other = await proveUnshield({ note: a, leaves, leaf: 0, recipient, denomination: DENOM, account: fresh(), chainId });
@@ -127,14 +129,21 @@ const starve = (limits: { execution?: bigint; state?: bigint }) => ({ ...honest,
 await refused("A seen proof, resent with too little execution gas, to kill the note", starve({ execution: 1000n }), "ProofTxShapeInvalid");
 await refused("A seen proof, resent with too little state gas, to kill the note", starve({ state: 0n }), "ProofTxShapeInvalid");
 await refused("A seen proof, on a nonce key of the attacker's choosing", { ...honest, nonceKeys: [12345n] }, "ProofTxShapeInvalid");
+await refused("A seen proof, on the old key with the recipient in it", tx({ nonceKey: preFixUnshieldNonceKey(proofA.nullifierHash, recipient) }), "ProofTxShapeInvalid");
 
 console.log("\n4. A note out, with no key anywhere");
 const before = await publicClient.getBalance({ address: recipient });
+await sendAlt(honest);
+// One note, one slot. A second valid proof to someone else is a real, well-formed transaction, and it has nowhere to go.
+const elsewhere = fresh();
+const copy = await key(a, 0, elsewhere, leaves);
+await refused("One note, a second valid proof to another recipient", unshieldTx({ account, root: copy.root, nullifierHash: copy.nullifierHash, recipient: elsewhere, proof: copy.proof }), "Frame transaction cannot be replaced: fee too low");
 const out = await mined("unshield note A", honest);
 check((await publicClient.getBalance({ address: recipient })) - before === DENOM - noteFee(), `the recipient got exactly the note less its fee, ${formatEther(DENOM - noteFee())} ETH`);
 check((await readPool<bigint>(account, "poolHeld")) === DENOM * 2n, "the pool's accounting fell by one note");
 console.log(`    VERIFY ${Number(BigInt(out.receipt.frameReceipts[0]!.gasUsed))} gas`);
 await refused("The same note again, on the next nonce", { ...honest, nonceSeq: 1n }, "NullifierSpent");
+await refused("The same note, proved to another recipient, after it was spent", unshieldTx({ account, root: copy.root, nullifierHash: copy.nullifierHash, recipient: elsewhere, proof: copy.proof }), "NullifierSpent");
 
 console.log("\n5. The tree moves under a proof");
 leaves = await poolLeaves(account);

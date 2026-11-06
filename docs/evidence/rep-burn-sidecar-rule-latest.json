@@ -1,0 +1,33 @@
+{
+ "ranAt": "2026-11-06T12:26:20.023Z",
+ "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch and sidecar-reputation.patch. NOT run on the public devnet",
+ "chainId": 13370,
+ "account": "0x87FaAbaCf9aFde396d4e62d29Ff7AfDBf265fa72",
+ "exit": null,
+ "admitted": 210,
+ "refused": 11,
+ "seconds": 2.533,
+ "minedByThief": 0,
+ "feesPaidByAccount": "3445188",
+ "reputation": {
+  "address": "0x87FaAbaCf9aFde396d4e62d29Ff7AfDBf265fa72",
+  "opsSeen": 3,
+  "opsIncluded": 2,
+  "status": "ok",
+  "isWhitelisted": false,
+  "isBlacklisted": false,
+  "stake": "0x2aa1efb94e0000",
+  "unstakeDelaySec": 86400,
+  "withdrawTime": "0x0",
+  "isStaked": true
+ },
+ "outcomes": {
+  "vetoDirect": "ADMITTED 0x284ab6d2922758f47d1fee5ff555e42e40cd7569f6f119e301be266436f5587e",
+  "recovery": "ADMITTED 0xaf515f0e2527ab9a7f6ab13a818c7e1a196aeae86cc0da20719ddaf56dbcfd74",
+  "separatePayer": "ADMITTED 0x0356beefd2ee666e290255c331893299a9acbf3a4bf9c95ee6f1545fb9cb1a99",
+  "pin": "REFUSED Invalid params: Frame transaction validation-prefix simulation failed: validation prefix frame reverted",
+  "escapeCanonical": "ADMITTED 0xa0788075042e7ec90addc4af96ae29fd798cda680a9e8ebb193880fa997f1b83",
+  "escapeAlt": "ADMITTED 0xa0788075042e7ec90addc4af96ae29fd798cda680a9e8ebb193880fa997f1b83"
+ },
+ "exitResult": null
+}

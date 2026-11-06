@@ -1,0 +1,39 @@
+{
+ "ranAt": "2026-11-06T12:07:49.349Z",
+ "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
+ "chainId": 13370,
+ "account": "0x9f971C62abcD3A121e9aC8D8C3b91fbdAAd5114D",
+ "exit": "0xbd299989C0738A489D6007c4b2546253cD1D5Ba8",
+ "admitted": 550,
+ "refused": 0,
+ "seconds": 8.167,
+ "minedByThief": 3,
+ "feesPaidByAccount": "5594898",
+ "reputation": {
+  "address": "0x9f971C62abcD3A121e9aC8D8C3b91fbdAAd5114D",
+  "opsSeen": 553,
+  "opsIncluded": 3,
+  "status": "banned",
+  "isWhitelisted": false,
+  "isBlacklisted": false,
+  "stake": "0x2aa1efb94e0000",
+  "unstakeDelaySec": 86400,
+  "withdrawTime": "0x0",
+  "isStaked": true
+ },
+ "outcomes": {
+  "vetoDirect": "REFUSED payer 0x9f971C62abcD3A121e9aC8D8C3b91fbdAAd5114D is banned",
+  "recovery": "REFUSED entity 0x9f971C62abcD3A121e9aC8D8C3b91fbdAAd5114D declares 500000 validation gas, which exceeds MAX_VERIFY_GAS_PER_ENTITY 100000",
+  "separatePayer": "REFUSED sender 0x9f971C62abcD3A121e9aC8D8C3b91fbdAAd5114D is banned",
+  "pin": "ADMITTED 0x88cae16e889f900aba5f9eae2a5f70128d603446a22ba1131455ab70cbe1d635",
+  "escapeCanonical": "REFUSED Invalid params: Frame transaction validation-prefix simulation failed: validation prefix frame reverted",
+  "escapeAlt": "REFUSED validation frame 0: reverted",
+  "exitVeto": "ADMITTED 0x5dc4f1ba3d2085e560529826f9f2077a8269114d6305296cfe0676e385b3534e",
+  "exitRecovery": "ADMITTED 0x8c19860e07f9956a9a67bb74be0cdfac668c7a9c6e4f94412bf51b1a8bae95ef",
+  "exitEscape": "ADMITTED 0x76058648d889369f4a2830710a07ab3458a40e9831b325177f1e4c9726e4a973"
+ },
+ "exitResult": {
+  "harbor": "1986630315984817314",
+  "frozen": true
+ }
+}

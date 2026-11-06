@@ -67,6 +67,11 @@ export async function unshieldCommand(recipient: Address) {
   if (!saved) throw new Error("no unspent note on this machine");
   const note: Note = { secret: BigInt(saved.secret), nullifierSeed: BigInt(saved.nullifierSeed) };
 
+  // A note has one mined attempt, and it is spent whatever the recipient does. So ask first: a contract that refuses money costs the note.
+  await publicClient.call({ account, to: recipient, value: denomination() - noteFee() }).catch(() => {
+    throw new Error(`${recipient} refuses a plain payment, and the note would be lost: pick another recipient`);
+  });
+
   // A stale root is a tier, not an error: the note is fine, and a fresh proof against a newer root will do. Retrying the same
   // proof is always the same bytes, which `submit` does on its own.
   for (let attempt = 1; ; attempt++) {

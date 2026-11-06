@@ -1,0 +1,45 @@
+diff -ruN a/packages/executor/src/entities/FrameTxMempoolEntry.ts b/packages/executor/src/entities/FrameTxMempoolEntry.ts
+--- a/packages/executor/src/entities/FrameTxMempoolEntry.ts	2026-11-06 17:52:27.553996957 +0530
++++ b/packages/executor/src/entities/FrameTxMempoolEntry.ts	2026-11-06 17:52:27.554390172 +0530
+@@ -175,15 +175,17 @@
+   canReplace(existingEntry: FrameTxMempoolEntry): boolean {
+     if (existingEntry.status > MempoolEntryStatus.OnChain) return true;
+     if (!this.isEqual(existingEntry)) return false;
++    // Compared without dividing: `old * 11 / 10` rounds down, so below ten wei
++    // the required bump is nothing, and a fee can be "raised" to itself.
+     if (
+-      this.tx.fees.maxPriorityFeePerGas <
+-      (existingEntry.tx.fees.maxPriorityFeePerGas * BigInt(11)) / BigInt(10)
++      this.tx.fees.maxPriorityFeePerGas * BigInt(10) <
++      existingEntry.tx.fees.maxPriorityFeePerGas * BigInt(11)
+     ) {
+       return false;
+     }
+     if (
+-      this.tx.fees.maxFeePerGas <
+-      (existingEntry.tx.fees.maxFeePerGas * BigInt(11)) / BigInt(10)
++      this.tx.fees.maxFeePerGas * BigInt(10) <
++      existingEntry.tx.fees.maxFeePerGas * BigInt(11)
+     ) {
+       return false;
+     }
+diff -ruN a/packages/executor/src/services/MempoolService/service.ts b/packages/executor/src/services/MempoolService/service.ts
+--- a/packages/executor/src/services/MempoolService/service.ts	2026-11-06 17:52:27.553637445 +0530
++++ b/packages/executor/src/services/MempoolService/service.ts	2026-11-06 17:52:27.554252715 +0530
+@@ -305,7 +305,15 @@
+         }
+         this.logger.debug("Mempool: Frame transaction added");
+       }
+-      if (senderInfo || factoryInfo || payerInfo) {
++      // A replacement of a live entry is the same transaction, offered again:
++      // at most one of the two can ever be included, so counting both lets
++      // whoever can sign for a sender walk it to a ban in one nonce slot, at no
++      // cost, and take the sender's other nonce domains down with it. A slot
++      // whose entry already ended is a new admission, and counts.
++      const replacesLiveEntry =
++        existingEntry != null &&
++        existingEntry.status <= MempoolEntryStatus.OnChain;
++      if ((senderInfo || factoryInfo || payerInfo) && !replacesLiveEntry) {
+         // `senderInfo` alone may be undefined (Self Relay) - updateSeenStatus
+         // itself tolerates that; see its own comment.
+         await this.reputationCheck.updateSeenStatus(entry, senderInfo);

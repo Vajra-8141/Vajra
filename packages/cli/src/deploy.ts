@@ -76,7 +76,9 @@ export async function deploy(only?: string) {
     const poseidon = await create("PoseidonT3", []);
     const implementation = await create("VajraAccountV2", [4, 3, DEVNET.stakingRegistry, recoveryVerifier, shieldVerifier, poseidon, DENOMINATION, MAX_PROOF_TX_COST, WORK_BITS]);
     const factory = await create("VajraFactory", [implementation]);
-    out.v2 = { implementation, factory, recoveryVerifier, shieldVerifier, poseidon, denomination: DENOMINATION.toString(), noteFee: MAX_PROOF_TX_COST.toString(), workBits: WORK_BITS };
+    const exitImplementation = await create("VajraExit", [4, 3, DEVNET.stakingRegistry]);
+    const exitFactory = await create("VajraExitFactory", [exitImplementation]);
+    out.v2 = { implementation, factory, exitImplementation, exitFactory, recoveryVerifier, shieldVerifier, poseidon, denomination: DENOMINATION.toString(), noteFee: MAX_PROOF_TX_COST.toString(), workBits: WORK_BITS };
   }
   writeFileSync(deploymentsPath, JSON.stringify(out, null, 1) + "\n");
   useDeployments(out as never);

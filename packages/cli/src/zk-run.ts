@@ -18,6 +18,7 @@ import {
   publicClient,
   accountV2Abi,
   refusalNameV2,
+  rpc,
   sendAlt,
   signMasterTx,
   submit,
@@ -68,11 +69,11 @@ export async function reverts(attack: string, want: string, call: { account: Add
   refusals.push({ attack, refusal: outcome.includes(want) ? want : outcome.slice(0, 200) });
 }
 
-export function newAccount(deployer: Hex, signer: MasterSigner, daily: Address, harbor: Address, salt: Hex, fund = parseEther("1")) {
-  const { v2, genesis } = deployments();
+export function newAccount(deployer: Hex, signer: MasterSigner, daily: Address, harbor: Address, salt: Hex, fund = parseEther("1"), factory = deployments().v2!.factory) {
+  const { genesis } = deployments();
   return createAccount(
     deployer,
-    v2!.factory,
+    factory,
     {
       dailyKey: daily,
       wotsRoot: signer.root,
@@ -91,7 +92,8 @@ export function newAccount(deployer: Hex, signer: MasterSigner, daily: Address, 
   );
 }
 
-const MAX_HASHES = 660;
+/** V2's VERIFY passes the 99,900 limit at about 625 hashes, measured. A digest over this is redrawn, which costs a hash. */
+const MAX_HASHES = 600;
 
 export const master = (signer: MasterSigner, account: Address, epochSalt: Hex, calls: Parameters<typeof signMasterTx>[0]["calls"]) =>
   signMasterTx({ signer, account, epochSalt, calls, maxHashes: MAX_HASHES }).tx;
@@ -105,4 +107,42 @@ export async function preFixFactory(deployer: Hex): Promise<Address> {
     return (await waitForSuccess(hash, "placing the pre-fix contract")).contractAddress!;
   };
   return place(load("VajraFactory"), [await place(load("VajraAccount.pre-fix"), [4, 3, DEVNET.stakingRegistry])]);
+}
+
+/** V2 as it stood before `docs/FINDINGS.md` sections 13 and 14, with the mirror's own verifiers, for the same reason. */
+export async function preFixV2Factory(deployer: Hex): Promise<Address> {
+  const load = (name: string) => JSON.parse(readFileSync(new URL(`../../core/src/artifacts/${name}.json`, import.meta.url), "utf8"));
+  const wallet = walletFor(deployer);
+  const place = async (artifact: { abi: never; bytecode: Hex }, args: unknown[]) => {
+    const hash = await wallet.deployContract({ ...artifact, args: args as never, gas: 45_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" });
+    return (await waitForSuccess(hash, "placing the pre-fix contract")).contractAddress!;
+  };
+  const { v2 } = deployments();
+  const implementation = await place(load("VajraAccountV2.pre-fix"), [4, 3, DEVNET.stakingRegistry, v2!.recoveryVerifier, v2!.shieldVerifier, v2!.poseidon, BigInt(v2!.denomination), BigInt(v2!.noteFee), v2!.workBits ?? 0]);
+  return place(load("VajraFactory"), [implementation]);
+}
+
+export interface Reputation {
+  address: Address;
+  opsSeen: number;
+  opsIncluded: number;
+  status: string;
+}
+
+/** What this node's sidecar thinks of an address. Reputation is local to a node, and this is the mirror's only one. */
+export async function reputationOf(address: Address): Promise<Reputation> {
+  let cursor: string | undefined;
+  for (;;) {
+    const page = await rpc<{ items: Reputation[]; nextCursor?: string }>(DEVNET.mempool, "skandha_explorer_listReputation", [{ limit: 100, cursor }]);
+    const found = page.items.find((entry) => entry.address.toLowerCase() === address.toLowerCase());
+    if (found) return found;
+    if (!page.nextCursor) return { address, opsSeen: 0, opsIncluded: 0, status: "ok" };
+    cursor = page.nextCursor;
+  }
+}
+
+/** A contract that burns all the gas it gets and refuses the money. Its one byte of code is INVALID. */
+export async function deployRefuser(deployer: Hex): Promise<Address> {
+  const hash = await walletFor(deployer).sendTransaction({ data: "0x60fe60005360016000f3", gas: 1_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" });
+  return (await waitForSuccess(hash, "placing the refuser")).contractAddress!;
 }

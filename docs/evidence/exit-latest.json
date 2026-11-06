@@ -1,0 +1,121 @@
+{
+ "ranAt": "2026-11-06T12:04:19.739Z",
+ "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
+ "chainId": 13370,
+ "account": "0x46665EAc59816df636ADbAb052411d11a26Bf5EE",
+ "exit": "0x75B62f0ec69e3bb28D5a940B76e451d37c9D21FE",
+ "canonicalEscape": {
+  "hash": "0x2b00b93e60837f98f94533880bdf72bd6282673fd7f2223527a3d164228c857e",
+  "verifyGas": 97288,
+  "totalGas": 490058
+ },
+ "failures": 0,
+ "mined": [
+  {
+   "step": "name the exit, master key",
+   "hash": "0x455258b1d081dd85645d8df67e6596c716b87a39c6dd2052c58a41dcf5246292",
+   "block": 631,
+   "verifyGas": 92703,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "the thief queues 0.6 ETH",
+   "hash": "0xd710f3631214c1f68af0ff563dc54e058aec6dab093ce962fdf003aa8dd541f7",
+   "block": 633,
+   "verifyGas": 36119,
+   "totalGas": 619999,
+   "attempts": 1
+  },
+  {
+   "step": "veto, from the exit",
+   "hash": "0x5d32dd591b3429b016202fabf71e493c09c5815d9c5a49a58c9b15380ecd125f",
+   "block": 635,
+   "verifyGas": 95466,
+   "totalGas": 168699,
+   "attempts": 1
+  },
+  {
+   "step": "freeze, from the exit, signed before it was named",
+   "hash": "0xddfd4f155149e896531f87912332054a12bdd33a73a39553c9b8528c7f68fc53",
+   "block": 636,
+   "verifyGas": 96962,
+   "totalGas": 170094,
+   "attempts": 1
+  },
+  {
+   "step": "unfreeze, master key",
+   "hash": "0xac7febaa1b7405c62d9db7a1757b23ea9742bf9bc9170c25c53b3f39a56df15b",
+   "block": 638,
+   "verifyGas": 93438,
+   "totalGas": 167418,
+   "attempts": 1
+  },
+  {
+   "step": "new exit tree, master key",
+   "hash": "0xcd94f23607b81b49535c4d02515c6f2d7e0a59801fd2a94dd492beac06d9bfbd",
+   "block": 639,
+   "verifyGas": 93438,
+   "totalGas": 169466,
+   "attempts": 1
+  }
+ ],
+ "refusals": [
+  {
+   "attack": "Daily key names an exit of its own",
+   "refusal": "EscapeKeyOutranks"
+  },
+  {
+   "attack": "Daily key replaces the exit's tree",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "Daily key sends from the exit's address, with a daily VERIFY frame",
+   "refusal": "validation frame 0: reverted"
+  },
+  {
+   "attack": "A signature from another tree",
+   "refusal": "NonceKeyNotBoundToLeaf"
+  },
+  {
+   "attack": "A signature from another tree, on the real tree's nonce key",
+   "refusal": "BadExitSignature"
+  },
+  {
+   "attack": "A real key, signing the account's digest instead of the exit's",
+   "refusal": "BadExitSignature"
+  },
+  {
+   "attack": "The exit key sends a frame to another contract",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The exit key tries to unfreeze",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The exit key tries to replace the daily key",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The exit key tries to move the harbor",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The exit key tries a spend",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The exit key tries to move value in a frame",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The same leaf again",
+   "refusal": "LeafAlreadySpent"
+  },
+  {
+   "attack": "A signature from the old exit tree",
+   "refusal": "NonceKeyNotBoundToLeaf"
+  }
+ ]
+}

@@ -12,9 +12,11 @@ import {
   type Hex,
   concat,
   decodeErrorResult,
+  decodeFunctionData,
   encodeAbiParameters,
   encodeFunctionData,
   hashMessage,
+  hashTypedData,
   keccak256,
   numberToHex,
   parseSignature,
@@ -22,8 +24,10 @@ import {
 } from "viem";
 import { DEVNET, RpcError, rpc, sleep } from "./devnet.ts";
 import VajraAccount from "./artifacts/VajraAccount.json" with { type: "json" };
+import VajraExit from "./artifacts/VajraExit.json" with { type: "json" };
 
 export const accountAbi = VajraAccount.abi;
+export const exitAbi = VajraExit.abi;
 export const profile = getProfile("ethrex-eip8141-tracer");
 export type FrameTx = lib.FrameTx;
 
@@ -106,7 +110,7 @@ const WALLET_TAG = keccak256(toBytes("vajra.daily.v1"));
 const nonceKeysHash = (keys: bigint[]): Hex =>
   keccak256(concat([numberToHex(keys.length, { size: 32 }), ...keys.map((k) => numberToHex(k, { size: 32 }))]));
 
-/** The 32 bytes a stock wallet is asked to personal_sign: what the account rebuilds in `_walletDigest`. */
+/** The 32 bytes a stock wallet is asked to personal_sign, on a V1 account: what it rebuilds in `_walletDigest`. V2 takes `dailyTypedData`. */
 export function walletMessage(tx: FrameTx): Hex {
   const body = tx.frames[1];
   if (tx.frames.length !== 2 || !body) throw new Error("a wallet-signed transaction is exactly [VERIFY, SENDER]");
@@ -137,6 +141,54 @@ export function withWalletSignature(tx: FrameTx, signature: Hex): FrameTx {
   return { ...tx, signatures: tx.signatures.map((e, i) => (i === 0 ? { ...e, msg, signature: packed } : e)) };
 }
 
+const DAILY_FEE_FIELDS = [
+  { name: "nonce", type: "uint256" },
+  { name: "maxFeePerGas", type: "uint256" },
+  { name: "maxPriorityFeePerGas", type: "uint256" },
+  { name: "executionGas", type: "uint256" },
+  { name: "stateGas", type: "uint256" },
+] as const;
+
+const DAILY_TYPES = {
+  DailySpend: [{ name: "asset", type: "address" }, { name: "recipient", type: "address" }, { name: "amount", type: "uint256" }, ...DAILY_FEE_FIELDS],
+  DailyExecute: [{ name: "id", type: "uint256" }, ...DAILY_FEE_FIELDS],
+} as const;
+
+/**
+ * What a wallet is asked to sign on a V2 account, as EIP-712 typed data, so that it can show the asset, the recipient and the
+ * amount instead of 32 blind bytes. The account rebuilds this from the frames in `_typedDigest`, so it has to match field for field.
+ */
+export function dailyTypedData(tx: FrameTx) {
+  const body = tx.frames[1];
+  if (tx.frames.length !== 2 || !body) throw new Error("a wallet-signed transaction is exactly [VERIFY, SENDER]");
+  const { functionName, args } = decodeFunctionData({ abi: accountAbi, data: body.data }) as { functionName: string; args: readonly unknown[] };
+  const common = {
+    nonce: tx.nonceSeq,
+    maxFeePerGas: tx.fees.maxFeePerGas,
+    maxPriorityFeePerGas: tx.fees.maxPriorityFeePerGas,
+    executionGas: body.limits.execution,
+    stateGas: body.limits.state,
+  };
+  const domain = { name: "VAJRA", version: "2", chainId: Number(tx.chainId), verifyingContract: tx.sender };
+  if (functionName === "spend") {
+    const [asset, recipient, amount] = args as [Address, Address, bigint];
+    return { domain, types: DAILY_TYPES, primaryType: "DailySpend" as const, message: { asset, recipient, amount, ...common } };
+  }
+  if (functionName === "executeQueued") {
+    const [id] = args as [bigint];
+    return { domain, types: DAILY_TYPES, primaryType: "DailyExecute" as const, message: { id, ...common } };
+  }
+  throw new Error(`a wallet can only sign spend and executeQueued, not ${functionName}`);
+}
+
+/** Attaches a wallet's 65-byte signature over `dailyTypedData`, repacked as in `withWalletSignature`. */
+export function withTypedSignature(tx: FrameTx, signature: Hex): FrameTx {
+  const { r, s, yParity } = parseSignature(signature);
+  const packed = concat([numberToHex(yParity ?? 0, { size: 1 }), r, s]);
+  const msg = hashTypedData(dailyTypedData(tx) as never);
+  return { ...tx, signatures: tx.signatures.map((e, i) => (i === 0 ? { ...e, msg, signature: packed } : e)) };
+}
+
 /** Spec §5, and `masterDigest` on the account. */
 export function masterDigest(a: { chainId: number; epochSalt: Hex; account: Address; nonceKey: bigint; sigHash: Hex }): Hex {
   return keccak256(concat([numberToHex(a.chainId, { size: 32 }), a.epochSalt, a.account, numberToHex(a.nonceKey, { size: 32 }), a.sigHash]));
@@ -161,6 +213,29 @@ export function masterTx(a: { account: Address; root: Hex; leaf: number; calls: 
     fees: fees(a.fees ?? DEFAULT_FEES),
     signatures: [{ scheme: profile.sigSchemes.ARBITRARY!, signer: "0x", msg: "0x", signature: "0x" }],
     frames: [verifyFrame("validateMaster", Scope.ExecutionAndPayment, limit), ...a.calls.map(senderFrame)],
+  });
+}
+
+/**
+ * `[VERIFY(exit), SENDER...]` from the account's second sender, on a leaf of the exit tree. The frames target the account. Its
+ * digest is `masterDigest` with the exit's address in the account's place.
+ */
+export function exitTx(a: { exit: Address; account: Address; root: Hex; leaf: number; calls: Call[]; verifyGas?: bigint; fees?: Fees }): FrameTx {
+  return lib.newTx({
+    chainId: DEVNET.chainId,
+    sender: a.exit,
+    nonceSeq: 0n,
+    nonceKeys: [leafNonceKey(a.root, a.leaf)],
+    fees: fees(a.fees ?? DEFAULT_FEES),
+    signatures: [{ scheme: profile.sigSchemes.ARBITRARY!, signer: "0x", msg: "0x", signature: "0x" }],
+    frames: [
+      lib.frame(profile, "VERIFY", {
+        scope: "EXECUTION_AND_PAYMENT",
+        execution: a.verifyGas ?? MAX_VERIFY_GAS - ARBITRARY_SIGNATURE_COST,
+        data: encodeFunctionData({ abi: exitAbi, functionName: "validateExit" }),
+      }),
+      ...a.calls.map((call) => senderFrame({ ...call, target: call.target ?? a.account })),
+    ],
   });
 }
 

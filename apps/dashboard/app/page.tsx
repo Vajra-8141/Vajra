@@ -15,14 +15,12 @@ import {
   readAccount,
   refusalName,
   submit,
-  walletMessage,
   withTimeout,
-  withWalletSignature,
 } from "@vajra/core";
 import { OneTimeKeys } from "../components/leaves";
 import { type BridgeStatus, bridgeSigned, bridgeStatus, createOnBridge, master } from "../lib/bridge";
 import { NETWORKS, useReads } from "../lib/reads";
-import { connectWallet, hasWallet, personalSign } from "../lib/wallet";
+import { connectWallet, hasWallet, signWithWallet } from "../lib/wallet";
 
 const REFUSALS: Record<string, string> = {
   AccountFrozen: "The account is frozen. Only the master key can unfreeze it.",
@@ -300,8 +298,7 @@ export default function AccountPage() {
       const nonce = BigInt(await publicClient.getTransactionCount({ address: account! }));
       const unsigned = dailyTx({ account: account!, dailyKey: wallet!, nonce, calls: [ops.spend(ETH, to as Address, parseEther(amount))] });
       say("asking your wallet to sign");
-      const signature = await personalSign(walletMessage(unsigned), wallet!);
-      const { hash, receipt } = await submit(withWalletSignature(unsigned, signature), { log: say, timeoutMs: SUBMIT_TIMEOUT_MS });
+      const { hash, receipt } = await submit(await signWithWallet(unsigned, wallet!), { log: say, timeoutMs: SUBMIT_TIMEOUT_MS });
       if (!framesSucceeded(receipt)) throw new Error(`${hash} was mined but the spend failed`);
       const [queued] = queuedEvents(receipt.frameReceipts[1]!.logs as { topics: `0x${string}`[]; data: `0x${string}` }[]);
       say(`mined ${short(hash)} in block ${Number(receipt.blockNumber)}`);
@@ -318,8 +315,7 @@ export default function AccountPage() {
     run("execute", async () => {
       const nonce = BigInt(await publicClient.getTransactionCount({ address: account! }));
       const unsigned = dailyTx({ account: account!, dailyKey: wallet!, nonce, calls: [ops.executeQueued(id)] });
-      const signature = await personalSign(walletMessage(unsigned), wallet!);
-      const { hash, receipt } = await submit(withWalletSignature(unsigned, signature), { log: say, timeoutMs: SUBMIT_TIMEOUT_MS });
+      const { hash, receipt } = await submit(await signWithWallet(unsigned, wallet!), { log: say, timeoutMs: SUBMIT_TIMEOUT_MS });
       if (!framesSucceeded(receipt)) throw new Error(`${hash} was mined but the item did not run`);
       say(`mined ${short(hash)} in block ${Number(receipt.blockNumber)}`);
       setNotice(`Item ${id} ran.`);
