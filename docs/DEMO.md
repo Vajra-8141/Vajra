@@ -14,7 +14,7 @@ Do these before the rehearsal. Until then, treat the matching beat as untested.
 
 | What | Status | If it fails |
 |---|---|---|
-| Real MetaMask | Never tried. The dashboard has only been driven by a scripted wallet | `vajra spend` for moment 1 |
+| Real MetaMask on the public chain | Worked on the mirror on 6 November in Brave, MetaMask 13.55: connect, a small spend, a queued 0.5 ETH with the alarm. Not tried on the public chain | `vajra spend` for moment 1 |
 | Dashboard on the public chain | Not tested since the reset of 6 November. Tested on the mirror in a real browser | Run the whole demo on the mirror and say so |
 | `vajra watch` on the public chain | Not tried. Real bot and real phone passed on the mirror on 6 November: two cancels, one payment | The same: run it on the mirror |
 | A full rehearsal | Not done. The timings below are estimates | |
@@ -34,7 +34,7 @@ Three terminals on the presenter's laptop, and the phone with Telegram open on `
 1. Check the deployer has ETH, and that `vajra e2e` passes. It takes about five minutes.
 2. Make a fresh demo account. Move any old `.vajra/wallet*.json` aside first. Nothing in this demo needs to mature, so use a delay long enough to survive a slow transaction:
    `vajra create --harbor 0x… --delay 300 --cooling 60 --limit 0.001 --allowance 0.0002 --fund 0.05`
-3. Import `.vajra/daily.key` into MetaMask and add the devnet as a network. That key is the "stolen" one.
+3. Import `.vajra/daily.key` into MetaMask and add the devnet as a network. That key is the "stolen" one. Select that network, or the signature popup will name whichever one was last open, and connect only that account to the page.
 4. Fire one test theft and tap **Not me**, to prove the phone is connected.
 5. Let the dashboard finish connecting to Nym, up to a minute. If it will not come up, pick a route marked not private, and say so.
 6. Have `docs/evidence/` open, and logs of `vajra compare`, `vajra recover` and `vajra shielded` from a mirror run. Those take a minute or more each, so do not run them live.
@@ -132,6 +132,8 @@ Then the same beats with `VAJRA_STACK=local`, and say that it is local. The page
 **What if the thief steals the phone too?** With a software signer, a stolen phone plus a stolen daily key could empty the account. That is why Pay needs a hardware signer unless someone turns that off, as we did here. **Not me** is the safer button: it can only stop a payment.
 
 **Why Telegram?** It gave us a real push and buttons in a day, and the laptop only makes outbound connections. Any channel would do.
+
+**The MetaMask popup only shows a hash. How do you know what you signed?** You don't, from the popup: it is a `personal_sign` of a digest. That is a real weakness of using a plain wallet as the daily key. The rules are the answer: a page that tricks you into signing a large payment still only reaches the queue, and your phone still buzzes.
 
 **Why does the chain say "vetoed" for a payment I approved?** Pay is one atomic transaction: it cancels the queued item and sends the money itself, so the queue can never pay twice. Check the recipient's balance.
 

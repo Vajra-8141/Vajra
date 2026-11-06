@@ -351,7 +351,22 @@ export default function AccountPage() {
     );
 
   const connect = (
-    <button onClick={() => connectWallet().then(setWallet, (e: Error) => setProblem(e.message))} disabled={!hasWallet()}>
+    <button
+      onClick={() => {
+        setNotice("Waiting for your wallet. If no window opens, click its icon in the browser toolbar.");
+        connectWallet().then(
+          (address) => {
+            setWallet(address);
+            setNotice(null);
+          },
+          (e: Error) => {
+            setNotice(null);
+            setProblem(e.message);
+          },
+        );
+      }}
+      disabled={!hasWallet()}
+    >
       {wallet ? short(wallet) : hasWallet() ? "Connect wallet" : "No wallet in this browser"}
     </button>
   );
