@@ -58,7 +58,7 @@ import {
 import { LEAN_SPHINCS_S_BYTES, LIGHT_B, LIGHT_RATED_SIGNATURES, type LeanSphincsKey, coverBits, keccakCalls, leanSphincsKeygen, leanSphincsPublicKey, leanSphincsSign } from "@vajra/core/leansphincs";
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
-import { check, evidence, master, mined, newAccount, newSigner, refused, refusals, tally } from "./zk-run.ts";
+import { check, evidence, master, mined, newAccount, newSigner, preFixV2Factory, refused, refusals, tally } from "./zk-run.ts";
 
 if (!isLocalStack) throw new Error("this runs on the local mirror only, with VAJRA_STACK=local");
 
@@ -124,13 +124,13 @@ const factory = await place("VajraExitFactory", [implementation.address]);
 // -------------------------------------------------------------------------------------------------- set up
 
 console.log("\n3. Two real V2 accounts, each with a thief's 0.6 ETH in the queue, and each naming a sender for its second route");
-async function route(name: string, makeExit: (account: Address, epochSalt: Hex) => Promise<Address>) {
+async function route(name: string, makeExit: (account: Address, epochSalt: Hex) => Promise<Address>, accountFactory?: Address) {
   const masterTree = newSigner();
   const dailyKey = generatePrivateKey();
   const daily = privateKeyToAccount(dailyKey).address;
   const harbor = fresh();
   const harborSalt = keccak256(toHex(name));
-  const account = await newAccount(deployer, masterTree, daily, harbor, harborSalt, parseEther("2"));
+  const account = await newAccount(deployer, masterTree, daily, harbor, harborSalt, parseEther("2"), accountFactory);
   const { epochSalt } = await accountState(account);
   const exit = await makeExit(account, epochSalt);
   await mined(`${name}: the master key names the exit`, master(masterTree, account, epochSalt, [opsV2.setExit(exit)]));
@@ -449,13 +449,22 @@ await mined("A retry of one payment, on a new nonce key", payOnce(randomNonceKey
 await mined("The first attempt, sent later, and it still lands", onFirstKey);
 check((await publicClient.getBalance({ address: PAYEE })) === payeeBefore + 2n, "So a retry on a new nonce key pays twice. A stateless key has to keep one nonce, and replace");
 
-console.log("\n8. What V2 trusts a named exit with");
-// `VajraExit` refuses `queueRecovery` in its walk, and that walk is all that holds the selector back: the account asks only that the caller be named. This is a mistake only the master key can make.
-const named = await route("a sender with no walk, named by mistake", async () => masterSender);
+console.log("\n8. What V2 trusted a named exit with, and the fix");
+// On the bytes before FINDINGS section 21, which are kept so that this stays reproducible. `VajraExit` refuses `queueRecovery` in its walk, and on these
+// bytes that walk was all that held the selector back: the account asked only that the caller be named.
+const named = await route("before the fix, a sender with no walk, named by mistake", async () => masterSender, await preFixV2Factory(deployer, "VajraAccountV2.pre-section-21"));
 const chosenRoot = keccak256(toHex("a root the holder of this sender's key chose"));
-const noPaper = await mined("No proof and no paper: queueRecovery, then executeQueued, in one transaction", signedBy(masterSender, named.account, [opsV2.queueRecovery(chosenRoot, 1n), ops.executeQueued(1n)], { seq: await linearNonce(masterSender) }));
+const noPaper = await mined("Before the fix, no proof and no paper: queueRecovery, then executeQueued, in one transaction", signedBy(masterSender, named.account, [opsV2.queueRecovery(chosenRoot, 1n), ops.executeQueued(1n)], { seq: await linearNonce(masterSender) }));
 const treeNow = await publicClient.readContract({ address: named.account, abi: artifact("VajraAccountV2").abi, functionName: "wotsRoot" } as never);
-check(treeNow === chosenRoot, "The account's master tree is replaced, at once: FINDINGS section 21");
+check(treeNow === chosenRoot, "Before the fix, the account's master tree is replaced, at once");
+
+const fixedTree = newSigner();
+const fixedAccount = await newAccount(deployer, fixedTree, fresh(), fresh(), keccak256(toHex("after the fix")), parseEther("1"));
+const naming = await simulate(master(fixedTree, fixedAccount, epochSalt, [opsV2.setExit(masterSender)]));
+check(naming.frames?.[1]?.succeeded === false, "After the fix, the master key cannot name it: its SENDER frame fails with ExitNotForThisAccount");
+refusals.push({ attack: "After the fix, the master key names a sender with no walk", refusal: "ExitNotForThisAccount, in the SENDER frame" });
+const namingReal = await simulate(master(fixedTree, fixedAccount, epochSalt, [opsV2.setExit(await createExit(deployer, factory.address, fixedAccount, word, epochSalt, parseEther("0.01")))]));
+check(namingReal.frames?.[1]?.succeeded === true, "After the fix, it can still name a sender that holds to this account");
 
 const lifetime = Object.fromEntries([64, 1_000, LIGHT_RATED_SIGNATURES, 43_715, 100_000].map((n) => [n, Number(coverBits(n).toFixed(1))]));
 console.log(`  What is left is a lifetime. Upstream's estimate after N signatures on the Light tier, in bits, under a ceiling of 128 from the hash size: ${JSON.stringify(lifetime)}`);
@@ -484,7 +493,7 @@ const result = {
   rows,
   feeBump,
   lifetimeBitsAfterSignatures: lifetime,
-  namedExitWithNoWalk: { what: "FINDINGS section 21: a flaw in what V2 trusts, shown on purpose, on a sender only this run deploys", account: named.account, hash: noPaper.hash, masterTreeReplaced: treeNow === chosenRoot },
+  namedExitWithNoWalk: { what: "FINDINGS section 21: the flaw shown on purpose, on the bytes before the fix, with a sender only this run deploys. The same naming is refused after the fix", account: named.account, hash: noPaper.hash, masterTreeReplaced: treeNow === chosenRoot },
   publicKey: word,
   account: lean.account,
   exit: lean.exit,

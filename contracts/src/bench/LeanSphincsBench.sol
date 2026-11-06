@@ -24,9 +24,8 @@ interface ILeanSphincsS {
 ///
 ///   - Set: `VajraExit`'s shape. It holds the key to `veto`, `freeze` and `escape` on that account, and needs no change to the account:
 ///     `setExit` takes any address.
-///   - Zero: `validateMaster`'s shape, with no walk over the frames. The key can do anything this sender can. So never name this shape
-///     with `setExit`: the account lets a named exit call `queueRecovery` with no proof, and only an exit's walk stops that. See
-///     docs/FINDINGS.md section 21.
+///   - Zero: `validateMaster`'s shape, with no walk over the frames. The key can do anything this sender can. `setExit` refuses this shape,
+///     and bytes from before docs/FINDINGS.md section 21 did not.
 ///
 /// Either way it is not a whole exit. It cannot take its reserve back, replace its key, or carry a recovery.
 ///

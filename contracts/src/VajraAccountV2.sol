@@ -34,6 +34,11 @@ interface IPoseidon {
     function poseidon(uint256[2] calldata inputs) external pure returns (uint256);
 }
 
+/// What `setExit` asks of a contract it is given.
+interface IExitOf {
+    function account() external view returns (address);
+}
+
 /// VajraAccount, with recovery by proof and a shielded pool. It runs on the local mirror only.
 ///
 /// `VajraAccount.sol` is the public devnet's contract, and it stays free of all this, so that what is recorded against it stays
@@ -297,6 +302,7 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     error CommitmentInvalid();
     error PoolFull();
     error PoolClosed();
+    error ExitNotForThisAccount();
 
     // ---------------------------------------------------------------------------------------- construction --------
 
@@ -882,8 +888,12 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// The ticket went public with this transaction, so the gate closes here: without that, anyone could copy the ticket and make
     /// every node run a pairing on a junk proof, for nothing. Only this closes it. A rotation of the key tree leaves the paper as
     /// it was, and an unused paper still works after one. The next paper comes from `setRecovery`, which the new tree can sign.
+    ///
+    /// No proof is checked here: VERIFY did that, and only for a proof transaction. So with nothing set, where a proof cannot reach
+    /// this, it refuses. Otherwise a named exit with no walk over its frames could install a root at once. See docs/FINDINGS.md section 21.
     function queueRecovery(bytes32 newRoot, uint256 nullifier) external onlySelfOrExit {
         Layout storage s = _layout();
+        if (s.recoveryCommitment == 0) revert RecoveryNotSet();
         if (s.recoverySpent[nullifier]) revert NullifierSpent(nullifier);
         if (newRoot == bytes32(0)) revert RootRequired();
         s.recoverySpent[nullifier] = true;
@@ -975,7 +985,11 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
 
     /// V2: names the second route's sender. Only the master key can reach this: `validateDaily` does not allow the selector, and a
     /// proof transaction is pinned to its own. Zero turns the route off.
+    ///
+    /// Naming a contract gives it `veto`, `freeze`, `escape` and `queueRecovery`, and only its own walk holds it to less. So it has to
+    /// say it is this account's. That catches the wrong clone, and it does not stop a contract written to lie.
     function setExit(address exit_) external onlySelf {
+        if (exit_ != address(0) && IExitOf(exit_).account() != address(this)) revert ExitNotForThisAccount();
         _layout().exit = exit_;
         emit ExitChanged(exit_);
     }

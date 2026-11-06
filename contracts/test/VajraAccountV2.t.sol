@@ -1046,8 +1046,11 @@ contract VajraAccountV2Test is Test {
 
     // ------------------------------------------------------------------ the second route ----
 
+    /// A contract that says it is this account's. What it does with that is up to the test.
     function nameExit() private returns (address exit) {
         exit = makeAddr("exit");
+        vm.etch(exit, hex"00");
+        vm.mockCall(exit, abi.encodeWithSignature("account()"), abi.encode(address(account)));
         asSelf();
         account.setExit(exit);
     }
@@ -1130,6 +1133,63 @@ contract VajraAccountV2Test is Test {
         vm.prank(exit);
         vm.expectRevert(VajraAccountV2.HarborMismatch.selector);
         account.escape(payable(thief), HARBOR_SALT, new address[](0));
+    }
+
+    function test_setExit_refusesAContractThatSaysItIsAnotherAccounts() public {
+        address other = makeAddr("another account's exit");
+        vm.etch(other, hex"00");
+        vm.mockCall(other, abi.encodeWithSignature("account()"), abi.encode(thief));
+        asSelf();
+        vm.expectRevert(VajraAccountV2.ExitNotForThisAccount.selector);
+        account.setExit(other);
+        assertEq(account.exit(), address(0));
+    }
+
+    function test_setExit_refusesAContractThatSaysItIsNobodys() public {
+        address noAccount = makeAddr("a sender with no walk");
+        vm.etch(noAccount, hex"00");
+        vm.mockCall(noAccount, abi.encodeWithSignature("account()"), abi.encode(address(0)));
+        asSelf();
+        vm.expectRevert(VajraAccountV2.ExitNotForThisAccount.selector);
+        account.setExit(noAccount);
+    }
+
+    function test_setExit_refusesAnAddressWithNoCode() public {
+        asSelf();
+        vm.expectRevert();
+        account.setExit(thief);
+        assertEq(account.exit(), address(0));
+    }
+
+    function test_queueRecovery_withNothingSet_isRefusedEvenFromANamedExit() public {
+        address exit = nameExit();
+        vm.prank(exit);
+        vm.expectRevert(VajraAccountV2.RecoveryNotSet.selector);
+        account.queueRecovery(NEW_ROOT, nullifier);
+        assertEq(account.nextItem(), 0);
+        assertEq(account.wotsRoot(), ROOT);
+    }
+
+    function test_queueRecovery_withNothingSet_isRefusedFromTheAccountToo() public {
+        asSelf();
+        vm.expectRevert(VajraAccountV2.RecoveryNotSet.selector);
+        account.queueRecovery(NEW_ROOT, nullifier);
+    }
+
+    /// The limit, kept in a test so that nobody reads the fix as more than it is. A contract written to lie can still spend a paper that
+    /// is set. The root waits out the delay, and the master key can cancel it. Only a contract the master key named can do this.
+    function test_aLyingExit_canStillSpendAPaperThatIsSet_andTheRootHasToWait() public {
+        address exit = nameExit();
+        setRecovery();
+        vm.prank(exit);
+        account.queueRecovery(NEW_ROOT, nullifier);
+        uint256 id = account.nextItem() - 1;
+        assertEq(account.recoveryGate(), bytes32(0));
+        vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.QueuedPendingTimelock.selector, uint64(block.timestamp) + DELAY));
+        account.executeQueued(id);
+        assertEq(account.wotsRoot(), ROOT);
+        asSelf();
+        account.veto(id);
     }
 
     function test_exit_turnsOff() public {
