@@ -20,6 +20,7 @@ import {
 import { FirstRun } from "../../components/checklist";
 import { Lattice } from "../../components/lattice";
 import { OneTimeKeys } from "../../components/leaves";
+import { PoolCard } from "../../components/pool-meter";
 import { Term } from "../../components/term";
 import { NextStep } from "../../components/thread";
 import { useAccount } from "../../lib/account";
@@ -439,6 +440,8 @@ export default function AccountPage() {
               </button>
             )}
           </section>
+
+          <PoolCard account={account} ready={status === "ready"} />
 
           <section className="card" aria-labelledby="activity">
             <h2 id="activity">This session</h2>

@@ -22,7 +22,8 @@ import { keyPath } from "./deploy.ts";
 import { type MoveRequest, finishMove, prepareMove } from "./move.ts";
 import { type Assertion, Challenges, type StoredPasskey, acceptRegistration, verifyAssertion } from "./passkey.ts";
 import { loadWallet, runMasterOp } from "./wallet.ts";
-import { decide, readQueue } from "./watch.ts";
+import { localRescueMargin } from "./nominee.ts";
+import { decide, readQueue, rescueNotice } from "./watch.ts";
 import { type PushSubscription, type Vapid, newVapid, sendPush } from "./webpush.ts";
 
 const MAX_BODY = 16_384;
@@ -345,7 +346,7 @@ export function startPhone(o: PhoneOptions): Server {
       for (const item of review.items) {
         if (alerted.has(item.id)) continue;
         if (!state.subscriptions.length) continue;
-        const payload = { title: item.kind === "recovery" ? "Your master key is being replaced" : "A payment is waiting", body: `${item.headline} Was this you?`, id: item.id };
+        const payload = { title: item.kind === "recovery" ? "Your master key is being replaced" : "A payment is waiting", body: `${item.headline}${rescueNotice(item.secondsLeft, localRescueMargin())} Was this you?`, id: item.id };
         const results = await Promise.all(state.subscriptions.map(async (subscription) => ({ subscription, result: await sendPush(vapid, subscription, payload) })));
         state.subscriptions = results.filter(({ result }) => result !== "gone").map(({ subscription }) => subscription);
         save();

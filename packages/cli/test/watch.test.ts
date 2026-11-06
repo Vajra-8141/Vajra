@@ -67,6 +67,16 @@ describe("the alert", () => {
     expect(buttons.map((b) => b.callback_data)).toEqual(["veto:3", "pay:3"]);
   });
 
+  it("says nothing of a rescue when nobody holds one", () => {
+    expect(alertMessage(item).text).not.toContain("nominee");
+  });
+
+  it("says when a nominee's rescue goes, because the answer is what stops it", () => {
+    expect(alertMessage({ ...item, rescueMargin: 30 }).text).toContain("your nominee's rescue moves everything to your harbor in 2 min");
+    expect(alertMessage({ ...item, secondsLeft: 10, rescueMargin: 30 }).text).toContain("in 0 min");
+    expect(alertMessage({ ...item, recovery: true, rescueMargin: 30 }).text).toContain("your nominee's rescue");
+  });
+
   it("offers no Pay on a recovery", () => {
     expect(alertMessage({ ...item, recovery: true }).buttons.map((b) => b.callback_data)).toEqual(["veto:3"]);
   });

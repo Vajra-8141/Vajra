@@ -77,6 +77,7 @@ ul li + li { margin-top: var(--s2); }
 .hero { padding: var(--s6) 0 var(--s5); max-width: 860px; }
 .hero h1 { font-size: var(--t-h1); }
 .hero.small { padding-bottom: 0; }
+.hero.small + .plain { margin-top: var(--s5); }
 .because { display: inline-block; margin-bottom: var(--s3); font-size: var(--t-sm); color: var(--t60); text-decoration: none; }
 .because:hover { color: var(--t100); }
 .because::first-letter { text-transform: uppercase; }
@@ -334,6 +335,19 @@ summary:hover { color: var(--t100); }
 .raw { margin: var(--s1) 0; padding: var(--s3); background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r1); color: var(--t60); font: 400 var(--t-xs)/1.5 var(--font-code); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; }
 
 /* Mempools */
+/* The pool: one block is one address, so a pool that hides nothing is one solid bar. Neutral, because nothing here is the hash key acting. */
+.pool-headline { color: var(--t100); max-width: 66ch; }
+.pool-shares { display: flex; gap: 2px; height: 12px; margin-top: var(--s3); }
+.pool-shares span { flex-basis: 2px; min-width: 2px; background: var(--line-strong); border-radius: 2px; }
+.pool-shares span.own { background: var(--t100); }
+.pool-legend { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s1) var(--s4); list-style: none; padding: 0; margin: var(--s2) 0 0; color: var(--t60); font-size: var(--t-sm); }
+.pool-key { display: inline-block; width: 8px; height: 8px; margin-right: var(--s2); background: var(--line-strong); border-radius: 2px; }
+.pool-key.own { background: var(--t100); }
+.pool-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--s4) var(--s5); margin-top: var(--s4); }
+.pool-columns h3 { font-size: var(--t-sm); font-weight: 500; color: var(--t100); margin: 0 0 var(--s2); }
+.pool-columns ul { margin: 0; padding-left: var(--s4); color: var(--t60); font-size: var(--t-sm); }
+.pool-columns li + li { margin-top: var(--s2); }
+
 .note-box { padding: var(--s4) var(--s5); background: var(--surface-1); border-radius: var(--r3); color: var(--t60); font-size: var(--t-sm); }
 .note-box h2 { font-size: var(--t-h3); color: var(--t100); margin-bottom: var(--s2); }
 .lab { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: var(--s6); align-items: start; }

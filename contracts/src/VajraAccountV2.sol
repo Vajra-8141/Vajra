@@ -34,6 +34,11 @@ interface IPoseidon {
     function poseidon(uint256[2] calldata inputs) external pure returns (uint256);
 }
 
+/// What `setExit` asks of a contract it is given.
+interface IExitOf {
+    function account() external view returns (address);
+}
+
 /// VajraAccount, with recovery by proof and a shielded pool. It runs on the local mirror only.
 ///
 /// `VajraAccount.sol` is the public devnet's contract, and it stays free of all this, so that what is recorded against it stays
@@ -104,6 +109,12 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     uint256 private constant UNSHIELD_STATE_GAS = 600_000;
     /// V2: a 256-bit value goes into a proof as two limbs, because it does not fit in the BN254 scalar field.
     uint256 private constant LIMB = 1 << 128;
+    /// V2: what became of a note. Unspent is zero. A note is owed when its recipient refused: it is spent, and its money is still held for it.
+    uint256 private constant NOTE_SPENT = 1;
+    uint256 private constant NOTE_OWED = 2;
+    /// V2: gas `unshield` keeps back from the recipient. What it does after the call must not run out, because that would be a mined failure.
+    /// The call's own cost and the writes after it come out of this. `vajra pool-e2e` measures about 8,600 of it used, at the longest walk of the ring.
+    uint256 private constant UNSHIELD_KEPT_GAS = 30_000;
 
     /// keccak256(abi.encode(uint256(keccak256("vajra.account.v1")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant STORAGE_SLOT = 0xf2fd160257ae1f0e7d62d7d1c68f72a3ef6f2001f3b743b1c3e7df809af00f00;
@@ -207,15 +218,15 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         bytes32 recoveryGate;
         mapping(uint256 nullifier => bool) recoverySpent;
         mapping(uint256 id => bool) isRecovery;
-        /// What the notes in the pool are owed. Inside the account's balance, and out of reach of everything but `unshield`
-        /// and `escape`.
+        /// What the notes in the pool are owed, and what a note whose recipient refused is still owed. Inside the account's balance, and
+        /// out of reach of everything but `unshield`, `claim` and `escape`.
         uint256 poolHeld;
         uint32 nextNote;
         uint32 rootCursor;
         bool poolClosed;
         mapping(uint256 level => uint256) filled;
         uint256[ROOT_HISTORY] roots;
-        mapping(uint256 nullifierHash => bool) noteSpent;
+        mapping(uint256 nullifierHash => uint256) noteState;
         /// A commitment or gate a recovery has already used. Both are public from then on, so neither may be set again.
         mapping(bytes32 value => bool) recoveryUsed;
         /// The second route's sender: see `VajraExit`.
@@ -252,6 +263,7 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     event ExitChanged(address exit);
     event SponsorSet(address indexed paymaster, bool allowed);
     event UnshieldUnpaid(uint256 indexed nullifierHash, address indexed recipient);
+    event Claimed(uint256 indexed nullifierHash, address indexed recipient);
 
     // The refusal registry, spec §3.
     error AccountFrozen();
@@ -297,6 +309,8 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     error CommitmentInvalid();
     error PoolFull();
     error PoolClosed();
+    error ExitNotForThisAccount();
+    error NothingOwed(uint256 nullifierHash);
 
     // ---------------------------------------------------------------------------------------- construction --------
 
@@ -602,7 +616,7 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         uint256 root = uint256(framedataload(4, 1));
         uint256 nullifierHash = uint256(framedataload(36, 1));
         uint256 recipient = uint256(framedataload(68, 1));
-        if (s.noteSpent[nullifierHash]) revert NullifierSpent(nullifierHash);
+        if (s.noteState[nullifierHash] != 0) revert NullifierSpent(nullifierHash);
         // The circuit takes any field element. High bits would pass the proof and revert in `unshield`'s decoder, after the fee.
         if (recipient >> 160 != 0) revert ProofTxShapeInvalid();
         // V2: the nullifier alone. With the recipient in the key, one note had a nonce key per recipient, so its holder could keep
@@ -818,6 +832,12 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// Reveals the sealed harbor and sends everything there. Leaves the account frozen, because the daily key that
     /// made this necessary is still valid.
     ///
+    /// ETH goes first and the tokens after it. `SWEEP_GAS` bounds what a token can burn and not the state gas it can spend, which is one
+    /// pool for the frame, and a transfer that succeeds keeps what it spent. Swept first, a token could leave too little for a fresh harbor
+    /// and the pool closing, halt the frame, and cost the ETH and a rescue's one-time key. Swept last, inside the gas that was signed for, it
+    /// can fail its own transfer and starve the tokens after it, and nothing else. The harbor's call is bounded the same way, and copies nothing
+    /// back: the harbor is the owner's own, and it still must not spend what the tokens were signed for.
+    ///
     /// A token that refuses to transfer must not be able to block the exit, so failures are reported and skipped.
     ///
     /// @param harbor The harbor address the commitment seals.
@@ -829,14 +849,11 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         s.frozen = true;
         emit FrozenSet(true);
 
-        address[] storage configured = s.assets;
-        for (uint256 i; i < configured.length; ++i) {
-            if (configured[i] != address(0)) _sweep(configured[i], harbor);
+        uint256 amount = address(this).balance;
+        bool sent;
+        assembly ("memory-safe") {
+            sent := call(SWEEP_GAS, harbor, amount, 0, 0, 0, 0)
         }
-        for (uint256 i; i < extraAssets.length; ++i) {
-            _sweep(extraAssets[i], harbor);
-        }
-        (bool sent,) = harbor.call{value: address(this).balance}("");
         if (!sent) emit SweepFailed(address(0));
         // V2: `balance` included the pool, so the notes have been paid to the harbor. A note must not be able to claim anything
         // that arrives later, so the pool closes for good. If the harbor refused, the money is still here and so are the notes.
@@ -844,6 +861,14 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
             emit PoolDrained(harbor, s.poolHeld);
             s.poolHeld = 0;
             s.poolClosed = true;
+        }
+
+        address[] storage configured = s.assets;
+        for (uint256 i; i < configured.length; ++i) {
+            if (configured[i] != address(0)) _sweep(configured[i], harbor);
+        }
+        for (uint256 i; i < extraAssets.length; ++i) {
+            _sweep(extraAssets[i], harbor);
         }
         emit Escaped(harbor);
     }
@@ -882,8 +907,12 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// The ticket went public with this transaction, so the gate closes here: without that, anyone could copy the ticket and make
     /// every node run a pairing on a junk proof, for nothing. Only this closes it. A rotation of the key tree leaves the paper as
     /// it was, and an unused paper still works after one. The next paper comes from `setRecovery`, which the new tree can sign.
+    ///
+    /// No proof is checked here: VERIFY did that, and only for a proof transaction. So with nothing set, where a proof cannot reach
+    /// this, it refuses. Otherwise a named exit with no walk over its frames could install a root at once. See docs/FINDINGS.md section 21.
     function queueRecovery(bytes32 newRoot, uint256 nullifier) external onlySelfOrExit {
         Layout storage s = _layout();
+        if (s.recoveryCommitment == 0) revert RecoveryNotSet();
         if (s.recoverySpent[nullifier]) revert NullifierSpent(nullifier);
         if (newRoot == bytes32(0)) revert RootRequired();
         s.recoverySpent[nullifier] = true;
@@ -946,24 +975,55 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     ///
     /// This must not revert once VERIFY has passed. A reverted frame still pays its fee, out of the account and not the note, and
     /// the note would live on: a contract that refuses money would let a note's holder burn the owner's balance for as long as
-    /// they cared to. So the note is spent whatever the recipient does. If it refuses, the money stays with the account, and the
-    /// holder has lost the note. `vajra unshield` simulates first for that reason.
+    /// they cared to. So the note is spent whatever the recipient does, and it has paid its fee either way.
+    ///
+    /// If the recipient refuses, what it would have got stays in `poolHeld`, so every rule that keeps a note's money safe keeps this safe
+    /// too, and `claim` is how the holder gets it. Otherwise it would fall into the free balance, where a stolen daily key can spend it.
+    ///
+    /// Both slots written after the call were already written before it, so they cost no state gas, and little of anything else.
     function unshield(uint256 root, uint256 nullifierHash, address recipient) external onlySelf {
         Layout storage s = _layout();
         if (s.frozen) revert AccountFrozen();
-        if (s.noteSpent[nullifierHash]) revert NullifierSpent(nullifierHash);
+        if (s.noteState[nullifierHash] != 0) revert NullifierSpent(nullifierHash);
         if (!_isKnownRoot(s, root)) revert RootUnknown(root);
         if (s.poolHeld < DENOMINATION) revert ValueNotConserved();
-        s.noteSpent[nullifierHash] = true;
+        s.noteState[nullifierHash] = NOTE_SPENT;
         s.poolHeld -= DENOMINATION;
         // In assembly so that nothing is copied back: a recipient returning a huge blob would otherwise run this frame out of gas.
         uint256 amount = DENOMINATION - MAX_PROOF_TX_COST;
         bool paid;
         assembly ("memory-safe") {
-            paid := call(gas(), recipient, amount, 0, 0, 0, 0)
+            paid := call(sub(gas(), UNSHIELD_KEPT_GAS), recipient, amount, 0, 0, 0, 0)
         }
-        if (paid) emit Unshielded(nullifierHash, recipient);
-        else emit UnshieldUnpaid(nullifierHash, recipient);
+        if (paid) {
+            emit Unshielded(nullifierHash, recipient);
+        } else {
+            s.noteState[nullifierHash] = NOTE_OWED;
+            s.poolHeld += amount;
+            emit UnshieldUnpaid(nullifierHash, recipient);
+        }
+    }
+
+    /// V2: pays a note its recipient refused, to whichever address its holder proves it to now. The proof is the authority, as in an unshield.
+    /// It is bound to its recipient, and only the holder can make a new one, so nobody who merely saw the note fail can move it.
+    ///
+    /// An ordinary call, and that is the design. Whoever sends it pays its gas, so a failure costs them and never the account: there is no
+    /// VERIFY, no nonce key, nothing counted against this address, and none of the attacks in docs/FINDINGS.md section 13 has anything to
+    /// reach. A recipient that refuses reverts this, which is safe here, and the claim stays.
+    function claim(uint256[8] calldata proof, uint256 root, uint256 nullifierHash, address recipient) external {
+        Layout storage s = _layout();
+        if (s.frozen) revert AccountFrozen();
+        if (s.poolClosed) revert PoolClosed();
+        if (s.noteState[nullifierHash] != NOTE_OWED) revert NothingOwed(nullifierHash);
+        if (!_isKnownRoot(s, root)) revert RootUnknown(root);
+        uint256[6] memory input = [root, nullifierHash, uint256(uint160(recipient)), DENOMINATION, uint256(uint160(address(this))), block.chainid];
+        if (!_verifyShield(proof, input)) revert ShieldProofInvalid();
+        s.noteState[nullifierHash] = NOTE_SPENT;
+        uint256 amount = DENOMINATION - MAX_PROOF_TX_COST;
+        s.poolHeld -= amount;
+        (bool paid,) = recipient.call{value: amount}("");
+        if (!paid) revert TransferFailed(address(0));
+        emit Claimed(nullifierHash, recipient);
     }
 
     /// Replaces a daily key known to be stolen.
@@ -975,7 +1035,11 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
 
     /// V2: names the second route's sender. Only the master key can reach this: `validateDaily` does not allow the selector, and a
     /// proof transaction is pinned to its own. Zero turns the route off.
+    ///
+    /// Naming a contract gives it `veto`, `freeze`, `escape` and `queueRecovery`, and only its own walk holds it to less. So it has to
+    /// say it is this account's. That catches the wrong clone, and it does not stop a contract written to lie.
     function setExit(address exit_) external onlySelf {
+        if (exit_ != address(0) && IExitOf(exit_).account() != address(this)) revert ExitNotForThisAccount();
         _layout().exit = exit_;
         emit ExitChanged(exit_);
     }
@@ -1151,7 +1215,12 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     }
 
     function noteSpent(uint256 nullifierHash) external view returns (bool) {
-        return _layout().noteSpent[nullifierHash];
+        return _layout().noteState[nullifierHash] != 0;
+    }
+
+    /// Zero while unspent, 1 once spent, 2 when its recipient refused. Owed in a closed pool means an escape took the money to the harbor.
+    function noteState(uint256 nullifierHash) external view returns (uint256) {
+        return _layout().noteState[nullifierHash];
     }
 
     function isKnownRoot(uint256 root) external view returns (bool) {

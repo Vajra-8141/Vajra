@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { buildPoseidon } from "circomlibjs";
 import { type Proof, groth16 } from "snarkjs";
-import { type Address, type Hex, bytesToHex } from "viem";
+import { type Address, type Hex, bytesToHex, concat, keccak256, numberToHex, toHex } from "viem";
 import type { FlatProof } from "@vajra/core";
 
 /** The BN254 scalar field. A public input at or above this is refused by the verifier. */
@@ -97,6 +97,42 @@ export interface Note {
 export const newNote = (): Note => ({ secret: randomFieldElement(), nullifierSeed: randomFieldElement() });
 export const noteCommitment = (note: Note) => poseidon(note.secret, note.nullifierSeed);
 export const noteNullifier = (note: Note) => poseidon(note.nullifierSeed);
+
+/**
+ * Note number `index` of a seed. The account and chain are in the hash, so one seed on two accounts makes notes the chain cannot link.
+ * The top 248 bits, because a value at or above the field could never be proven.
+ */
+export function noteFromSeed(seed: Hex, account: Address, chainId: number, index: number): Note {
+  const part = (label: string) => BigInt(keccak256(concat([toHex(label), seed, account, numberToHex(chainId, { size: 32 }), numberToHex(index, { size: 32 })]))) >> 8n;
+  return { secret: part("vajra-note-secret"), nullifierSeed: part("vajra-note-nullifier") };
+}
+
+/** How many numbers in a row may have no deposit before a rebuild stops looking. A deposit that failed leaves one such gap. */
+export const SEED_GAP = 20;
+
+export interface FoundNote {
+  note: Note;
+  index: number;
+  commitment: bigint;
+  leaf: number;
+}
+
+/** Every note of this seed in `leaves`, the pool's commitments in order. The chain is the only input besides the seed. */
+export async function notesInPool(seed: Hex, account: Address, chainId: number, leaves: bigint[], gap = SEED_GAP): Promise<FoundNote[]> {
+  const found: FoundNote[] = [];
+  for (let index = 0, misses = 0; misses < gap; index++) {
+    const note = noteFromSeed(seed, account, chainId, index);
+    const commitment = await noteCommitment(note);
+    const leaf = leaves.indexOf(commitment);
+    if (leaf < 0) {
+      misses++;
+      continue;
+    }
+    misses = 0;
+    found.push({ note, index, commitment, leaf });
+  }
+  return found;
+}
 
 /** The pool's tree as the contract builds it, rebuilt from its `Shielded` events. Only the filled part is ever hashed. */
 export async function poolPath(leaves: bigint[], leaf: number): Promise<{ root: bigint; pathElements: bigint[]; pathIndices: number[] }> {

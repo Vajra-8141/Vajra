@@ -15,6 +15,7 @@ const GROUPS = [
     pages: [
       ["/story", "The story"],
       ["/account", "Account"],
+      ["/nominee", "Your nominee"],
     ],
   },
   {

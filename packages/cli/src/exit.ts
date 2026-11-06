@@ -10,8 +10,8 @@ import { fileStore, loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 import { V2_STAKE, requireWallet, runCalls } from "./wallet.ts";
 
-const exitPath = keyPath("exit.json");
-const exitTree = () => new MasterSigner(WOTS_W16, fileStore(keyPath("signer.exit.json")), () => new Uint8Array(randomBytes(32)));
+export const exitPath = keyPath("exit.json");
+export const exitTree = () => new MasterSigner(WOTS_W16, fileStore(keyPath("signer.exit.json")), () => new Uint8Array(randomBytes(32)));
 
 /** A tree of its own, a contract of its own, and money of its own. The stake is what lets it carry a recovery. */
 export async function exitSetup(o: { reserve: string }) {

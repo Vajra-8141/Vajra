@@ -6,7 +6,7 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { parseEther } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { ETH, accountAbi, isLocalStack, ops, publicClient, signDaily, sleep, submit } from "@vajra/core";
+import { ETH, accountAbi, dailyTx, isLocalStack, ops, publicClient, signDaily, signDailyTx, sleep, submit } from "@vajra/core";
 import { localDailyAddress, localDailyKey, requireWallet } from "./wallet.ts";
 import { check, tally } from "./zk-run.ts";
 
@@ -110,6 +110,31 @@ tap(OWNER, `pay:${id2}`);
 await until("the payment", async () => (await publicClient.getBalance({ address: to })) === parseEther("0.5"), 60_000);
 check((await publicClient.getBalance({ address: to })) === parseEther("0.5"), "the recipient has the money, before the timer");
 check((await state(id2)) === 3, "the queue item cannot pay again");
+watcher.kill();
+
+console.log("\n5. A theft with a dozen more queued behind it, in one transaction, still reaches the phone");
+watcher = startWatcher();
+await sleep(3000);
+const hiddenId = (await publicClient.readContract({ address: account, abi: accountAbi, functionName: "nextItem" })) as bigint;
+const thief = fresh();
+const queuedCheaply = (to: `0x${string}`, amount: bigint) => ({ ...ops.spend(ETH, to, amount), execution: 200_000n, state: 700_000n });
+const base = (await publicClient.getBlock()).baseFeePerGas ?? 7n;
+const nonce = BigInt(await publicClient.getTransactionCount({ address: account }));
+await submit(
+  await signDailyTx(
+    dailyTx({
+      account,
+      dailyKey: localDailyAddress(),
+      nonce,
+      verifyGas: 400_000n,
+      calls: [queuedCheaply(thief, parseEther("0.7")), ...Array.from({ length: 12 }, () => queuedCheaply(fresh(), parseEther("0.5")))],
+      fees: { maxFeePerGas: base * 4n + 100n, maxPriorityFeePerGas: 1n },
+    }),
+    localDailyKey(),
+  ),
+);
+await until("the alert for the first of them", () => sent.some((m) => m.buttons.includes(`veto:${hiddenId}`)));
+check(sent.find((m) => m.buttons.includes(`veto:${hiddenId}`))?.text.includes(thief) === true, "the alert names the thief's address, thirteen items back");
 watcher.kill();
 
 console.log(`\n${tally.failures} failures`);

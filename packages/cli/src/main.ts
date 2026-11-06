@@ -5,7 +5,7 @@ import { LeafRegistry } from "@vajra/core/registry";
 import { ETH, RpcError, accountAbi, accountState, isLocalStack, ops, publicClient, refusalName, signDaily, submit } from "@vajra/core";
 import { startBridge } from "./bridge.ts";
 import { deploy } from "./deploy.ts";
-import { closeDevice, createWallet, localDailyAddress, localDailyKey, recordSigned, requireWallet, runMasterOp, theDevice, walletStatus } from "./wallet.ts";
+import { closeDevice, createWallet, localDailyAddress, localDailyKey, recordSigned, requireWallet, runMasterOp, theDevice, refuseIfWaiting, walletStatus } from "./wallet.ts";
 
 // Optional: it only holds what the leaf registry needs, and everything works without one.
 try {
@@ -124,6 +124,7 @@ switch (command) {
   case "unfreeze":
   case "escape":
   case "rotate":
+    if (command === "unfreeze" && !args.includes("--anyway")) await refuseIfWaiting();
     report(await runMasterOp({ op: command }, console.log));
     break;
   case "set-daily":
@@ -230,6 +231,22 @@ switch (command) {
   case "exit":
     await (await import("./exit.ts")).exitEscape();
     break;
+  case "nominee-setup":
+    await (await import("./nominee.ts")).nomineeSetup({ out: flags.out, margin: flags.margin, maxFee: flags["max-fee"], tokens: flags.tokens });
+    break;
+  case "nominee-check":
+    await (await import("./nominee.ts")).nomineeCheck(flags.rescue ?? rest[0] ?? (await import("./nominee.ts")).localRescuePath());
+    break;
+  case "nominee-watch":
+    if (!flags.rescue) throw new Error("vajra nominee-watch --rescue <file> [--margin seconds] [--interval seconds]");
+    await (await import("./nominee.ts")).nomineeWatch({ rescue: flags.rescue, margin: flags.margin, interval: flags.interval });
+    break;
+  case "nominee-revoke":
+    await (await import("./nominee.ts")).nomineeRevoke();
+    break;
+  case "nominee-e2e":
+    await import("./nominee-e2e.ts");
+    break;
   case "pay-e2e":
     await import("./pay-e2e.ts");
     break;
@@ -245,14 +262,32 @@ switch (command) {
   case "measure-zk":
     await import("./measure-zk.ts");
     break;
+  case "sphincs-bench":
+    await import("./sphincs-bench.ts");
+    break;
   case "shielded":
     await import("./shielded.ts");
     break;
+  case "pool-e2e":
+    await import("./pool-e2e.ts");
+    break;
   case "shield":
-    await (await import("./shield.ts")).shieldCommand();
+    await (await import("./shield.ts")).shieldCommand({ account: flags.account, keyFile: flags["key-file"] });
     break;
   case "unshield":
-    await (await import("./shield.ts")).unshieldCommand(rest[0] as Address);
+    await (await import("./shield.ts")).unshieldCommand(rest[0] as Address, { account: flags.account, noCheck: flags["no-check"] !== undefined });
+    break;
+  case "claim":
+    await (await import("./shield.ts")).claimCommand(rest[0] as Address, { account: flags.account, keyFile: flags["key-file"] });
+    break;
+  case "pool":
+    await (await import("./shield.ts")).poolCommand(rest[0]);
+    break;
+  case "notes":
+    await (await import("./shield.ts")).notesCommand({ account: flags.account });
+    break;
+  case "notes-restore":
+    await (await import("./shield.ts")).notesRestoreCommand({ seedFile: flags["seed-file"], account: flags.account, gap: flags.gap });
     break;
   case "recover-setup": {
     const { recoverSetup } = await import("./recovery.ts");
@@ -290,17 +325,25 @@ signer:   device | device wipe          (VAJRA_SIGNER=device keeps the master ke
 registry: leaves [root]                 (what Arkiv knows about a key tree; needs no keys)
 recovery: recover-setup [--delay s] [--out file] | recover-prove --secret file [--out file] | recover --proof file
           recover                        (no flags: the whole story on a fresh account, with every attack)
-pool:     shield | unshield <recipient>  (one note in, one note out)
+pool:     shield [--account a --key-file f] | unshield <recipient> [--account a] [--no-check]  (one note in, one note out)
+          claim <recipient> --key-file f [--account a]  (a note whose recipient refused, paid to any address; the key pays the gas)
+          pool [address]                 (what this pool hides, and what no chain can show; needs no key)
+          notes [--account a]            (what this machine holds, and what the chain says of it)
+          notes-restore [--seed-file f] [--account a] [--gap n]  (every note, rebuilt from the seed and the chain)
           shielded                       (the whole pool on a fresh account, with every attack)
+          pool-e2e                       (notes rebuilt after the machine is gone, with every attack; the mirror only)
           compare                        (the same proof, offered to the sidecar as deployed and as patched)
           measure-zk                     (the gas rows for proofs)
+          sphincs-bench                  (leanSphincs-S beside the hash key: gas, size, both mempools, every attack)
           These need the mirror: VAJRA_STACK=local.
 gas:      explain <hash>                 (why a mined, pending or refused transaction went the way it did)
           paymaster-e2e                  (both paymasters, every attack; needs the mirror)
 devnet:   deploy [w16|w256|stealth] | e2e | device-e2e | stealth | measure | pin | budget | arkiv
+nominee:  nominee-setup [--out file] [--margin s] [--max-fee gwei] [--tokens 0x..,0x..]  (needs exit-setup)
+          nominee-check [file] | nominee-watch --rescue file (holds no key) | nominee-revoke | nominee-e2e (the mirror only)
 attacks:  rep-burn [fixed|rule] | escape-solvency [fixed] | proof-spam [fixed] | clear-sign | exit-e2e  (the mirror only)`);
     process.exit(1);
 }
 
 if (command !== "bridge" && command !== "phone") await closeDevice();
-if (command?.startsWith("recover") || command === "shield" || command === "unshield") await (await import("./proving.ts")).stopProver();
+if (command?.startsWith("recover") || command?.startsWith("notes") || command === "pool" || command === "claim" || command === "shield" || command === "unshield") await (await import("./proving.ts")).stopProver();

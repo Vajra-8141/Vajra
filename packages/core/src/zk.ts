@@ -130,6 +130,9 @@ export function unshieldTx(a: { account: Address; root: bigint; nullifierHash: b
   });
 }
 
+/** Pays a note its recipient refused. An ordinary call, so whoever sends it pays its gas: it has no frames and no nonce key of the account's. */
+export const claimCall = (a: { proof: FlatProof; root: bigint; nullifierHash: bigint; recipient: Address }): Hex => encode("claim", [a.proof, a.root, a.nullifierHash, a.recipient]);
+
 /** The account's own error name for a VERIFY revert, or the node's message when the refusal came from somewhere else. */
 export function refusalNameV2(message: string): string {
   const data = /reverted with data (0x[0-9a-fA-F]+)/.exec(message)?.[1] as Hex | undefined;

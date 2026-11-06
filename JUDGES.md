@@ -45,6 +45,10 @@ Times are from one machine, on a warm mirror.
 | Recovery, step by step, on the demo account | `vajra recover-setup`, `recover-prove --secret <file>`, `recover --proof <file>` | 1 min | the new tree signs |
 | The shielded pool, and every attack | `vajra shielded` | 80 s | 12 mined, 30 refused, 0 failures |
 | One note in, one note out | `vajra shield`, `vajra unshield 0xAddress` | 10 s each | the recipient holds 0.095 ETH: a 0.1 ETH note, less its fee |
+| Notes rebuilt after the machine is gone, what the pool hides, a failed payment that stays money, and every attack | `vajra pool-e2e` | 10 min | 51 mined, 28 refused, 0 failures. **The claim is in the source and on the mirror, not in the V2 on the public devnet** |
+| What a pool hides, on any account | `vajra pool 0xAddress` | 2 s | how little, and what no chain can show. Needs no key |
+| Your own notes on a new machine | `vajra notes-restore --seed-file <file> --account 0xAddress` | 10 s | every note, and what became of it |
+| A refused payment, paid to someone else | `vajra unshield 0xRefuses --no-check`, then `vajra claim 0xAnother --key-file <file>` | 15 s | the note reads as owed, then the new address holds 0.095 ETH |
 | The same proof on the sidecar as deployed and as patched | `make unpatched`, then `vajra compare` | 2 min | refused, refused, mined |
 | The flaw in the contract as first deployed, and its fix | `vajra nonce-burn`, then `vajra nonce-burn fixed` | 2 min | 64 of 64 leaves burned and the escape refused, then 0 of 64 and admitted |
 | A thief banning the account on a node, and the way round it | `vajra rep-burn`, then `vajra rep-burn fixed` | 1 min each | banned in about 8 seconds, and escape, veto, recovery and a paymaster all refused. Then all three mined from the exit |
@@ -55,6 +59,8 @@ Times are from one machine, on a warm mirror.
 | A wallet signing typed data, and every attack on it | `vajra clear-sign` | 25 s | 4 mined, 18 refused, 0 failures, with a scripted wallet |
 | A second way out, on your own account | `vajra exit-setup`, then `vajra exit` | 20 s each | the harbor holds the balance |
 | A stealth payer taking the money back, and the fix | `vajra stealth-theft`, then `vajra stealth-theft fixed` | 1 min | 25 of 25 taken, then `CoSignerRequired` and 0 taken |
+| A nominee: a rescue signed in advance, sent when nobody answers, and every attack on it | `vajra nominee-e2e` | 12 min | 42 mined, 22 refused, 0 failures. Holds no key: a real process with an empty folder, which it leaves empty. A node dying, a stuck head and a sidecar going down are a proxy in front of the real chain, which refuses, replays an old block, and answers for a sidecar that sits on a transaction |
+| The same, on your own account | `vajra exit-setup --reserve 0.03`, `vajra nominee-setup --out rescue.json`, `vajra nominee-watch --rescue rescue.json` in its own terminal, then `vajra thief 0.6` and answer nothing | 2 min | the harbor holds the balance, and the watcher stops by itself. It ends the demo account: `make judge` starts again |
 | The dashboard, on the mirror | `make dashboard`, then http://localhost:3000 and **Start the demo** | 30 s | the theft as six steps, with no wallet to set up. See below |
 | Quota and USDC paymasters, and every attack | `vajra paymaster-e2e` | 6 min | 15 mined, 50 refused, canonical refused 51 of 51, 66 predictions checked, on V2, 0 failures |
 | Why a transaction went the way it did | `vajra explain 0xHash` | 1 s | state, frames, both verdicts, the sidecar's rules. Unknown stays unknown |
@@ -70,6 +76,7 @@ Times are from one machine, on a warm mirror.
 | Encrypted backup, restore, a stale state refused | `vajra backup-e2e`, or `vajra backup --out file`, `vajra restore --in file --check` | 1 min | 0 failures |
 | One-transaction move from an EOA | `vajra move-e2e`, or `vajra move --key-file file --harbor 0x… --tokens 0x…` | 40 s | three frames, one transaction, 0 failures |
 | Gas table | `vajra measure`, `vajra measure-zk` | 2 min each | close to `docs/GAS.md` |
+| leanSphincs-S, a hash key with no leaves, beside the one we use | `vajra sphincs-bench` | 9 min | 19 mined, 54 refused, 0 failures, with its numbers close to `docs/GAS.md`. `SAMPLES=4` makes it 5 min. A benchmark: no account relies on it. One mined transaction shows a flaw on purpose: `docs/FINDINGS.md` section 21 |
 | A staked VERIFY limit over 100,000 | `vajra budget` | 5 s | 400,000 admitted. The 900,000 line says "fee too low": same nonce, not the cap |
 | Hardware logic | `make -C firmware test emulator`, then the three lines below | 1 min | 143 checks, then 7 mined |
 | Leaf registry | the `curl` under [Run a query](README.md#leaf-registry-on-arkiv) in the README | 1 s | the public Arkiv testnet, no install, no key |
@@ -95,6 +102,8 @@ Tests that need no chain:
 | The story, `/story` | Pay, steal, get the alert, cancel, and try to replace the hash key |
 | Try to break in | 17 real attacks through the bridge, each with its named refusal and the node's raw error. The same attacks `vajra e2e` builds, from `packages/cli/src/attacks.ts` |
 | Mempools | One signed transaction to the canonical and alt mempools side by side, with raw errors and gas per frame. Reuses `vajra pin` and `vajra budget` |
+| Your nominee | Load a rescue file, with no wallet. It says whether the rescue would work, what is waiting, and when it goes, and sends it by itself or by hand. `apps/dashboard/test/nominee.mjs` drives it, 0 failures |
+| Account, once it has a pool | What the pool hides, read from the chain with no key, and what no chain can show. A failed read says unknown. `apps/dashboard/test/pool.mjs` drives it with real deposits and a real refused payment |
 | Lifecycle | New, Submitted, then Mined or Cancelled with a reason, and reputation, from the sidecar's `skandha_explorer` methods |
 | Proof | Every file in `docs/evidence/`, grouped by where it really ran |
 

@@ -78,6 +78,17 @@ const LABELS: Record<string, { title: string; what: string; command?: string; fa
   "shield-public-latest.json": { title: "One note through the pool, on the public devnet", what: "One note in and out. The pool held one note, so this proves the path, not any privacy.", command: "vajra shield, then vajra unshield", facts: (r) => [["Failures", count(r.failures)]] },
   "recovery-latest.json": { title: "Recovery by proof, every attack", what: "A Groth16 proof replaces a lost hash key, after a delay the owner can veto.", command: "vajra recover", facts: (r) => [["VERIFY gas of a proof", count(r.verifyGas)], ["Prover time, ms", count(r.proverMs)]] },
   "shielded-latest.json": { title: "The shielded pool, every attack", what: "Notes in with the master key, notes out with no key.", command: "vajra shielded", facts: (r) => [["VERIFY gas of an unshield", count(r.unshieldVerifyGas)], ["Prover time, ms", count(r.proverMs)]] },
+  "pool-latest.json": {
+    title: "Notes rebuilt, what the pool hides, and a failed payment that stays money",
+    what: "The real commands in folders of their own: every note found again after the machine is gone, the meter read at each stage, and a refused payment claimed, with every attack on it really sent.",
+    command: "vajra pool-e2e",
+    facts: (r) => [
+      ["Meter readings", count(Array.isArray(r.meter) ? r.meter.length : null)],
+      ["Gas of a claim", count(Array.isArray(r.claims) ? (r.claims[0] as Raw)?.gas : null)],
+      ["V2 runtime, bytes", count(r.v2RuntimeBytes)],
+      ["Failures", count(r.failures)],
+    ],
+  },
   "clear-sign-latest.json": { title: "A wallet signing typed data, every attack", what: "A scripted wallet signs the asset, recipient, amount and cost as EIP-712 typed data.", command: "vajra clear-sign" },
   "exit-latest.json": { title: "The second way out, every attack", what: "VajraExit, a sender of its own: an escape mined past a thief's pending transaction.", command: "vajra exit-e2e" },
   "paymaster-latest.json": { title: "Quota and USDC paymasters, every attack", what: "Sponsored daily transactions, with the simulator's predictions held against what the nodes did.", command: "vajra paymaster-e2e" },
@@ -89,6 +100,29 @@ const LABELS: Record<string, { title: string; what: string; command?: string; fa
   "rep-burn-fixed-latest.json": { title: "The way round a banned account", what: "The same attack, then escape, veto and recovery from the exit.", command: "vajra rep-burn fixed" },
   "rep-burn-sidecar-rule-latest.json": { title: "The same attack on the proposed sidecar rule", what: "With docs/upstream/sidecar-reputation.patch on the sidecar.", command: "vajra rep-burn rule" },
   "zk-gas-latest.json": { title: "Gas of the proof paths", what: "Measured with ethrex_simulateFrameTransaction, a fresh proof per sample.", command: "vajra measure-zk", facts: (r) => [["Recovery VERIFY, median", count((r.recoveryVerify as Raw)?.median)], ["Unshield VERIFY, median", count((r.unshieldVerify as Raw)?.median)]] },
+  "nominee-latest.json": {
+    title: "A rescue signed in advance, sent when nobody answers",
+    what: "A real process with no key holds one transaction the hash key signed earlier. It moves everything to the harbor if a queued item is still waiting near the end, and every attack on it is sent for real.",
+    command: "vajra nominee-e2e",
+    facts: (r) => [
+      ["VERIFY gas of the rescue", count((r.rescueGas as Raw)?.verify)],
+      ["The most it can cost, ETH", text((r.rescueGas as Raw)?.maxCostEth)],
+      ["Seconds to spare when it landed", count(r.secondsLeftWhenTheRescueLanded)],
+      ["Failures", count(r.failures)],
+    ],
+  },
+  "leansphincs-gas-latest.json": {
+    title: "leanSphincs-S beside the hash key",
+    what: "A benchmark, and no account relies on it: a hash key with no leaves to run out of, through a real VERIFY frame and both mempools, with every attack on that path.",
+    command: "vajra sphincs-bench",
+    facts: (r) => [
+      ["Signature, bytes", count((r.scheme as Raw)?.signatureBytes)],
+      ["VERIFY of a veto, linear nonce, median", count(((r.rows as Raw)?.["leanSphincs-S, exit shape, linear nonce, veto"] as Raw & { verify?: Raw })?.verify?.median)],
+      ["The same veto, new nonce key, median. Over the 100,000 cap", count(((r.rows as Raw)?.["leanSphincs-S, exit shape, new nonce key, veto"] as Raw & { verify?: Raw })?.verify?.median)],
+      ["The hash key's veto, new nonce key, median", count(((r.rows as Raw)?.["hash key, VajraExit, veto"] as Raw & { verify?: Raw })?.verify?.median)],
+      ["Failures", count(r.failures)],
+    ],
+  },
   "device-esp32-latest.json": { title: "The hash key on an ESP32", what: "Master operations signed on a real board, each confirmed on its screen.", command: "vajra device-e2e" },
   "device-emulator-latest.json": { title: "The device path on an emulator", what: "The same protocol against a test harness. This is not hardware.", command: "vajra device-e2e" },
   "device-dashboard-latest.json": {

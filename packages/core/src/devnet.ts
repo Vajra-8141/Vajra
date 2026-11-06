@@ -90,16 +90,33 @@ export const routedFetch: typeof fetch = (...args) => rpcFetch(...args);
 
 const fetchFor = (url: string) => (url === DEVNET.mempool || url === DEVNET.gateway ? sidecarFetch : rpcFetch);
 
+/**
+ * How long any node gets to answer. A node that hangs has to become a failed read, or a watcher stuck on it goes on showing its last good
+ * state. Long enough for the mixnet, whose first read is slow. A race and not an abort signal, because a route brings its own transport.
+ */
+let rpcTimeoutMs = 120_000;
+
+/** For a process on a direct connection, with no mixnet to wait for, where every second on a hung read comes off a deadline. */
+export const setRpcTimeout = (ms: number) => {
+  rpcTimeoutMs = ms;
+};
+
 export async function rpc<T = unknown>(url: string, method: string, params: unknown[] = []): Promise<T> {
-  const response = await fetchFor(url)(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: nextId++, method, params }),
-  });
-  if (!response.ok) throw new RpcError(method, response.status, `HTTP ${response.status} from ${url}`);
-  const body = (await response.json()) as { result?: T; error?: { code: number; message: string; data?: unknown } };
-  if (body.error) throw new RpcError(method, body.error.code, body.error.message, body.error.data);
-  return body.result as T;
+  return withTimeout(
+    (async () => {
+      const response = await fetchFor(url)(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: nextId++, method, params }),
+      });
+      if (!response.ok) throw new RpcError(method, response.status, `HTTP ${response.status} from ${url}`);
+      const body = (await response.json()) as { result?: T; error?: { code: number; message: string; data?: unknown } };
+      if (body.error) throw new RpcError(method, body.error.code, body.error.message, body.error.data);
+      return body.result as T;
+    })(),
+    rpcTimeoutMs,
+    `no answer to ${method}:`,
+  );
 }
 
 export interface RpcCall {
@@ -115,13 +132,19 @@ export async function rpcBatch<T = unknown>(url: string, calls: RpcCall[]): Prom
   if (calls.length === 0) return [];
   const first = nextId;
   nextId += calls.length;
-  const response = await fetchFor(url)(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(calls.map((call, i) => ({ jsonrpc: "2.0", id: first + i, ...call }))),
-  });
-  if (!response.ok) throw new RpcError("batch", response.status, `HTTP ${response.status} from ${url}`);
-  const replies = (await response.json()) as { id: number; result?: T; error?: { code: number; message: string; data?: unknown } }[];
+  const replies = await withTimeout(
+    (async () => {
+      const response = await fetchFor(url)(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(calls.map((call, i) => ({ jsonrpc: "2.0", id: first + i, ...call }))),
+      });
+      if (!response.ok) throw new RpcError("batch", response.status, `HTTP ${response.status} from ${url}`);
+      return (await response.json()) as { id: number; result?: T; error?: { code: number; message: string; data?: unknown } }[];
+    })(),
+    rpcTimeoutMs,
+    "no answer to a batch:",
+  );
   if (!Array.isArray(replies)) throw new RpcError("batch", -1, "the node did not answer the batch");
   const byId = new Map(replies.map((reply) => [reply.id, reply]));
   return calls.map((call, i) => {

@@ -78,9 +78,13 @@ evidence, on the local mirror and nowhere else.
 | Encrypted backup, and a restore that proves itself | BUILT, LOCAL | `vajra backup-e2e`: root match, stale leaves refused |
 | One-transaction move from an EOA | BUILT, LOCAL | `vajra move-e2e`, and from the extension's move page |
 | Passkey before **Pay, it's me** | BUILT, LOCAL | Client-side only: the phone and the local service check it, and **the contracts do not know about it** |
-| Nominee | NOT STARTED | |
+| leanSphincs-S, a hash key with no leaves | BENCHMARK, LOCAL | `vajra sphincs-bench`. Fits a VERIFY frame under the 100,000 cap, with no stake, on both mempools, if its sender keeps one nonce: about 81,500 gas for a veto. About the same as the hash key like for like, and a transaction costs 63% more. No account relies on it yet: it is to become the exit's key, and that contract is not built. Research parameters, not audited: see [`docs/GAS.md`](docs/GAS.md) and [`docs/FINDINGS.md`](docs/FINDINGS.md#20-leansphincs-s-measured) |
+| Nominee: a rescue signed in advance, held by someone with no key | BUILT, LOCAL | `vajra nominee-e2e`: 42 mined, 22 refused, 0 failures, with a real process holding no key, a node that goes dark, and a sidecar that is down. Its page, in a real browser. **No contract change**, and **not run on the public devnet**. It cannot tell you from a thief: see below |
 | Recovery by proof, Groth16 v1 | BUILT, PUBLIC | `vajra recover`: 12 mined, 24 refused, 0 failures, on the public devnet and on the mirror. **Not post-quantum**: see below |
 | Shielded pool, fixed denomination v1 | BUILT, LOCAL, ONE NOTE ON PUBLIC | `vajra shielded`, on the mirror: 12 mined, 30 refused, 0 failures. One 0.01 ETH note in and out on the public devnet. **Does not hide that the account paid the recipient**: see below |
+| Notes rebuilt from one seed | BUILT, LOCAL | `vajra notes-restore`: every note found again on a machine that starts empty, from the seed and the chain, and spent from there. A rotation does not touch it, and a backup carries it. **The seed can spend, so it is as sensitive as a key.** No contract change. See [`docs/FINDINGS.md`](docs/FINDINGS.md#24-notes-rebuilt-from-one-seed) |
+| What the pool hides: a meter | BUILT, LOCAL | `vajra pool <address>`, and a card on the account page. Counts addresses and not notes, keeps what the chain shows apart from what no chain can show, and has no top setting. A failed read gives no figure. No contract change |
+| A failed payment stays money: a claim | BUILT, LOCAL, **NOT ON PUBLIC** | `vajra pool-e2e`: 51 mined, 28 refused, 0 failures, for all three of these. A recipient that refuses no longer costs the holder the money: it stays out of a thief's reach until they claim it. The note's fee is still gone. It changes `unshield`, so it needs a redeploy, which has not happened. **It has had no review** |
 | STARK recovery and shielded v2 | DESIGNED | spec §9, §10; **no STARK proof exists** |
 | Variable amounts, note-to-note transfers, viewing keys, ERC-8441 note delivery | DESIGNED | spec §10; **not built** |
 
@@ -96,7 +100,7 @@ bridge connects to Arkiv directly, which shows it your IP and key tree.
 public queue as a large spend, so the master key can veto it if the paper was stolen, and the new tree signs once the delay passes.
 
 **The pool:** fixed-size notes inside the account, spent with a proof and no key. **The rulebook survives inside the shielded world:** a
-freeze blocks an unshield in validation, an escape drains the pool to the sealed harbor, and the daily key cannot reach it at all.
+freeze blocks an unshield in validation, an escape drains the pool to the sealed harbor, and the daily key cannot reach it at all. Every note comes from one seed, so a lost or wiped machine does not lose them. A stolen one is different: the seed sits beside the daily key, and whoever copies it can spend every note, with no queue, so freeze first. On the mirror, a payment that fails stays owed, out of a thief's reach, until its holder claims it.
 
 Both need more validation gas than 100,000, and pairing precompiles. The canonical mempool refuses them, so the alt mempool is their only route. **On the public devnet, on 6 November:** the whole recovery story mined, 12 transactions and 24 refusals with 0 failures, a proof at 301,552 VERIFY gas ([`0xc06b…c5`](https://explorer.altmempool.wtf/tx/0xc06b44afa41b13237d812c24c3bbd17b106453e02096959f3a4e3e3107eb7cc5), `docs/evidence/recovery-public-latest.json`), and one note went in and came out (`docs/evidence/shield-public-latest.json`). The sidecar's maintainer lifted the cap and allowed precompiles after we reported both.
 
@@ -115,7 +119,7 @@ Say these before anyone asks. [`docs/ZK.md`](docs/ZK.md) has the rest.
 - **Groth16 is not post-quantum.** It rests on pairings. The recovery path is weaker against a quantum computer than the key it replaces.
   v2 is a STARK verified in the account, per EF guidance, and it is not built.
 - **The trusted setup has one contributor, us.** Whoever ran it could have forged proofs.
-- **The anonymity set starts tiny.** It is one account's pool.
+- **The anonymity set starts tiny.** It is one account's pool. `vajra pool` says how small, and it counts addresses, which may all be one person.
 - **The chain still shows that this account paid that recipient.** The pool hides which deposit paid. An outside depositor gets real, small
   unlinkability, and an owner shielding their own balance gets almost none. That is the cost of a pool the rulebook can govern.
 - **Lost master key plus stolen paper means the thief wins.** The veto needs a master key.
@@ -133,6 +137,32 @@ The phone can ask, and only the master key can act. With the hardware signer, a 
 connections, so the bridge stays on loopback. Telegram sees what the alerts say, so this is off unless you set it up. The dashboard raises the same alarm, in the browser, from the same queue.
 
 **Limits:** a spend under the daily limit leaves at once, so the alert cannot stop it. An attack refused in validation never reaches the queue. The watcher has to be running.
+
+## A nominee, for when you are not there
+
+The alert only helps if you answer. If you are asleep or on a plane, the theft waits out its delay and leaves. So someone you trust holds one transaction your hash key signed in advance: an escape, from the exit. It moves everything to your sealed harbor and can do nothing else, so they hold no key and cannot steal.
+
+An answer ends a queued item: cancelled, or paid. So if something is still waiting close to the end, nobody answered, and the rescue goes. By default that is a quarter of the delay before it would leave, and at most an hour. The thief finds an empty, frozen account.
+
+    vajra exit-setup --reserve 0.03
+    vajra nominee-setup --out for-my-nominee.json
+    vajra nominee-watch --rescue for-my-nominee.json      # on their machine, with no key
+
+Or they load the file on the **Your nominee** page of the dashboard, which needs no wallet, and watches while it is open.
+
+**This only works on frame transactions.** On an ordinary account a transaction signed in advance waits on the next nonce, so your next transaction kills it, and so does the thief's. Here it sits on a nonce key of its own, on a sender of its own, and the daily key can reach neither. So it stays valid whatever the account does, and it pays from the exit's reserve, so a thief's pending transaction, a ban on the account and an empty account do not reach it. That is `docs/FINDINGS.md` sections 8 and 12, put to use.
+
+**Limits, and the first one is real:**
+
+- **It cannot tell you from a thief.** A real payment of yours that you leave unanswered sets it off, and so does a recovery of your own, which you cannot answer. That moves everything to your harbor and freezes the account, and if the account has a pool, it closes for good and everyone's notes in it go to your harbor. So once someone holds a rescue, every queued payment needs an answer.
+- **It does not end what is waiting.** A theft stays queued. It cannot leave while the account is frozen, so cancel it before you unfreeze, or it can take what you pay in next.
+- **A spend under the daily limit leaves at once,** so it never waits. A thief still gets a day's limit, each day, until you come back.
+- **The holder can send it early, or not at all, and they learn where your harbor is.** They still cannot move your money anywhere else. Give it to two people.
+- **Its fee and gas were signed in advance.** It is signed with a 10 gwei cap by default, and the reserve has to cover the most it can cost: about 0.0125 ETH, and 0.009 more for each token. `vajra nominee-setup` says if yours is short. Change the harbor, or the exit's key tree, and it stops working: `vajra nominee-check` says so, and you sign a new one. `vajra nominee-revoke` ends every rescue you have signed.
+- **Make the harbor a plain address.** A contract harbor can refuse the money, or spend the gas the rescue was signed with.
+- **It is not a will.** The money goes to your harbor, not to your nominee, so choose a harbor your family could reach.
+
+See [`docs/FINDINGS.md`](docs/FINDINGS.md#23-the-nominee-a-rescue-signed-in-advance) section 23.
 
 ## Extension, phone app, backup and move
 
@@ -198,7 +228,7 @@ cost the account anything, with the named refusal shown.
 A spend over the limit is not refused: it queues, in public, and the master key can cancel it. A hostile token cannot block
 an escape: malformed returns, return bombs and gas burners are all tested.
 
-On the local mirror, by `vajra recover` and `vajra shielded`, each sent for real:
+On the local mirror, by `vajra recover`, `vajra shielded` and `vajra pool-e2e`, each sent for real:
 
 | Attack | Refusal |
 |---|---|
@@ -214,7 +244,13 @@ On the local mirror, by `vajra recover` and `vajra shielded`, each sent for real
 | An old note, against money that arrived after the escape | `ValueNotConserved` |
 | An outsider opens a pool on someone else's account | `PoolClosed` |
 | One note, proved to several recipients at once | `Frame transaction cannot be replaced: fee too low`. Fixed: all were admitted before |
-| A note paid to a contract that refuses it, to burn the owner's fees | the note is spent, once. Fixed: this burned 0.0072 ETH in 3 tries, and the note lived on |
+| A note paid to a contract that refuses it, to burn the owner's fees | the note is spent, once, and its fee paid. Fixed: this burned 0.0072 ETH in 3 tries, and the note lived on |
+| A daily spend of what a refused payment left behind | its frame fails with `ValueNotConserved`. Fixed: 0.15 ETH left an account with 0.085 ETH free before the note failed |
+| A claim with a corrupted proof, a seen proof moved to a thief, or a proof for another account or a larger note | `ShieldProofInvalid`, and the account pays nothing |
+| A claim with half a note, proved in a tree of the thief's own | `RootUnknown` |
+| A claim on a note never spent, one already paid, or the same claim twice | `NothingOwed` |
+| A claim while frozen, or against money that arrived after an escape | `AccountFrozen`, `PoolClosed` |
+| A recipient that burns its gas, reverts with a huge blob, or eats the frame's state gas, at the longest walk of the root ring | the frame succeeds, and the note is owed |
 | A recovery's public ticket, reused so that nodes run pairings for nothing | `RecoveryGateInvalid`. Fixed: it reached the pairing |
 | A recovery seen on the account, resent from the exit so that the reserve pays | `RecoveryGateInvalid`. Fixed: the reserve paid |
 | A proof of work solved once, spent on other recipients and roots | `ProofWorkMissing`. Fixed: each reached the pairing |
@@ -224,6 +260,22 @@ On the local mirror, by `vajra recover` and `vajra shielded`, each sent for real
 | The exit key tries anything but veto, freeze and escape | `FrameNotAllowed` |
 
 **Two attacks on the mempool itself, and what they stop.** With only the daily key, a thief can get an account banned on a node in 8 seconds, which refuses its escape, veto and recovery there (`vajra rep-burn`). And with the account short of ETH, a pending transaction makes the mempool refuse an escape it cannot cover (`vajra escape-solvency`). Neither touches `VajraExit`, which is a different address with its own money. [`docs/FINDINGS.md`](docs/FINDINGS.md) sections 10 to 12 have both, and a proposed sidecar rule.
+
+On the local mirror, by `vajra nominee-e2e`, each sent for real, against a rescue signed in advance:
+
+| Attack | Refusal |
+|---|---|
+| The holder points the escape at their own address, changes the salt, raises the fee, or cuts the gas | `BadExitSignature` |
+| The holder adds a frame paying themselves from the reserve | `FrameNotAllowed` |
+| The holder sends it on another nonce key | `NonceKeyNotBoundToLeaf` |
+| Daily key turns the exit off, or names another, to orphan it | `EscapeKeyOutranks` |
+| Daily key moves the harbor, so that it fails | `HarborImmutable` |
+| Daily key replaces the exit's tree, so that it dies | `FrameNotAllowed` |
+| The thief collects, with the daily key or through anyone, after the rescue landed | `AccountFrozen` |
+| A file with a real signature on anything but an escape | the holder's tool refuses it, and it is never sent |
+| A file with a margin of nothing, or a `--margin` that is not a number | the holder's tool refuses it |
+| A key spent by another transaction, with nothing at the harbor | the tool says so, and never says it was rescued |
+| The owner signs after losing the exit's seed | `nominee-setup` refuses, and makes no new tree |
 
 On the local mirror, by `vajra paymaster-e2e`, each sent for real, from accounts holding no ETH:
 
@@ -292,9 +344,9 @@ The tests that run against the devnet, and write to it:
     packages/core       WOTS, frame transactions, stealth payments, exposure. Runs in a browser and in Node.
     packages/cli        the wallet, the bridge, and the live test runs
     packages/sdk        viem-style actions: simulate, send, explain, spend, veto, escape status
-    apps/dashboard      Next.js: the guided theft, account, break-in panel, mempool panel, lifecycle, exposure scanner, proof page
+    apps/dashboard      Next.js: the guided theft, account, the nominee's page, break-in panel, mempool panel, lifecycle, exposure scanner, proof page
     firmware            the ESP32 signer, and its logic as a portable library
-    contracts           VajraAccount (deployed), VajraAccountV2, VajraExit, Wots, VajraFactory, SponsorPaymaster, paymasters/ (local), generated verifiers
+    contracts           VajraAccount (deployed), VajraAccountV2, VajraExit, Wots, VajraFactory, SponsorPaymaster, paymasters/ (local), bench/ (local), generated verifiers
     circuits            the two Groth16 circuits, their keys, and the build
     stack               the local mirror: Compose, genesis, block producer
     docs                measured gas, devnet findings, proofs, stealth design, demo runbook, upstream patch
@@ -330,7 +382,7 @@ staked budget and precompiles.
 0. **Without an exit, a thief with the daily key can shut an account out of a node.** The ban lasts as long as the thief keeps at it, and with one transaction pending the canonical mempool is shut too. An exit has to be set up and funded before the thief arrives, and it is software only. The sidecar rule that fixes the cause is a proposal. See [`docs/FINDINGS.md`](docs/FINDINGS.md) section 10.
 1. **This is not production post-quantum cryptography.** The parameters are unreviewed and there is no formal proof. Plain
    keccak chains give multi-target attacks a discount of about 19 bits that WOTS+ or XMSS would remove. Production means
-   LMS, XMSS or SPHINCS+, which are heavier.
+   LMS, XMSS or SPHINCS+. We measured one candidate from that last family, leanSphincs-S. It costs about the same to verify and more to send: see [`docs/GAS.md`](docs/GAS.md).
 2. **Stealth spending has a remaining case, even with the fix.** A sender who also owns a quantum computer can spend what it sent. See
    [`docs/STEALTH.md`](docs/STEALTH.md).
 3. **By default the master key is a software signer, on the same machine as the wallet.** Its seed sits in a file, so a
@@ -341,7 +393,7 @@ staked budget and precompiles.
 4. **The rulebook does not bound gas across transactions.** A thief can burn the account's ETH through many transactions,
    each under the per-transaction cost cap. That leaves through fees, not the daily limit. With no ETH left, a recovery cannot pay for
    itself until someone tops the account up, and the thief can race each top-up. A thief can also fill the queue with spends: changing the
-   daily key does not cancel them, so each needs a veto, and an unvetoed one still matures.
+   daily key does not cancel them, so each needs a veto, and an unvetoed one still matures. An escape ends them all.
 5. **A 64-leaf tree is a demo lifetime.** Rotation works. Backing up one-time key state across devices is the known unsolved
    problem of stateful hash signatures.
 6. **Devnet only.** Chain 1337 can reset at any time, and the explorer keeps its history in memory. Recorded evidence is in
