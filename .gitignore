@@ -21,3 +21,4 @@ apps/dashboard/AGENTS.md
 # local mirror: upstream checkouts and chain data, fetched by scripts/stack
 .stack/
 .vajra-local/
+.vajra-wallet/
