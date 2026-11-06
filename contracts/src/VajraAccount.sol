@@ -223,6 +223,8 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     function validateDaily(Scope scope) external {
         Layout storage s = _layout();
         if (s.frozen) revert AccountFrozen();
+        // Otherwise a daily signature could make this account the paymaster for a thief's own transaction.
+        if (address(uint160(txparam(TxParam.SENDER))) != address(this)) revert NotAuthorized();
         _requireDailySignature(s.dailyKey);
 
         // The daily key stays on the linear nonce. Approving a transaction spends whatever nonce keys it names, and the master
@@ -271,7 +273,12 @@ contract VajraAccount is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// Covers everything a wallet signature leaves open. The shape is pinned to `[VERIFY, SENDER]` so that no frame can
     /// sit outside the digest, and the body frame's target and value are held to the account and zero by `validateDaily`.
     function _walletDigest() private view returns (bytes32) {
-        if (txparam(TxParam.CURRENT_FRAME_INDEX) != 0 || txparam(TxParam.FRAME_COUNT) != 2) {
+        // The digest leaves out the body frame's mode, and the frame walk skips anything that is not SENDER, so a copy could turn the
+        // body into a no-op under the same signature, spending the nonce and the fee and paying nobody.
+        if (
+            txparam(TxParam.CURRENT_FRAME_INDEX) != 0 || txparam(TxParam.FRAME_COUNT) != 2
+                || frameparam(1, FrameParam.MODE) != uint256(FrameMode.SENDER)
+        ) {
             revert SignatureNotBoundToTransaction();
         }
         bytes32 message = keccak256(
