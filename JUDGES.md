@@ -1,0 +1,75 @@
+# Running VAJRA yourself
+
+One command boots a full local copy of everything: ethrex, a block producer, the alternative mempool, an explorer, and every contract.
+
+Needs Docker, Node 22.18 or newer, pnpm, make, and git.
+
+    git clone https://github.com/Vajra-8141/Vajra.git && cd Vajra
+    make judge
+
+It ends by printing `GREEN` and a demo account. MEASURED_CLEAN_CLONE
+
+    alias vajra='VAJRA_STACK=local node packages/cli/src/main.ts'
+
+## What this is
+
+**A mirror, not a sandbox.** It runs the two upstream commits the public devnet runs: ethrex `9aa3645`, the image pinned by commit, and
+the sidecar `2e22ff0`. The differences, all of them:
+
+| | Public devnet | Local mirror |
+|---|---|---|
+| Sidecar | as deployed | with [`docs/upstream/sidecar-budget-010.patch`](docs/upstream/), which restores BUDGET-010 and CALLING-040 |
+| Chain id | 1337 | 13370, so that a local result cannot pass for a public one |
+| Consensus | Lighthouse, 6 s slots | `stack/miner.mjs` drives the engine API, 2 s slots. Every block is still built and validated by ethrex |
+| Hegota | from epoch 2 | from genesis |
+| USDC | the devnet's | a plain ERC-20 stand-in at the same address |
+| Account for proofs | not deployed | `VajraAccountV2` |
+
+Everything the README marks BUILT was recorded on the public devnet, in `docs/evidence/`. Recovery and the pool run only here, because
+the deployed sidecar cannot admit them. Running a flow here does not touch those records: its result goes to `.vajra-local/evidence/`.
+
+On running locally, the EF's words: "a local sidecar is fine for judging". On the gas budgets: "no science behind any of the gas limits".
+
+## Every capability, one command
+
+Times are from one machine, on a warm mirror.
+
+| Capability | Command | Takes | Expect |
+|---|---|---|---|
+| Rulebook, and every attack on it | `vajra e2e` | 2.5 min | 11 mined, 21 refused, 0 failures |
+| The blocked escape, on both mempools | `vajra pin` | 1 min | canonical refuses, alt mines |
+| Stealth payment and paymaster | `vajra stealth` | 1 min | 0 failures |
+| Recovery by proof, and every attack | `vajra recover` | 70 s | MEASURED_RECOVER |
+| Recovery, step by step, on the demo account | `vajra recover-setup`, `recover-prove --secret <file>`, `recover --proof <file>` | 1 min | the new tree signs |
+| The shielded pool, and every attack | `vajra shielded` | 80 s | MEASURED_SHIELDED |
+| One note in, one note out | `vajra shield`, `vajra unshield 0xAddress` | 10 s each | the recipient holds 0.01 ETH |
+| The same proof on the sidecar as deployed and as patched | `make unpatched`, then `vajra compare` | 2 min | refused, refused, mined |
+| Gas table | `vajra measure`, `vajra measure-zk` | 2 min each | close to `docs/GAS.md` |
+| A staked VERIFY limit over 100,000 | `vajra budget` | 5 s | 400,000 admitted. The 900,000 line says "fee too low": same nonce, not the cap |
+| Hardware logic | `make -C firmware test emulator`, then the three lines below | 1 min | 143 checks, then 7 mined |
+| Leaf registry | the `curl` under [Run a query](README.md#leaf-registry-on-arkiv) in the README | 1 s | the public Arkiv testnet, no install, no key |
+| Explorer | http://127.0.0.1:18080 | | the sidecar's own: pool, activity, rule-by-rule admission reports |
+
+The emulator runs the firmware's logic as a local process. It tests the logic and the protocol, not the hardware:
+
+    export VAJRA_SIGNER=device VAJRA_DEVICE=emulator:/tmp/vajra-emulator.json
+    vajra device-e2e
+    unset VAJRA_SIGNER VAJRA_DEVICE
+
+Tests that need no chain:
+
+    pnpm install && git submodule update --init
+    pnpm test && pnpm test:contracts && pnpm test:firmware
+
+## Reading a refusal
+
+Each attack is really sent, and has to die with the name shown. A run that says `0 failures` means every attack got that exact name. An
+attack that was admitted would print `FAIL`, and the run would exit non-zero.
+
+## Troubleshooting
+
+- **ARM machines.** Upstream publishes ethrex for amd64 only, so Docker runs it under emulation. **This has not been tested.** It was
+  built and run on x86-64 Linux.
+- **A port is taken.** The mirror uses 18545, 14337, 14338 and 18080, on 127.0.0.1.
+- **Start again.** `make judge` always starts from an empty chain. `make down` stops everything.
+- **`not mined in time`.** Check that the `miner` container is running: `docker compose -f stack/docker-compose.yml ps`.

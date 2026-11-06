@@ -29,7 +29,7 @@ import {
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 import { type Note, newNote, noteCommitment, proveUnshield, stopProver } from "./proving.ts";
-import { denomination, poolLeaves, readPool } from "./shield.ts";
+import { denomination, noteFee, poolLeaves, readPool } from "./shield.ts";
 import { check, evidence, master, mined, newAccount, newSigner, refusals, refused, reverts, tally } from "./zk-run.ts";
 
 if (!isLocalStack) throw new Error("the pool needs the patched sidecar: run this with VAJRA_STACK=local, after `vajra judge`");
@@ -79,6 +79,7 @@ async function outsiderDeposits(count: number) {
 }
 
 console.log(`\n1. Notes in. Account ${account}, ${formatEther(DENOM)} ETH a note`);
+await reverts("An outsider opens the pool on someone else's account", "PoolClosed", { address: account, functionName: "shield", args: [123n], value: DENOM, account: outsider });
 const a = newNote();
 const shieldA = await mined("shield note A, master key", master(signer, account, epochSalt, [opsV2.shield(await noteCommitment(a), DENOM)]));
 check((await readPool<bigint>(account, "poolHeld")) === DENOM, "the pool holds one note");
@@ -119,12 +120,15 @@ const honest = tx();
 const extra = lib.frame(profile, "SENDER", { target: fresh(), execution: 400_000n, state: 400_000n, value: parseEther("0.5"), data: "0x" });
 await refused("A seen proof, with a frame added that pays the attacker", { ...honest, frames: [...honest.frames, extra] }, "ProofTxShapeInvalid");
 await refused("A seen proof, resent with a huge fee", tx({ fees: { maxFeePerGas: 100_000_000_000n } }), "ProofTxCostExceeded");
+const starve = (limits: { execution?: bigint; state?: bigint }) => ({ ...honest, frames: honest.frames.map((f, i) => (i === 1 ? { ...f, limits: { ...f.limits, ...limits } } : f)) });
+await refused("A seen proof, resent with too little execution gas, to kill the note", starve({ execution: 1000n }), "ProofTxShapeInvalid");
+await refused("A seen proof, resent with too little state gas, to kill the note", starve({ state: 0n }), "ProofTxShapeInvalid");
 await refused("A seen proof, on a nonce key of the attacker's choosing", { ...honest, nonceKeys: [12345n] }, "ProofTxShapeInvalid");
 
 console.log("\n4. A note out, with no key anywhere");
 const before = await publicClient.getBalance({ address: recipient });
 const out = await mined("unshield note A", honest);
-check((await publicClient.getBalance({ address: recipient })) - before === DENOM, `the recipient got exactly ${formatEther(DENOM)} ETH`);
+check((await publicClient.getBalance({ address: recipient })) - before === DENOM - noteFee(), `the recipient got exactly the note less its fee, ${formatEther(DENOM - noteFee())} ETH`);
 check((await readPool<bigint>(account, "poolHeld")) === DENOM * 2n, "the pool's accounting fell by one note");
 console.log(`    VERIFY ${Number(BigInt(out.receipt.frameReceipts[0]!.gasUsed))} gas`);
 await refused("The same note again, on the next nonce", { ...honest, nonceSeq: 1n }, "NullifierSpent");

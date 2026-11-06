@@ -28,6 +28,8 @@ const needsMirror = () => {
 };
 
 export const denomination = () => BigInt(deployments().v2!.denomination);
+/** What a note gives up on the way out, to pay for its own transaction. */
+export const noteFee = () => BigInt(deployments().v2!.noteFee);
 
 const shieldedEvent = parseAbiItem("event Shielded(uint256 indexed commitment, uint256 leaf, uint256 root)");
 
@@ -83,7 +85,7 @@ export async function unshieldCommand(recipient: Address) {
       if (!framesSucceeded(receipt)) throw new Error(`${hash} was mined but a frame failed`);
       saved.spent = true;
       saveNotes(notes);
-      console.log(`mined ${hash}, VERIFY ${Number(BigInt(receipt.frameReceipts[0]!.gasUsed))} gas\n${formatEther(denomination())} ETH to ${recipient}`);
+      console.log(`mined ${hash}, VERIFY ${Number(BigInt(receipt.frameReceipts[0]!.gasUsed))} gas\n${formatEther(denomination() - noteFee())} ETH to ${recipient}: a ${formatEther(denomination())} ETH note, less its ${formatEther(noteFee())} ETH fee`);
       return;
     } catch (error) {
       const name = error instanceof RpcError ? refusalNameV2(error.message) : "";

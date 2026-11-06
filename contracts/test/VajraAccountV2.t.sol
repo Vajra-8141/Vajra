@@ -5,6 +5,7 @@ import {Test, stdJson} from "forge-std/Test.sol";
 import {VajraAccountV2} from "../src/VajraAccountV2.sol";
 import {RecoveryVerifier} from "../src/verifiers/RecoveryVerifier.sol";
 import {ShieldVerifier} from "../src/verifiers/ShieldVerifier.sol";
+import {Scope as VajraScope} from "@forshtat/hegota-support/contracts/Params.sol";
 
 contract StakeSink {
     function addStake(uint32) external payable {}
@@ -27,8 +28,8 @@ contract ApproveDouble {
 contract VajraAccountV2Test is Test {
     using stdJson for string;
 
-    uint256 constant DENOM = 0.01 ether;
-    uint256 constant MAX_PROOF_COST = 0.02 ether;
+    uint256 constant DENOM = 0.1 ether;
+    uint256 constant MAX_PROOF_COST = 0.005 ether;
     uint256 constant CHAIN = 13370;
     bytes32 constant SALT = 0xabababababababababababababababababababababababababababababababab;
     bytes32 constant NEW_ROOT = 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd;
@@ -43,6 +44,7 @@ contract VajraAccountV2Test is Test {
     uint256 constant TX_PARAM = 2;
     uint256 constant FRAME_DATA_LOAD = 3;
     uint256 constant FRAME_PARAM = 5;
+    uint256 constant SIG_PARAM = 6;
 
     // TxParam and FrameParam ids.
     uint256 constant NONCE = 1;
@@ -52,6 +54,8 @@ contract VajraAccountV2Test is Test {
     uint256 constant NONCE_KEY_COUNT = 14;
     uint256 constant NONCE_KEY_0 = 16;
     uint256 constant RESOLVED_TARGET = 0;
+    uint256 constant EXECUTION_GAS_LIMIT = 1;
+    uint256 constant STATE_GAS_LIMIT = 9;
     uint256 constant MODE = 2;
     uint256 constant DATA_LENGTH = 4;
     uint256 constant VALUE = 8;
@@ -150,7 +154,9 @@ contract VajraAccountV2Test is Test {
     }
 
     /// An honest `[VERIFY, SENDER]` proof transaction.
-    function frameFor(bytes4 selector, uint256 length, uint256 nonceKey) private {
+    function frameFor(bytes4 selector, uint256 length, uint256 nonceKey, uint256 executionGas, uint256 stateGas) private {
+        setFrame(EXECUTION_GAS_LIMIT, executionGas);
+        setFrame(STATE_GAS_LIMIT, stateGas);
         setTx(CURRENT_FRAME, 0);
         setTx(FRAME_COUNT, 2);
         setTx(NONCE_KEY_COUNT, 1);
@@ -165,15 +171,15 @@ contract VajraAccountV2Test is Test {
     }
 
     function recoveryFrame() private {
-        uint256 key = uint256(keccak256(abi.encodePacked(keccak256("vajra.recovery.v1"), nullifier)));
-        frameFor(account.queueRecovery.selector, 68, key);
+        uint256 key = uint256(keccak256(abi.encodePacked(keccak256("vajra.recovery.v1"), nullifier, NEW_ROOT)));
+        frameFor(account.queueRecovery.selector, 68, key, 200_000, 800_000);
         setWord(4, NEW_ROOT);
         setWord(36, bytes32(nullifier));
     }
 
     function unshieldFrame() private {
-        uint256 key = uint256(keccak256(abi.encodePacked(keccak256("vajra.unshield.v1"), nullifierHash)));
-        frameFor(account.unshield.selector, 100, key);
+        uint256 key = uint256(keccak256(abi.encodePacked(keccak256("vajra.unshield.v1"), nullifierHash, uint256(uint160(recipient)))));
+        frameFor(account.unshield.selector, 100, key, 500_000, 600_000);
         setWord(4, bytes32(poolRoot));
         setWord(36, bytes32(nullifierHash));
         setWord(68, bytes32(uint256(uint160(recipient))));
@@ -188,8 +194,14 @@ contract VajraAccountV2Test is Test {
         account.setRecovery(commitment, DELAY);
     }
 
+    /// The owner opens the pool, and an outsider pays in after.
+    function openPool(uint256 note) private {
+        vm.prank(address(account));
+        account.shield{value: DENOM}(note);
+    }
+
     function shieldBoth() private {
-        account.shield{value: DENOM}(firstNote);
+        openPool(firstNote);
         account.shield{value: DENOM}(secondNote);
     }
 
@@ -243,7 +255,10 @@ contract VajraAccountV2Test is Test {
     function test_recovery_proofIsBoundToTheRoot() public {
         setRecovery();
         recoveryFrame();
-        setWord(4, keccak256("attacker's tree"));
+        bytes32 attacker = keccak256("attacker's tree");
+        setWord(4, attacker);
+        // With the nonce key to match, so that it is the proof that stops this.
+        setTx(NONCE_KEY_0, uint256(keccak256(abi.encodePacked(keccak256("vajra.recovery.v1"), nullifier, attacker))));
         vm.expectRevert(VajraAccountV2.RecoveryProofInvalid.selector);
         account.validateRecovery(recoveryProof);
     }
@@ -269,7 +284,7 @@ contract VajraAccountV2Test is Test {
         uint256 other = nullifier + 1;
         recoveryFrame();
         setWord(36, bytes32(other));
-        setTx(NONCE_KEY_0, uint256(keccak256(abi.encodePacked(keccak256("vajra.recovery.v1"), other))));
+        setTx(NONCE_KEY_0, uint256(keccak256(abi.encodePacked(keccak256("vajra.recovery.v1"), other, NEW_ROOT))));
         vm.expectRevert(VajraAccountV2.RecoveryProofInvalid.selector);
         account.validateRecovery(recoveryProof);
     }
@@ -368,6 +383,88 @@ contract VajraAccountV2Test is Test {
         shapeRefused();
     }
 
+    // A copy with less gas passes the proof and spends the nonce, and its SENDER frame fails: mined, and dead for good.
+    function test_shape_refusesLessExecutionGas() public {
+        setRecovery();
+        recoveryFrame();
+        setFrame(EXECUTION_GAS_LIMIT, 1000);
+        shapeRefused();
+    }
+
+    function test_shape_refusesLessStateGas() public {
+        setRecovery();
+        recoveryFrame();
+        setFrame(STATE_GAS_LIMIT, 0);
+        shapeRefused();
+    }
+
+    function test_shape_refusesMoreGas() public {
+        setRecovery();
+        recoveryFrame();
+        setFrame(EXECUTION_GAS_LIMIT, 200_001);
+        shapeRefused();
+    }
+
+    function test_shape_unshieldRefusesLessGas() public {
+        shieldBoth();
+        unshieldFrame();
+        setFrame(EXECUTION_GAS_LIMIT, 1000);
+        vm.expectRevert(VajraAccountV2.ProofTxShapeInvalid.selector);
+        account.validateUnshield(unshieldProof);
+        unshieldFrame();
+        setFrame(STATE_GAS_LIMIT, 0);
+        vm.expectRevert(VajraAccountV2.ProofTxShapeInvalid.selector);
+        account.validateUnshield(unshieldProof);
+    }
+
+    function test_recovery_refusesAnEmptyRootInVerify() public {
+        setRecovery();
+        recoveryFrame();
+        setWord(4, bytes32(0));
+        vm.expectRevert(VajraAccountV2.RootRequired.selector);
+        account.validateRecovery(recoveryProof);
+    }
+
+    function test_recovery_feeCannotEatTheNotes() public {
+        setRecovery();
+        shieldBoth();
+        drainTo(0.001 ether);
+        recoveryFrame();
+        setTx(MAX_COST, 0.001 ether + 1);
+        vm.expectRevert(VajraAccountV2.ValueNotConserved.selector);
+        account.validateRecovery(recoveryProof);
+    }
+
+    // ------------------------------------------------- the daily key stays on the linear nonce ----
+
+    function dailyFrame(uint256 count, uint256 key) private {
+        vm.mockCall(helper(SIG_PARAM), abi.encode(uint256(0), uint256(0)), abi.encode(uint256(uint160(daily))));
+        vm.mockCall(helper(SIG_PARAM), abi.encode(uint256(0), uint256(2)), abi.encode(uint256(0)));
+        setTx(NONCE_KEY_COUNT, count);
+        setTx(NONCE_KEY_0, key);
+        setTx(MAX_COST, 0.001 ether);
+        setTx(CURRENT_FRAME, 0);
+        setTx(FRAME_COUNT, 1);
+    }
+
+    function test_daily_isApprovedOnTheLinearNonce() public {
+        dailyFrame(1, 0);
+        expectApproved();
+        account.validateDaily(VajraScope.EXECUTION_AND_PAYMENT);
+    }
+
+    function test_daily_cannotBurnAMasterLeaf() public {
+        dailyFrame(1, uint256(keccak256(abi.encodePacked(ROOT, uint8(0)))));
+        vm.expectRevert(VajraAccountV2.DailyNonceKeyInvalid.selector);
+        account.validateDaily(VajraScope.EXECUTION_AND_PAYMENT);
+    }
+
+    function test_daily_cannotBurnASecondKeyBehindTheLinearOne() public {
+        dailyFrame(2, 0);
+        vm.expectRevert(VajraAccountV2.DailyNonceKeyInvalid.selector);
+        account.validateDaily(VajraScope.EXECUTION_AND_PAYMENT);
+    }
+
     function test_shape_refusesAFeeOverTheCap() public {
         setRecovery();
         recoveryFrame();
@@ -393,6 +490,25 @@ contract VajraAccountV2Test is Test {
         vm.prank(thief);
         vm.expectRevert(VajraAccountV2.NotAuthorized.selector);
         account.queueRecovery(NEW_ROOT, nullifier);
+    }
+
+    function test_setRecovery_refusesACommitmentOutsideTheField() public {
+        asSelf();
+        vm.expectRevert(VajraAccountV2.CommitmentInvalid.selector);
+        account.setRecovery(type(uint256).max, DELAY);
+    }
+
+    function test_setRecovery_refusesNoVetoWindow() public {
+        asSelf();
+        vm.expectRevert(VajraAccountV2.RecoveryDelayRequired.selector);
+        account.setRecovery(commitment, 0);
+    }
+
+    function test_setRecovery_zeroTurnsItOff() public {
+        setRecovery();
+        asSelf();
+        account.setRecovery(0, 0);
+        assertEq(account.recoveryCommitment(), 0);
     }
 
     function test_setRecovery_refusesOutsiders() public {
@@ -485,14 +601,21 @@ contract VajraAccountV2Test is Test {
         assertEq(account.noteCount(), 2);
     }
 
+    function test_shield_onlyTheOwnerOpensThePool() public {
+        vm.expectRevert(VajraAccountV2.PoolClosed.selector);
+        account.shield{value: DENOM}(firstNote);
+    }
+
     function test_shield_refusesTheWrongValue() public {
+        openPool(firstNote);
         vm.expectRevert(VajraAccountV2.ValueNotConserved.selector);
-        account.shield{value: DENOM - 1}(firstNote);
+        account.shield{value: DENOM - 1}(secondNote);
         vm.expectRevert(VajraAccountV2.ValueNotConserved.selector);
-        account.shield{value: DENOM + 1}(firstNote);
+        account.shield{value: DENOM + 1}(secondNote);
     }
 
     function test_shield_refusesABadCommitment() public {
+        openPool(firstNote);
         vm.expectRevert(VajraAccountV2.CommitmentInvalid.selector);
         account.shield{value: DENOM}(0);
         vm.expectRevert(VajraAccountV2.CommitmentInvalid.selector);
@@ -507,7 +630,7 @@ contract VajraAccountV2Test is Test {
     }
 
     function test_rootRing_keepsThe32Newest() public {
-        account.shield{value: DENOM}(firstNote);
+        openPool(firstNote);
         uint256 oldest = account.poolRoot();
         for (uint256 i; i < 31; ++i) {
             account.shield{value: DENOM}(firstNote + 1 + i);
@@ -537,7 +660,7 @@ contract VajraAccountV2Test is Test {
     }
 
     function test_unshield_refusesAnUnknownRoot() public {
-        account.shield{value: DENOM}(firstNote);
+        openPool(firstNote);
         unshieldFrame();
         vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.RootUnknown.selector, poolRoot));
         account.validateUnshield(unshieldProof);
@@ -578,6 +701,7 @@ contract VajraAccountV2Test is Test {
         shieldBoth();
         unshieldFrame();
         setWord(68, bytes32(uint256(uint160(thief))));
+        setTx(NONCE_KEY_0, uint256(keccak256(abi.encodePacked(keccak256("vajra.unshield.v1"), nullifierHash, uint256(uint160(thief))))));
         vm.expectRevert(VajraAccountV2.ShieldProofInvalid.selector);
         account.validateUnshield(unshieldProof);
     }
@@ -607,11 +731,11 @@ contract VajraAccountV2Test is Test {
         account.validateUnshield(unshieldProof);
     }
 
-    function test_unshield_paysExactlyOneNote() public {
+    function test_unshield_paysOneNoteLessItsFee() public {
         shieldBoth();
         asSelf();
         account.unshield(poolRoot, nullifierHash, recipient);
-        assertEq(recipient.balance, DENOM);
+        assertEq(recipient.balance, DENOM - MAX_PROOF_COST);
         assertEq(account.poolHeld(), DENOM);
         assertTrue(account.noteSpent(nullifierHash));
     }
@@ -678,13 +802,35 @@ contract VajraAccountV2Test is Test {
         account.executeQueued(id);
     }
 
-    function test_conservation_feesCannotEatTheNotes() public {
+    function test_conservation_aNoteCarriesItsOwnFee() public {
+        // No free balance at all, and the note can still leave, and the rest of the pool stays whole.
         shieldBoth();
-        drainTo(0.001 ether);
+        drainTo(0);
         unshieldFrame();
-        setTx(MAX_COST, 0.001 ether + 1);
+        setTx(MAX_COST, MAX_PROOF_COST);
+        expectApproved();
+        account.validateUnshield(unshieldProof);
+        vm.deal(address(account), address(account).balance - MAX_PROOF_COST);
+        asSelf();
+        account.unshield(poolRoot, nullifierHash, recipient);
+        assertEq(address(account).balance, account.poolHeld());
+    }
+
+    function test_conservation_aShortBalanceStopsAnUnshield() public {
+        shieldBoth();
+        drainTo(0);
+        vm.deal(address(account), address(account).balance - 1);
+        unshieldFrame();
         vm.expectRevert(VajraAccountV2.ValueNotConserved.selector);
         account.validateUnshield(unshieldProof);
+    }
+
+    function test_conservation_dailyFeesCannotEatTheNotes() public {
+        shieldBoth();
+        drainTo(0.001 ether - 1);
+        dailyFrame(1, 0);
+        vm.expectRevert(VajraAccountV2.ValueNotConserved.selector);
+        account.validateDaily(VajraScope.EXECUTION_AND_PAYMENT);
     }
 
     function test_conservation_unshieldRefusedWithNothingHeld() public {
@@ -715,6 +861,8 @@ contract VajraAccountV2Test is Test {
         account.escape(harbor, HARBOR_SALT, new address[](0));
         asSelf();
         account.unfreeze();
+        vm.deal(address(account), DENOM);
+        vm.prank(address(account));
         vm.expectRevert(VajraAccountV2.PoolClosed.selector);
         account.shield{value: DENOM}(firstNote);
     }

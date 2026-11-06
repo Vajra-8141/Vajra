@@ -9,19 +9,24 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import * as lib from "@forshtat/hegota-support/tx";
 import {
   DEVNET,
+  ETH,
   type FlatProof,
   LEGACY_GAS_PRICE,
   type MasterSigner,
   accountState,
   accountV2Abi,
+  dailyTx,
   deployments,
   isLocalStack,
+  leafNonceKey,
   ops,
   opsV2,
   profile,
   publicClient,
+  recoveryNonceKey,
   recoveryTx,
   signDaily,
+  signDailyTx,
   sleep,
   waitForSuccess,
   walletFor,
@@ -69,6 +74,10 @@ console.log("\n3. The daily key tries to reach recovery");
 await refused("Daily key changes the commitment", await signDaily({ key: dailyKey, dailyKey: daily, account, calls: [opsV2.setRecovery(1n, 0n)] }), "EscapeKeyOutranks");
 await refused("Daily key queues a root with no proof", await signDaily({ key: dailyKey, dailyKey: daily, account, calls: [opsV2.queueRecovery(newTree.root, 1n)] }), "EscapeKeyOutranks");
 
+const burnOn = async (nonceKey: bigint) => signDailyTx({ ...dailyTx({ account, dailyKey: daily, nonce: 0n, calls: [ops.spend(ETH, daily, 0n)], verifyGas: 97_000n }), nonceSeq: 0n, nonceKeys: [nonceKey] }, dailyKey);
+await refused("Daily key burns a master leaf's nonce key", await burnOn(leafNonceKey(firstRoot, 63)), "DailyNonceKeyInvalid");
+await refused("Daily key burns the recovery's nonce key", await burnOn(recoveryNonceKey(proved.nullifier, newTree.root)), "DailyNonceKeyInvalid");
+
 // Signed now, and kept, so the old tree can be tried again once the new root is in.
 const oldTreeAttempt = master(oldTree, account, epochSalt, [ops.freeze()]);
 
@@ -95,6 +104,9 @@ const honest = tx();
 const extra = lib.frame(profile, "SENDER", { target: privateKeyToAccount(generatePrivateKey()).address, execution: 400_000n, state: 400_000n, value: parseEther("0.5"), data: "0x" });
 await refused("A seen proof, with a frame added that pays the attacker", { ...honest, frames: [...honest.frames, extra] }, "ProofTxShapeInvalid");
 await refused("A seen proof, resent with a huge fee to burn the balance", tx({ fees: { maxFeePerGas: 100_000_000_000n } }), "ProofTxCostExceeded");
+const starve = (limits: { execution?: bigint; state?: bigint }) => ({ ...honest, frames: honest.frames.map((f, i) => (i === 1 ? { ...f, limits: { ...f.limits, ...limits } } : f)) });
+await refused("A seen proof, resent with too little execution gas, to kill it", starve({ execution: 1000n }), "ProofTxShapeInvalid");
+await refused("A seen proof, resent with too little state gas, to kill it", starve({ state: 0n }), "ProofTxShapeInvalid");
 await refused("A seen proof, on a nonce key of the attacker's choosing", { ...honest, nonceKeys: [12345n] }, "ProofTxShapeInvalid");
 
 console.log("\n6. The real recovery");

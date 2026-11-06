@@ -7,7 +7,7 @@ const ACCOUNT = 0xc0ffee0000000000000000000000000000c0ffeen;
 const CHAIN = 13370n;
 const SALT = BigInt("0x" + "ab".repeat(32));
 const NEW_ROOT = BigInt("0x" + "cd".repeat(32));
-const DENOM = 10n ** 16n;
+const DENOM = 10n ** 17n;
 const RECIPIENT = 0xbeef00000000000000000000000000000000beefn;
 const LIMB = 1n << 128n;
 

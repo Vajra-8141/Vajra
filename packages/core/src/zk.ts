@@ -24,23 +24,30 @@ const UNSHIELD_TAG = keccak256(toBytes("vajra.unshield.v1"));
 
 const word = (value: bigint) => numberToHex(value, { size: 32 });
 
-export const recoveryNonceKey = (nullifier: bigint): bigint => BigInt(keccak256(concat([RECOVERY_TAG, word(nullifier)])));
+export const recoveryNonceKey = (nullifier: bigint, newRoot: Hex): bigint => BigInt(keccak256(concat([RECOVERY_TAG, word(nullifier), newRoot])));
 
-export const unshieldNonceKey = (nullifierHash: bigint): bigint => BigInt(keccak256(concat([UNSHIELD_TAG, word(nullifierHash)])));
+export const unshieldNonceKey = (nullifierHash: bigint, recipient: Address): bigint =>
+  BigInt(keccak256(concat([UNSHIELD_TAG, word(nullifierHash), numberToHex(BigInt(recipient), { size: 32 })])));
 
 const encode = (functionName: string, args: unknown[]) => encodeFunctionData({ abi: accountV2Abi, functionName, args });
+
+/** Exactly what `_requireProofShape` demands of the SENDER frame. These are pinned on chain, so changing one here is not enough. */
+export const PROOF_FRAME_GAS = {
+  recovery: { execution: 200_000n, state: 800_000n },
+  unshield: { execution: 500_000n, state: 600_000n },
+} as const;
 
 export const SHIELD_EXECUTION_GAS = 2_500_000n;
 export const SHIELD_STATE_GAS = 3_000_000n;
 
 export const opsV2 = {
   setRecovery: (commitment: bigint, delay: bigint): Call => ({ data: encode("setRecovery", [commitment, delay]), execution: 80_000n, state: 300_000n }),
-  queueRecovery: (root: Hex, nullifier: bigint): Call => ({ data: encode("queueRecovery", [root, nullifier]), execution: 200_000n, state: 600_000n }),
+  queueRecovery: (root: Hex, nullifier: bigint): Call => ({ data: encode("queueRecovery", [root, nullifier]), ...PROOF_FRAME_GAS.recovery }),
   // The first note in a tree writes a slot at every level, at 97,920 state gas each. Twenty Poseidon hashes run at about 60,000
   // each on this fork. Unused gas is refunded.
   shield: (commitment: bigint, denomination: bigint): Call => ({ data: encode("shield", [commitment]), value: denomination, execution: SHIELD_EXECUTION_GAS, state: SHIELD_STATE_GAS }),
   // Paying a fresh address needs 183,600 spare execution gas: see `ops` in account.ts.
-  unshield: (root: bigint, nullifierHash: bigint, recipient: Address): Call => ({ data: encode("unshield", [root, nullifierHash, recipient]), execution: 400_000n, state: 400_000n }),
+  unshield: (root: bigint, nullifierHash: bigint, recipient: Address): Call => ({ data: encode("unshield", [root, nullifierHash, recipient]), ...PROOF_FRAME_GAS.unshield }),
 };
 
 function proofTx(a: { account: Address; verifyData: Hex; nonceKey: bigint; call: Call; verifyGas?: bigint; fees?: Fees }): FrameTx {
@@ -64,7 +71,7 @@ export function recoveryTx(a: { account: Address; newRoot: Hex; nullifier: bigin
   return proofTx({
     account: a.account,
     verifyData: encode("validateRecovery", [a.proof]),
-    nonceKey: recoveryNonceKey(a.nullifier),
+    nonceKey: recoveryNonceKey(a.nullifier, a.newRoot),
     call: opsV2.queueRecovery(a.newRoot, a.nullifier),
     verifyGas: a.verifyGas,
     fees: a.fees,
@@ -76,7 +83,7 @@ export function unshieldTx(a: { account: Address; root: bigint; nullifierHash: b
   return proofTx({
     account: a.account,
     verifyData: encode("validateUnshield", [a.proof]),
-    nonceKey: unshieldNonceKey(a.nullifierHash),
+    nonceKey: unshieldNonceKey(a.nullifierHash, a.recipient),
     call: opsV2.unshield(a.root, a.nullifierHash, a.recipient),
     verifyGas: a.verifyGas,
     fees: a.fees,

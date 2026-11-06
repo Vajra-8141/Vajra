@@ -87,6 +87,12 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// V2: how many recent roots an unshield may prove against. A proof takes time to reach a block and the tree moves under
     /// it, and validity that hangs on fast-changing state costs the sender reputation with the mempool.
     uint256 public constant ROOT_HISTORY = 32;
+    /// V2: the SENDER frame's gas, exactly. `zk.ts` sends these, and VERIFY refuses anything else. A copy with less gas would
+    /// pass the proof, spend the nonce, and fail in the SENDER frame: a mined failure that kills the recovery or note for good.
+    uint256 private constant RECOVERY_EXECUTION_GAS = 200_000;
+    uint256 private constant RECOVERY_STATE_GAS = 800_000;
+    uint256 private constant UNSHIELD_EXECUTION_GAS = 500_000;
+    uint256 private constant UNSHIELD_STATE_GAS = 600_000;
     /// V2: a 256-bit value goes into a proof as two limbs, because it does not fit in the BN254 scalar field.
     uint256 private constant LIMB = 1 << 128;
 
@@ -108,7 +114,8 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     IPoseidon public immutable POSEIDON;
     /// V2: the one size of note. Every note being the same size is what stops an amount linking a withdrawal to a deposit.
     uint256 public immutable DENOMINATION;
-    /// V2: the most a transaction authorized by a proof may cost the account. See `_requireProofShape`.
+    /// V2: the most a transaction authorized by a proof may cost the account. See `_requireProofShape`. An unshield pays this
+    /// out of the note, so a note always carries its own fee and nobody can use the pool to burn the owner's free balance.
     uint256 public immutable MAX_PROOF_TX_COST;
 
     // -------------------------------------------------------------------------------------------- storage ---------
@@ -256,6 +263,8 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     error NullifierSpent(uint256 nullifier);
     error ProofTxShapeInvalid();
     error ProofTxCostExceeded(uint256 cost);
+    error DailyNonceKeyInvalid();
+    error RecoveryDelayRequired();
     error ShieldProofInvalid();
     error RootUnknown(uint256 root);
     error ValueNotConserved();
@@ -281,6 +290,7 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         SHIELD_VERIFIER = IShieldVerifier(shieldVerifier);
         POSEIDON = IPoseidon(poseidon);
         DENOMINATION = denomination;
+        require(maxProofTxCost < denomination || denomination == 0, "a note has to cover its own fee");
         MAX_PROOF_TX_COST = maxProofTxCost;
         LOG_W = logW;
         LEN2 = len2;
@@ -327,6 +337,10 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         Layout storage s = _layout();
         if (s.frozen) revert AccountFrozen();
         _requireDailySignature(s.dailyKey);
+
+        // V2: the daily key stays on the linear nonce. Approving a transaction spends whatever nonce keys it names, and the master
+        // key's are public: keccak(root, leaf). Left open, a thief spends all 64 of them and the master key can never sign again.
+        if (txparam(TxParam.NONCE_KEY_COUNT) != 1 || txparam(TxParam.NONCE_KEY_0) != 0) revert DailyNonceKeyInvalid();
 
         // Fees are paid before the rulebook runs, so they are the one way value can leave without passing it. The scope
         // is the signer's to choose, and payment can be approved in a frame of its own, so this has to hold whenever
@@ -450,7 +464,17 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         uint256 newRoot = uint256(framedataload(4, 1));
         uint256 nullifier = uint256(framedataload(36, 1));
         if (s.recoverySpent[nullifier]) revert NullifierSpent(nullifier);
-        _requireProofShape(this.queueRecovery.selector, 68, keccak256(abi.encodePacked(RECOVERY_TAG, nullifier)));
+        if (newRoot == 0) revert RootRequired();
+        _requireProofShape(
+            this.queueRecovery.selector,
+            68,
+            keccak256(abi.encodePacked(RECOVERY_TAG, nullifier, newRoot)),
+            RECOVERY_EXECUTION_GAS,
+            RECOVERY_STATE_GAS
+        );
+        // The fee must not come out of what the notes are owed. Anyone can top an account up if it is short.
+        uint256 held = s.poolHeld;
+        if (held != 0 && address(this).balance < held + txparam(TxParam.MAX_COST)) revert ValueNotConserved();
 
         uint256 salt = uint256(s.epochSalt);
         uint256[8] memory input = [
@@ -482,12 +506,18 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         uint256 nullifierHash = uint256(framedataload(36, 1));
         uint256 recipient = uint256(framedataload(68, 1));
         if (s.noteSpent[nullifierHash]) revert NullifierSpent(nullifierHash);
-        _requireProofShape(this.unshield.selector, 100, keccak256(abi.encodePacked(UNSHIELD_TAG, nullifierHash)));
+        _requireProofShape(
+            this.unshield.selector,
+            100,
+            keccak256(abi.encodePacked(UNSHIELD_TAG, nullifierHash, recipient)),
+            UNSHIELD_EXECUTION_GAS,
+            UNSHIELD_STATE_GAS
+        );
         if (!_isKnownRoot(s, root)) revert RootUnknown(root);
 
-        // The fee comes out of the account's own balance, so the balance has to cover the notes as well as the fee.
+        // The note pays its own fee, so what the balance has to cover is the notes, and no more.
         uint256 held = s.poolHeld;
-        if (held < DENOMINATION || address(this).balance < held + txparam(TxParam.MAX_COST)) revert ValueNotConserved();
+        if (held < DENOMINATION || address(this).balance < held) revert ValueNotConserved();
 
         uint256[6] memory input = [root, nullifierHash, recipient, DENOMINATION, uint256(uint160(address(this))), block.chainid];
         if (!_verifyShield(proof, input)) revert ShieldProofInvalid();
@@ -511,17 +541,25 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     ///
     /// `sender_approved` covers every SENDER frame, and nothing signed this one, so without these checks anyone who saw
     /// the proof could add a frame paying themselves and resend it. So the transaction must be exactly `[VERIFY, SENDER]`,
-    /// and the SENDER frame must be this account calling `selector` with no value and exactly the arguments the proof is
-    /// checked against. The fee is capped for the same reason: a copy with a higher fee would still carry a valid proof.
+    /// and the SENDER frame must be this account calling `selector` with no value, exactly the arguments the proof is checked
+    /// against, and exactly the gas it needs. The fee is capped for the same reason: a copy with a higher fee would still carry
+    /// a valid proof.
     ///
-    /// The nonce key comes from the nullifier, so a retry is the same bytes, and a thief's pending daily transaction
-    /// cannot hold it up on a mempool that keeps the two nonce domains apart. That is the same reason an escape uses one.
-    function _requireProofShape(bytes4 selector, uint256 dataLength, bytes32 nonceKey) private view {
+    /// The nonce key comes from the nullifier and what the proof installs or pays, so a retry is the same bytes, and a thief's
+    /// pending daily transaction cannot hold it up on a mempool that keeps the two nonce domains apart. That is the same reason
+    /// an escape uses one. If an unshield's recipient reverts, the nonce is spent and the note is not, so a fresh proof to another
+    /// recipient, on its own nonce key, can still spend it.
+    function _requireProofShape(bytes4 selector, uint256 dataLength, bytes32 nonceKey, uint256 executionGas, uint256 stateGas)
+        private
+        view
+    {
         if (
             txparam(TxParam.CURRENT_FRAME_INDEX) != 0 || txparam(TxParam.FRAME_COUNT) != 2
                 || frameparam(1, FrameParam.MODE) != uint256(FrameMode.SENDER)
                 || address(uint160(frameparam(1, FrameParam.RESOLVED_TARGET))) != address(this)
                 || frameparam(1, FrameParam.VALUE) != 0 || frameparam(1, FrameParam.DATA_LENGTH) != dataLength
+                || frameparam(1, FrameParam.EXECUTION_GAS_LIMIT) != executionGas
+                || frameparam(1, FrameParam.STATE_GAS_LIMIT) != stateGas
                 || bytes4(framedataload(0, 1)) != selector || txparam(TxParam.NONCE_KEY_COUNT) != 1
                 || txparam(TxParam.NONCE_KEY_0) != uint256(nonceKey) || txparam(TxParam.NONCE) != 0
         ) {
@@ -708,6 +746,8 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// @param commitment Poseidon(s). Zero turns recovery off.
     /// @param delay How long the master key has to veto. Spec 04 section 9.2 says 48 hours.
     function setRecovery(uint256 commitment, uint64 delay) external onlySelf {
+        if (commitment >= FIELD) revert CommitmentInvalid();
+        if (commitment != 0 && delay == 0) revert RecoveryDelayRequired();
         Layout storage s = _layout();
         s.recoveryCommitment = commitment;
         s.recoveryDelay = delay;
@@ -731,15 +771,19 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         emit Queued(id, address(0), address(0), uint256(newRoot), executeAfter, QueueReason.Recovery);
     }
 
-    /// V2: puts one note in the pool. Anyone may pay in, and the more who do, the larger the set a withdrawal hides among, but
-    /// the pool belongs to this account: its master key can sweep every note to the harbor. A daily key cannot reach this,
-    /// since `validateDaily` allows neither the selector nor a value.
+    /// V2: puts one note in the pool. The master key opens the pool with the first note. After that anyone may pay in, and the more
+    /// who do, the larger the set a withdrawal hides among, but the pool belongs to this account: its master key can sweep every
+    /// note to the harbor. A daily key cannot reach this, since `validateDaily` allows neither the selector nor a value.
+    ///
+    /// Only the owner opens it, because a pool makes the daily path read the balance in validation, and only a staked account may.
+    /// An outsider's deposit must not be able to switch that on for an account that is not staked.
     ///
     /// @param commitment Poseidon(secret, nullifierSeed).
     function shield(uint256 commitment) external payable {
         Layout storage s = _layout();
         if (s.frozen) revert AccountFrozen();
         if (s.poolClosed) revert PoolClosed();
+        if (s.nextNote == 0 && msg.sender != address(this)) revert PoolClosed();
         if (msg.value != DENOMINATION) revert ValueNotConserved();
         if (commitment == 0 || commitment >= FIELD) revert CommitmentInvalid();
         uint256 leaf = s.nextNote;
@@ -781,7 +825,7 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         if (s.poolHeld < DENOMINATION) revert ValueNotConserved();
         s.noteSpent[nullifierHash] = true;
         s.poolHeld -= DENOMINATION;
-        _transfer(address(0), recipient, DENOMINATION);
+        _transfer(address(0), recipient, DENOMINATION - MAX_PROOF_TX_COST);
         emit Unshielded(nullifierHash, recipient);
     }
 

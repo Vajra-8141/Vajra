@@ -17,11 +17,11 @@ export const keyPath = (name: string) => new URL(`../../../${stateDir}/${name}`,
 
 if (isLocalStack && existsSync(deploymentsPath)) useDeployments(JSON.parse(readFileSync(deploymentsPath, "utf8")));
 
-/** The most a proof transaction may cost an account, since nothing signs its fee. Well above what one needs at 2 gwei. */
-const MAX_PROOF_TX_COST = parseEther("0.02");
+/** The most a proof transaction may cost an account, since nothing signs its fee, and what a note pays. About 3 gwei at these limits. */
+const MAX_PROOF_TX_COST = parseEther("0.005");
 
 /** The one size of note on the mirror. */
-const DENOMINATION = parseEther("0.01");
+const DENOMINATION = parseEther("0.1");
 
 /** Each implementation costs ~20M gas. `only` redeploys one part and keeps the addresses of the rest. */
 export async function deploy(only?: string) {
@@ -74,7 +74,7 @@ export async function deploy(only?: string) {
     const poseidon = await create("PoseidonT3", []);
     const implementation = await create("VajraAccountV2", [4, 3, DEVNET.stakingRegistry, recoveryVerifier, shieldVerifier, poseidon, DENOMINATION, MAX_PROOF_TX_COST]);
     const factory = await create("VajraFactory", [implementation]);
-    out.v2 = { implementation, factory, recoveryVerifier, shieldVerifier, poseidon, denomination: DENOMINATION.toString() };
+    out.v2 = { implementation, factory, recoveryVerifier, shieldVerifier, poseidon, denomination: DENOMINATION.toString(), noteFee: MAX_PROOF_TX_COST.toString() };
   }
   writeFileSync(deploymentsPath, JSON.stringify(out, null, 1) + "\n");
   useDeployments(out as never);

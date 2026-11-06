@@ -1,6 +1,6 @@
 import { encodeErrorResult, keccak256, toBytes, concat, numberToHex } from "viem";
 import { describe, expect, it } from "vitest";
-import { type FlatProof, accountV2Abi, encodeTx, opsV2, recoveryNonceKey, recoveryTx, refusalNameV2, txHash, unshieldNonceKey, unshieldTx } from "../src/index.ts";
+import { type FlatProof, PROOF_FRAME_GAS, accountV2Abi, encodeTx, opsV2, recoveryNonceKey, recoveryTx, refusalNameV2, txHash, unshieldNonceKey, unshieldTx } from "../src/index.ts";
 
 const account = "0x1111111111111111111111111111111111111111" as const;
 const recipient = "0x2222222222222222222222222222222222222222" as const;
@@ -22,12 +22,23 @@ describe("proof transactions", () => {
 
   it("derives the nonce key the contract derives", () => {
     const word = numberToHex(9n, { size: 32 });
-    expect(recoveryNonceKey(9n)).toBe(BigInt(keccak256(concat([keccak256(toBytes("vajra.recovery.v1")), word]))));
-    expect(unshieldNonceKey(9n)).toBe(BigInt(keccak256(concat([keccak256(toBytes("vajra.unshield.v1")), word]))));
+    expect(recoveryNonceKey(9n, root)).toBe(BigInt(keccak256(concat([keccak256(toBytes("vajra.recovery.v1")), word, root]))));
+    const padded = numberToHex(BigInt(recipient), { size: 32 });
+    expect(unshieldNonceKey(9n, recipient)).toBe(BigInt(keccak256(concat([keccak256(toBytes("vajra.unshield.v1")), word, padded]))));
   });
 
   it("keeps recovery and unshield on separate nonce keys", () => {
-    expect(recoveryNonceKey(9n)).not.toBe(unshieldNonceKey(9n));
+    expect(recoveryNonceKey(9n, root)).not.toBe(unshieldNonceKey(9n, recipient));
+  });
+
+  it("gives another recipient another nonce key, so a note survives a recipient that reverts", () => {
+    expect(unshieldNonceKey(9n, recipient)).not.toBe(unshieldNonceKey(9n, account));
+  });
+
+  it("sends the SENDER frame exactly the gas the contract pins", () => {
+    const frames = [recoveryTx({ account, newRoot: root, nullifier: 9n, proof }), unshieldTx({ account, root: 5n, nullifierHash: 9n, recipient, proof })].map((tx) => tx.frames[1]!);
+    expect(frames[0]!.limits).toMatchObject(PROOF_FRAME_GAS.recovery);
+    expect(frames[1]!.limits).toMatchObject(PROOF_FRAME_GAS.unshield);
   });
 
   it("is the same bytes every time, so a retry reveals nothing and cannot race itself", () => {

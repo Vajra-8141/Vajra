@@ -161,6 +161,9 @@ switch (command) {
   case "judge":
     await import("./judge.ts");
     break;
+  case "nonce-burn":
+    await import("./nonce-burn.ts");
+    break;
   case "compare":
     await import("./compare.ts");
     break;

@@ -113,7 +113,7 @@ contract VajraAccountV2ParityTest is Test {
         vm.warp(1_800_000_000);
         usdc = new PMockToken();
         registry = new PMockRegistry();
-        factory = new VajraFactory(address(new VajraAccount(4, 3, address(registry), address(0), address(0), address(0), 0.01 ether, 0.02 ether)));
+        factory = new VajraFactory(address(new VajraAccount(4, 3, address(registry), address(0), address(0), address(0), 0.1 ether, 0.005 ether)));
         address[] memory assets = new address[](2);
         assets[0] = address(usdc);
         assets[1] = address(0);
