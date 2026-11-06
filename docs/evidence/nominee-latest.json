@@ -1,0 +1,478 @@
+{
+ "ranAt": "2026-11-06T23:04:43.819Z",
+ "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
+ "chainId": 13370,
+ "genesis": "0x74f05f1d3d0589fbf8e763a064aefe6d9941f6ab907cb52993142ede6c23cf3c",
+ "holder": "a real process, `vajra nominee-watch`, started with an empty state folder, which it left empty",
+ "queueDelaySeconds": 60,
+ "marginSeconds": 15,
+ "rescueGas": {
+  "verify": 96934,
+  "wholeTx": 489842,
+  "maxCostEth": "0.01252161"
+ },
+ "secondsToSpareWhenTheNetworkFailed": [
+  {
+   "run": "the head stops",
+   "secondsToSpare": 10
+  },
+  {
+   "run": "the sidecar is down",
+   "secondsToSpare": 12
+  },
+  {
+   "run": "the sidecar sits on it",
+   "secondsToSpare": 8
+  }
+ ],
+ "secondsLeftWhenTheRescueLanded": 10,
+ "thiefTransactionsSentMeanwhile": 48,
+ "thiefPendingInTheNodesPool": {
+  "lookedTimes": 48,
+  "seenTimes": 24,
+  "inTheLastFive": 2
+ },
+ "stateSpendingToken": {
+  "sweptFirst": {
+   "framesSucceeded": false,
+   "harborHolds": "0",
+   "stateGas": 0
+  },
+  "sweptLast": {
+   "framesSucceeded": true,
+   "harborHolds": "1.987732613998128298",
+   "stateGas": 281520
+  }
+ },
+ "account": "0x2A4e444F3E5A45515B8257eEa2f5cA6112aaF289",
+ "exit": "0x5569fe3bF4Ce4BB217635eE54f77D9B18531AF6b",
+ "failures": 0,
+ "mined": [
+  {
+   "step": "answered then silent: the master key names the exit",
+   "hash": "0xad95f1e095a159edcccd81817de04d6b4fdd9c20f7a5b7f49fe81f33da7ab2ce",
+   "block": 50,
+   "verifyGas": 87455,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "the thief queues a payment",
+   "hash": "0xeb877b3d0494f3f30f5bed273ee6360a6846bda0869f20602f5b2281909a0d4f",
+   "block": 53,
+   "verifyGas": 36252,
+   "totalGas": 620166,
+   "attempts": 1
+  },
+  {
+   "step": "a second payment queues, and this one really is the owner's",
+   "hash": "0x1e5a6b6cc36158c635ad239770dc15d5f8dde1e32f510bcb1be337cccac563e5",
+   "block": 56,
+   "verifyGas": 36252,
+   "totalGas": 522222,
+   "attempts": 1
+  },
+  {
+   "step": "Not me: the owner cancels the first",
+   "hash": "0xf7731498dccebdc6a40c2b3579d7e52b885dd4578db683fffbcd168adf3d7ac3",
+   "block": 59,
+   "verifyGas": 92180,
+   "totalGas": 169466,
+   "attempts": 1
+  },
+  {
+   "step": "Pay, it's me: the owner releases the second",
+   "hash": "0x48c204c03bad6699c4818111b74ecdf0c57220b95570d9d81bcd8fd9b549be3f",
+   "block": 62,
+   "verifyGas": 91883,
+   "totalGas": 359541,
+   "attempts": 1
+  },
+  {
+   "step": "the thief queues 0.6 ETH",
+   "hash": "0x16ffbfb569e208a694e6cd95c0150f159fc58d93eeba6cfc0436d17caf3c8fbe",
+   "block": 90,
+   "verifyGas": 36252,
+   "totalGas": 522234,
+   "attempts": 1
+  },
+  {
+   "step": "The rescue, sent by a process with no key, because nobody answered",
+   "hash": "0x8246180649066e788d8bbde91b48862f7672c4f6a88a948cb7634aa0f082c3d8",
+   "block": 115,
+   "verifyGas": 96934,
+   "totalGas": 489842,
+   "attempts": 1
+  },
+  {
+   "step": "hidden: the master key names the exit",
+   "hash": "0xf6fd1ccc377917c8a08a4c61cf62cc4069f3f05e1e088262a38a1bbb140c9c85",
+   "block": 127,
+   "verifyGas": 92648,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "the thief queues one, and a dozen more behind it, in one transaction",
+   "hash": "0x2e92a9792b4b6c596d46fe4f78862816fde8b9b61852453db56572fe9725e59b",
+   "block": 131,
+   "verifyGas": 78708,
+   "totalGas": 6076002,
+   "attempts": 1
+  },
+  {
+   "step": "The rescue, with a theft hidden behind a dozen more",
+   "hash": "0x221bfecf21529e3605f7a892df9d086c389d30cef070c1eed25aa97357e07ecc",
+   "block": 156,
+   "verifyGas": 97882,
+   "totalGas": 608522,
+   "attempts": 1
+  },
+  {
+   "step": "stolen paper: the master key names the exit",
+   "hash": "0x21b922a74d3027a1b6b4c3afccabb2a788e6610212a09bccb7879d70c194cadb",
+   "block": 168,
+   "verifyGas": 91148,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "the owner sets a paper",
+   "hash": "0x7c07d23ab5ced21ecfffdffd04a15c48ac0b5926a7c64dfb81cd0b95be4d0fe7",
+   "block": 170,
+   "verifyGas": 88940,
+   "totalGas": 478654,
+   "attempts": 1
+  },
+  {
+   "step": "the thief queues a payment",
+   "hash": "0x58d37d9a614453819651a3ffba6739a539b884d6f40312b757372ec7e8d8b21e",
+   "block": 171,
+   "verifyGas": 36252,
+   "totalGas": 620130,
+   "attempts": 1
+  },
+  {
+   "step": "the owner freezes, and goes offline",
+   "hash": "0xf171014d59c4a44e48b861f8a45c012e6cc96b9a2ff02354e44c72442a0fae70",
+   "block": 173,
+   "verifyGas": 92930,
+   "totalGas": 167418,
+   "attempts": 1
+  },
+  {
+   "step": "the thief uses the stolen paper",
+   "hash": "0x02c6ec76978016adfc6e689be3404fbdb7c2082b850509a1f4a9180740fde806",
+   "block": 205,
+   "verifyGas": 301575,
+   "totalGas": 1002452,
+   "attempts": 1
+  },
+  {
+   "step": "The rescue, ahead of a stolen paper taking effect",
+   "hash": "0x21d72be66f34693707efc3cd25d4b84c0fa5c4f7ecd1a458d7a7b30e66332987",
+   "block": 230,
+   "verifyGas": 96637,
+   "totalGas": 479497,
+   "attempts": 1
+  },
+  {
+   "step": "harbor moved: the master key names the exit",
+   "hash": "0x1a1fa22ec39dbabd9cce19c2f427096a179f81b4e81df797c359ae877561f90d",
+   "block": 236,
+   "verifyGas": 91148,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "the owner changes the harbor, and forgets the rescue",
+   "hash": "0xb2462529163208db89fb09302cdfe9c487f763e3243e0cca15b00f8063774ba2",
+   "block": 239,
+   "verifyGas": 92831,
+   "totalGas": 169466,
+   "attempts": 1
+  },
+  {
+   "step": "the thief queues a payment",
+   "hash": "0xd35a315f84198e13c6391dbe3cf4bd7efd40f66f304b22dab077daf45bf7445d",
+   "block": 242,
+   "verifyGas": 36252,
+   "totalGas": 620154,
+   "attempts": 1
+  },
+  {
+   "step": "revoked: the master key names the exit",
+   "hash": "0x60c18aace4b183e987fd7362cd9b2a9a3473b23748590fd68245ed1537d87719",
+   "block": 271,
+   "verifyGas": 90200,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "a new exit tree, master key",
+   "hash": "0x1415a3ff36affc646b37330316c2ca2005adfd7774cbaf7f33624a067718bd60",
+   "block": 273,
+   "verifyGas": 91034,
+   "totalGas": 169466,
+   "attempts": 1
+  },
+  {
+   "step": "padded: the master key names the exit",
+   "hash": "0xd36a5e71bfdd1dc71abf4f8405f085ae858df6c1fdf35c2046a23300120d2e55",
+   "block": 279,
+   "verifyGas": 91148,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "A copy of the rescue, padded by 8 KB, and it still rescues",
+   "hash": "0x975669909a1a2ffc24f1ee8e6c375999614bb697761208029deacb84985c7718",
+   "block": 280,
+   "verifyGas": 97585,
+   "totalGas": 979370,
+   "attempts": 1
+  },
+  {
+   "step": "the node goes dark: the master key names the exit",
+   "hash": "0xabf0a3c228ea9acd824a52eb8f026b7ca046bafcd17026effb84251acd4c5b6b",
+   "block": 286,
+   "verifyGas": 92450,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "the sidecar is down: the master key names the exit",
+   "hash": "0x1a5380547a354b1c758e88f5ee05ffe4c4baaa1e95316fb15eec355b3d57dc9e",
+   "block": 293,
+   "verifyGas": 91346,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "the sidecar sits on it: the master key names the exit",
+   "hash": "0x7d0e4ec58032d60e91dce7d97f5d2fb51e3ff9ff4d966bf8f64545773f2abf25",
+   "block": 298,
+   "verifyGas": 91700,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "the head stops: the master key names the exit",
+   "hash": "0xdfd8f71e4c2a3759243bc2e32b6cb4ce2006d3e2c5007cc469715fa719d2df3c",
+   "block": 304,
+   "verifyGas": 92648,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "a short reserve: the master key names the exit",
+   "hash": "0x428d772790a5ef47c1416cfc5e3b4e6bd1358a69ecd5264a9194286ce1a9b70e",
+   "block": 310,
+   "verifyGas": 92096,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "the node goes dark: the thief queues a payment",
+   "hash": "0xdc4c498eb5d4c396dd6f7bf3763248770cb03d59ca66ff9ccf937fda96b42aae",
+   "block": 312,
+   "verifyGas": 36252,
+   "totalGas": 620154,
+   "attempts": 1
+  },
+  {
+   "step": "the head stops: the thief queues a payment",
+   "hash": "0x39ea3e0b56aad9b525596cb1183b31a4d8c0c7777dca510009213165d36e839e",
+   "block": 312,
+   "verifyGas": 36252,
+   "totalGas": 620142,
+   "attempts": 1
+  },
+  {
+   "step": "a short reserve: the thief queues a payment",
+   "hash": "0xaace5a23a0322a65773acf9c9e82777299dae6a59c06ea4570f31df720bd3860",
+   "block": 312,
+   "verifyGas": 36252,
+   "totalGas": 620154,
+   "attempts": 1
+  },
+  {
+   "step": "the sidecar sits on it: the thief queues a payment",
+   "hash": "0xc0b231fcbd160e5e1ba2dadc3bf6a6b4325f926e6cbe6ee48fc664353b31548c",
+   "block": 312,
+   "verifyGas": 36252,
+   "totalGas": 620166,
+   "attempts": 1
+  },
+  {
+   "step": "the sidecar is down: the thief queues a payment",
+   "hash": "0x8e8feda30295d0297b1bfffbf62f85b93e6c1367552b8354106c5ab74022229a",
+   "block": 313,
+   "verifyGas": 36252,
+   "totalGas": 620166,
+   "attempts": 1
+  },
+  {
+   "step": "reused leaf: the master key names the exit",
+   "hash": "0xb99bc418dca1334b0dca5d7a0473bfdaff6f7d40a5c5d97761e2d4cfeca4df61",
+   "block": 344,
+   "verifyGas": 91544,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "the thief queues a payment",
+   "hash": "0xdaecd94c6b3c8a21f28fe262c64598e5da271e0058acee55c981ad659e973d46",
+   "block": 347,
+   "verifyGas": 36252,
+   "totalGas": 620166,
+   "attempts": 1
+  },
+  {
+   "step": "the restored signer cancels it, on the leaf the rescue already used",
+   "hash": "0x498a22729f62d367ca37bdefdc240c47eb0e0e7561801d734adeb4c27e5d5e6a",
+   "block": 350,
+   "verifyGas": 98016,
+   "totalGas": 173556,
+   "attempts": 1
+  },
+  {
+   "step": "tokens swept first, with a token that writes one slot: the master key names the exit",
+   "hash": "0xdbc142e0d855ffbb1ddd3440c9ec716334e7f50e0c927551ff090c15bd8a1116",
+   "block": 390,
+   "verifyGas": 89881,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "A token that spends the frame's state gas: tokens swept first, with a token that writes one slot",
+   "hash": "0x0c1526f2301f76e3c9cded60e3ebd61402f7ef912e439f2fd83f5de84bdbd277",
+   "block": 392,
+   "verifyGas": 93892,
+   "totalGas": 601173,
+   "attempts": 1
+  },
+  {
+   "step": "tokens swept first, as on the public devnet: the master key names the exit",
+   "hash": "0x83347055f6096706b75c587b3870e7f94b3730055cb35fc4721bda058fc4c56a",
+   "block": 401,
+   "verifyGas": 93022,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "A token that spends the frame's state gas: tokens swept first, as on the public devnet",
+   "hash": "0x7a07156d1dbdb3bde36f8a47cb1a6a77c47feb36b5d6efde2043671b55b9e988",
+   "block": 404,
+   "verifyGas": 97684,
+   "totalGas": 1430203,
+   "attempts": 1
+  },
+  {
+   "step": "tokens swept last: the master key names the exit",
+   "hash": "0xabfa9b6046968414b17c4e2bd948cb9f1d9490784cf32ff504455b2424028654",
+   "block": 412,
+   "verifyGas": 87752,
+   "totalGas": 267386,
+   "attempts": 1
+  },
+  {
+   "step": "A token that spends the frame's state gas: tokens swept last",
+   "hash": "0xedd2bf43d934eaa2293251af8953a0efc390f396b4ddae6c8514fe75a1cd3618",
+   "block": 414,
+   "verifyGas": 97882,
+   "totalGas": 796402,
+   "attempts": 1
+  }
+ ],
+ "refusals": [
+  {
+   "attack": "The holder points the escape at their own address",
+   "refusal": "BadExitSignature"
+  },
+  {
+   "attack": "The holder changes the salt",
+   "refusal": "BadExitSignature"
+  },
+  {
+   "attack": "The holder raises the fee, to burn the reserve",
+   "refusal": "BadExitSignature"
+  },
+  {
+   "attack": "The holder cuts the SENDER frame's gas, so that it dies and spends the nonce key",
+   "refusal": "BadExitSignature"
+  },
+  {
+   "attack": "The holder adds a frame paying themselves from the reserve",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "The holder sends it on another nonce key",
+   "refusal": "NonceKeyNotBoundToLeaf"
+  },
+  {
+   "attack": "A file holding a real signature on something other than an escape",
+   "refusal": "not a rescue: it calls freeze, and a rescue only escapes"
+  },
+  {
+   "attack": "A file that is not a rescue at all",
+   "refusal": "not a rescue: this is not JSON"
+  },
+  {
+   "attack": "A file with a margin of nothing, which would fire when the thief can already collect",
+   "refusal": "not a rescue: its margin is not a number of seconds"
+  },
+  {
+   "attack": "A holder asks for a margin of 1h, which is not a number",
+   "refusal": "--margin is a whole number of seconds"
+  },
+  {
+   "attack": "Daily key turns the exit off, to orphan the rescue",
+   "refusal": "EscapeKeyOutranks"
+  },
+  {
+   "attack": "Daily key names another exit",
+   "refusal": "EscapeKeyOutranks"
+  },
+  {
+   "attack": "Daily key moves the harbor, so that the rescue fails",
+   "refusal": "HarborImmutable"
+  },
+  {
+   "attack": "Daily key replaces the exit's tree, so that the rescue dies",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "Daily key spends the rescue's nonce key, from the exit's address",
+   "refusal": "validation frame 0: reverted"
+  },
+  {
+   "attack": "The thief collects, with the daily key, once the time is up",
+   "refusal": "AccountFrozen"
+  },
+  {
+   "attack": "Anyone collects for the thief, once the time is up",
+   "refusal": "AccountFrozen"
+  },
+  {
+   "attack": "The same bytes again, after they landed",
+   "refusal": "Invalid Transaction: Nonce mismatch: expected 1, got 0"
+  },
+  {
+   "attack": "Anyone collects the hidden theft, once the time is up",
+   "refusal": "AccountFrozen"
+  },
+  {
+   "attack": "The old rescue, after the owner ended it",
+   "refusal": "NonceKeyNotBoundToLeaf"
+  },
+  {
+   "attack": "The owner signs a rescue after losing the exit's seed",
+   "refusal": "does not hold the exit's key"
+  },
+  {
+   "attack": "The owner unfreezes with a theft still waiting",
+   "refusal": "refused before signing: still waiting"
+  }
+ ]
+}

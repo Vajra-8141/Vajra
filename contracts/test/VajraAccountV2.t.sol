@@ -80,6 +80,8 @@ contract VajraAccountV2Test is Test {
     uint256 nullifierHash;
     uint256[8] unshieldProof;
     address recipient;
+    uint256[8] claimProof;
+    address claimRecipient;
 
     function setUp() public {
         vm.warp(1_800_000_000);
@@ -92,11 +94,14 @@ contract VajraAccountV2Test is Test {
         poolRoot = json.readUint(".poolRoot");
         nullifierHash = json.readUint(".nullifierHash");
         recipient = json.readAddress(".recipient");
+        claimRecipient = json.readAddress(".claimRecipient");
         uint256[] memory r = json.readUintArray(".recoveryProof");
         uint256[] memory u = json.readUintArray(".unshieldProof");
+        uint256[] memory c = json.readUintArray(".claimProof");
         for (uint256 i; i < 8; ++i) {
             recoveryProof[i] = r[i];
             unshieldProof[i] = u[i];
+            claimProof[i] = c[i];
         }
 
         bytes memory poseidonCode = json.readBytes(".poseidon");
@@ -775,14 +780,14 @@ contract VajraAccountV2Test is Test {
         account.validateUnshield(unshieldProof, 0);
     }
 
-    function test_unshield_aRecipientThatRefusesCostsTheNoteAndNotTheOwner() public {
+    function test_unshield_aRecipientThatRefusesCostsTheFeeAndNotTheOwner() public {
         shieldBoth();
         RefusingHarbor refusing = new RefusingHarbor();
         uint256 before = address(account).balance;
         asSelf();
         account.unshield(poolRoot, nullifierHash, address(refusing));
         assertTrue(account.noteSpent(nullifierHash));
-        assertEq(account.poolHeld(), DENOM);
+        assertEq(account.poolHeld(), 2 * DENOM - MAX_PROOF_COST);
         assertEq(address(account).balance, before);
     }
 
@@ -874,6 +879,266 @@ contract VajraAccountV2Test is Test {
         asSelf();
         vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.RootUnknown.selector, uint256(1)));
         account.unshield(1, nullifierHash, recipient);
+    }
+
+    // --------------------------------------------- a failed payment, and the claim it leaves ----
+
+    function owed() private view returns (bool) {
+        return account.noteState(nullifierHash) == 2 && !account.poolClosed();
+    }
+
+    /// `unshieldProof` is bound to the vector's recipient, so that address has to be the one that refuses for the proof to stay real.
+    function refusePayment() private {
+        shieldBoth();
+        vm.etch(recipient, hex"fe");
+        asSelf();
+        account.unshield{gas: 500_000}(poolRoot, nullifierHash, recipient);
+        vm.etch(recipient, "");
+    }
+
+    function test_claim_whatARefusedPaymentWouldHavePaidStaysHeld() public {
+        // The owner's own first note moves nothing, because the account pays itself. The outsider's adds one.
+        uint256 before = address(account).balance + DENOM;
+        refusePayment();
+        assertTrue(account.noteSpent(nullifierHash));
+        assertTrue(owed());
+        assertEq(account.poolHeld(), 2 * DENOM - MAX_PROOF_COST, "one note, and one note less its fee");
+        assertEq(address(account).balance, before, "nothing left the account");
+    }
+
+    function test_claim_paysTheNoteOnce() public {
+        refusePayment();
+        uint256 before = address(account).balance;
+        vm.prank(thief);
+        account.claim(unshieldProof, poolRoot, nullifierHash, recipient);
+        assertEq(recipient.balance, DENOM - MAX_PROOF_COST);
+        assertEq(address(account).balance, before - (DENOM - MAX_PROOF_COST));
+        assertEq(account.poolHeld(), DENOM, "only the other note is left");
+        assertFalse(owed());
+        assertTrue(account.noteSpent(nullifierHash));
+        vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.NothingOwed.selector, nullifierHash));
+        account.claim(unshieldProof, poolRoot, nullifierHash, recipient);
+    }
+
+    function test_claim_aHolderCanPaySomeoneElseWithANewProof() public {
+        refusePayment();
+        account.claim(claimProof, poolRoot, nullifierHash, claimRecipient);
+        assertEq(claimRecipient.balance, DENOM - MAX_PROOF_COST);
+        assertEq(recipient.balance, 0);
+        vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.NothingOwed.selector, nullifierHash));
+        account.claim(unshieldProof, poolRoot, nullifierHash, recipient);
+    }
+
+    function test_claim_aSeenProofCannotBeMovedToAThief() public {
+        refusePayment();
+        vm.expectRevert(VajraAccountV2.ShieldProofInvalid.selector);
+        account.claim(unshieldProof, poolRoot, nullifierHash, thief);
+        vm.expectRevert(VajraAccountV2.ShieldProofInvalid.selector);
+        account.claim(claimProof, poolRoot, nullifierHash, recipient);
+    }
+
+    function test_claim_everyWordOfTheProofMatters() public {
+        refusePayment();
+        for (uint256 i; i < 8; ++i) {
+            uint256[8] memory bad = unshieldProof;
+            bad[i] += 1;
+            // A point off the curve burns what a precompile is given, so this is bounded, as a real transaction would be.
+            vm.expectRevert(VajraAccountV2.ShieldProofInvalid.selector);
+            account.claim{gas: 3_000_000}(bad, poolRoot, nullifierHash, recipient);
+        }
+        assertTrue(owed());
+    }
+
+    function test_claim_refusesANoteThatWasNeverSpent() public {
+        shieldBoth();
+        vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.NothingOwed.selector, nullifierHash));
+        account.claim(unshieldProof, poolRoot, nullifierHash, recipient);
+        assertEq(account.poolHeld(), 2 * DENOM);
+    }
+
+    function test_claim_refusesANoteThatWasPaid() public {
+        shieldBoth();
+        asSelf();
+        account.unshield(poolRoot, nullifierHash, recipient);
+        vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.NothingOwed.selector, nullifierHash));
+        account.claim(claimProof, poolRoot, nullifierHash, claimRecipient);
+    }
+
+    function test_claim_refusesAnUnknownRoot() public {
+        refusePayment();
+        vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.RootUnknown.selector, uint256(1)));
+        account.claim(unshieldProof, 1, nullifierHash, recipient);
+    }
+
+    function test_claim_aFreezeStopsIt() public {
+        refusePayment();
+        asSelf();
+        account.freeze();
+        vm.expectRevert(VajraAccountV2.AccountFrozen.selector);
+        account.claim(unshieldProof, poolRoot, nullifierHash, recipient);
+        asSelf();
+        account.unfreeze();
+        account.claim(unshieldProof, poolRoot, nullifierHash, recipient);
+        assertEq(recipient.balance, DENOM - MAX_PROOF_COST);
+    }
+
+    function test_claim_aRecipientThatStillRefusesLeavesTheClaim() public {
+        refusePayment();
+        vm.etch(recipient, hex"fe");
+        uint256 before = address(account).balance;
+        vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.TransferFailed.selector, address(0)));
+        account.claim(unshieldProof, poolRoot, nullifierHash, recipient);
+        assertTrue(owed());
+        assertEq(address(account).balance, before, "a failed claim costs the sender, and the account nothing");
+        assertEq(account.poolHeld(), 2 * DENOM - MAX_PROOF_COST);
+    }
+
+    function test_claim_aRecipientCannotReenterForASecondPayment() public {
+        refusePayment();
+        ClaimAgain again = new ClaimAgain();
+        vm.etch(recipient, address(again).code);
+        ClaimAgain(payable(recipient)).aim(abi.encodeCall(account.claim, (unshieldProof, poolRoot, nullifierHash, recipient)));
+        uint256 before = address(account).balance;
+        account.claim(unshieldProof, poolRoot, nullifierHash, recipient);
+        assertEq(address(account).balance, before - (DENOM - MAX_PROOF_COST), "paid once");
+        assertEq(bytes4(ClaimAgain(payable(recipient)).answer()), VajraAccountV2.NothingOwed.selector);
+    }
+
+    function test_claim_theDailyKeyCannotReachIt() public {
+        refusePayment();
+        dailyFrame(1, 0);
+        setTx(FRAME_COUNT, 2);
+        setFrame(MODE, 2);
+        setFrame(RESOLVED_TARGET, uint256(uint160(address(account))));
+        setFrame(VALUE, 0);
+        setWord(0, bytes32(account.claim.selector));
+        vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.EscapeKeyOutranks.selector, account.claim.selector));
+        account.validateDaily(VajraScope.EXECUTION_AND_PAYMENT);
+    }
+
+    function test_claim_aSpendCannotReachIt() public {
+        refusePayment();
+        drainTo(0.1 ether);
+        asSelf();
+        vm.expectRevert(VajraAccountV2.ValueNotConserved.selector);
+        account.spend(address(0), thief, 0.1 ether + 1);
+        asSelf();
+        account.spend(address(0), thief, 0.1 ether);
+        assertEq(address(account).balance, account.poolHeld());
+    }
+
+    function test_claim_aQueuedSpendCannotReachIt() public {
+        asSelf();
+        account.spend(address(0), thief, 2 ether);
+        uint256 id = account.nextItem() - 1;
+        refusePayment();
+        drainTo(1 ether);
+        vm.warp(block.timestamp + 1 days);
+        vm.expectRevert(VajraAccountV2.ValueNotConserved.selector);
+        account.executeQueued(id);
+    }
+
+    function test_claim_dailyFeesCannotEatIt() public {
+        refusePayment();
+        drainTo(0.001 ether - 1);
+        dailyFrame(1, 0);
+        vm.expectRevert(VajraAccountV2.ValueNotConserved.selector);
+        account.validateDaily(VajraScope.EXECUTION_AND_PAYMENT);
+    }
+
+    function test_claim_aRecoverysFeeCannotEatIt() public {
+        refusePayment();
+        setRecovery();
+        drainTo(0);
+        recoveryFrame();
+        vm.expectRevert(VajraAccountV2.ValueNotConserved.selector);
+        account.validateRecovery(recoveryProof, TICKET);
+    }
+
+    function test_claim_anEscapeSweepsItToTheHarborAndEndsIt() public {
+        refusePayment();
+        uint256 everything = address(account).balance;
+        asSelf();
+        account.escape(harbor, HARBOR_SALT, new address[](0));
+        assertEq(harbor.balance, everything, "the claim's money is in the harbor");
+        assertEq(account.poolHeld(), 0);
+        assertFalse(owed(), "nothing is owed once the harbor has it");
+        vm.expectRevert(VajraAccountV2.AccountFrozen.selector);
+        account.claim(unshieldProof, poolRoot, nullifierHash, recipient);
+        // Unfrozen, with new money in the account, it is still over.
+        asSelf();
+        account.unfreeze();
+        vm.deal(address(account), 1 ether);
+        vm.expectRevert(VajraAccountV2.PoolClosed.selector);
+        account.claim(unshieldProof, poolRoot, nullifierHash, recipient);
+        assertEq(recipient.balance, 0);
+    }
+
+    function test_claim_theExitEscapesWithAClaimOutstanding() public {
+        address theExit = address(new NamedExit(address(account)));
+        asSelf();
+        account.setExit(theExit);
+        refusePayment();
+        uint256 everything = address(account).balance;
+        vm.prank(theExit);
+        account.escape(harbor, HARBOR_SALT, new address[](0));
+        assertEq(harbor.balance, everything);
+        assertFalse(owed());
+    }
+
+    function test_claim_aHarborThatRefusesLeavesTheClaim() public {
+        RefusingHarbor refusing = new RefusingHarbor();
+        bytes32 salt = keccak256("another");
+        asSelf();
+        account.setHarbor(keccak256(abi.encodePacked(address(refusing), salt)));
+        refusePayment();
+        asSelf();
+        account.escape(payable(address(refusing)), salt, new address[](0));
+        assertTrue(owed(), "the money is still here, so it is still owed");
+        asSelf();
+        account.unfreeze();
+        account.claim(unshieldProof, poolRoot, nullifierHash, recipient);
+        assertEq(recipient.balance, DENOM - MAX_PROOF_COST);
+    }
+
+    function test_claim_aNoteOwedCannotBeSpentAgain() public {
+        refusePayment();
+        unshieldFrame();
+        vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.NullifierSpent.selector, nullifierHash));
+        account.validateUnshield(unshieldProof, 0);
+        asSelf();
+        vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.NullifierSpent.selector, nullifierHash));
+        account.unshield(poolRoot, nullifierHash, recipient);
+    }
+
+    function test_claim_theOtherNoteIsNotTouched() public {
+        refusePayment();
+        account.claim(unshieldProof, poolRoot, nullifierHash, recipient);
+        assertEq(account.poolHeld(), DENOM);
+        assertEq(address(account).balance, 5 ether + DENOM - (DENOM - MAX_PROOF_COST));
+    }
+
+    function test_unshield_aRecipientBurningAllItsGasStillLeavesAClaim_withTheOldestRootInTheRing() public {
+        openPool(firstNote);
+        account.shield{value: DENOM}(secondNote);
+        // Every later deposit moves the proof's root deeper, so the walk over the ring is as long as it gets. This is the frame's worst case.
+        for (uint256 i; i < 30; ++i) {
+            account.shield{value: DENOM}(1000 + i);
+        }
+        assertTrue(account.isKnownRoot(poolRoot));
+        vm.etch(recipient, hex"fe");
+        asSelf();
+        account.unshield{gas: 500_000}(poolRoot, nullifierHash, recipient);
+        assertTrue(owed());
+    }
+
+    function test_unshield_keepsItsGasBackFromARecipientThatTakesAllOfIt() public {
+        shieldBoth();
+        vm.etch(recipient, hex"fe");
+        asSelf();
+        // Just enough to reach the call: without gas kept back, only a sixty-fourth of what is left would come home to write the claim.
+        account.unshield{gas: 80_000}(poolRoot, nullifierHash, recipient);
+        assertTrue(owed());
     }
 
     // ---------------------------------------------------- conservation, freeze and escape ----
@@ -1046,8 +1311,11 @@ contract VajraAccountV2Test is Test {
 
     // ------------------------------------------------------------------ the second route ----
 
+    /// A contract that says it is this account's. What it does with that is up to the test.
     function nameExit() private returns (address exit) {
         exit = makeAddr("exit");
+        vm.etch(exit, hex"00");
+        vm.mockCall(exit, abi.encodeWithSignature("account()"), abi.encode(address(account)));
         asSelf();
         account.setExit(exit);
     }
@@ -1130,6 +1398,63 @@ contract VajraAccountV2Test is Test {
         vm.prank(exit);
         vm.expectRevert(VajraAccountV2.HarborMismatch.selector);
         account.escape(payable(thief), HARBOR_SALT, new address[](0));
+    }
+
+    function test_setExit_refusesAContractThatSaysItIsAnotherAccounts() public {
+        address other = makeAddr("another account's exit");
+        vm.etch(other, hex"00");
+        vm.mockCall(other, abi.encodeWithSignature("account()"), abi.encode(thief));
+        asSelf();
+        vm.expectRevert(VajraAccountV2.ExitNotForThisAccount.selector);
+        account.setExit(other);
+        assertEq(account.exit(), address(0));
+    }
+
+    function test_setExit_refusesAContractThatSaysItIsNobodys() public {
+        address noAccount = makeAddr("a sender with no walk");
+        vm.etch(noAccount, hex"00");
+        vm.mockCall(noAccount, abi.encodeWithSignature("account()"), abi.encode(address(0)));
+        asSelf();
+        vm.expectRevert(VajraAccountV2.ExitNotForThisAccount.selector);
+        account.setExit(noAccount);
+    }
+
+    function test_setExit_refusesAnAddressWithNoCode() public {
+        asSelf();
+        vm.expectRevert();
+        account.setExit(thief);
+        assertEq(account.exit(), address(0));
+    }
+
+    function test_queueRecovery_withNothingSet_isRefusedEvenFromANamedExit() public {
+        address exit = nameExit();
+        vm.prank(exit);
+        vm.expectRevert(VajraAccountV2.RecoveryNotSet.selector);
+        account.queueRecovery(NEW_ROOT, nullifier);
+        assertEq(account.nextItem(), 0);
+        assertEq(account.wotsRoot(), ROOT);
+    }
+
+    function test_queueRecovery_withNothingSet_isRefusedFromTheAccountToo() public {
+        asSelf();
+        vm.expectRevert(VajraAccountV2.RecoveryNotSet.selector);
+        account.queueRecovery(NEW_ROOT, nullifier);
+    }
+
+    /// The limit, kept in a test so that nobody reads the fix as more than it is. A contract written to lie can still spend a paper that
+    /// is set. The root waits out the delay, and the master key can cancel it. Only a contract the master key named can do this.
+    function test_aLyingExit_canStillSpendAPaperThatIsSet_andTheRootHasToWait() public {
+        address exit = nameExit();
+        setRecovery();
+        vm.prank(exit);
+        account.queueRecovery(NEW_ROOT, nullifier);
+        uint256 id = account.nextItem() - 1;
+        assertEq(account.recoveryGate(), bytes32(0));
+        vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.QueuedPendingTimelock.selector, uint64(block.timestamp) + DELAY));
+        account.executeQueued(id);
+        assertEq(account.wotsRoot(), ROOT);
+        asSelf();
+        account.veto(id);
     }
 
     function test_exit_turnsOff() public {
@@ -1360,6 +1685,29 @@ contract GasBurner {
         assembly {
             invalid()
         }
+    }
+}
+
+/// Takes the money, and tries to be paid again from inside the payment.
+contract ClaimAgain {
+    bytes public call_;
+    bytes public answer;
+
+    function aim(bytes calldata call__) external {
+        call_ = call__;
+    }
+
+    receive() external payable {
+        (, answer) = msg.sender.call(call_);
+    }
+}
+
+/// Answers `setExit`, and no more: the walk over a real exit's frames is not what this is about.
+contract NamedExit {
+    address public account;
+
+    constructor(address account_) {
+        account = account_;
     }
 }
 

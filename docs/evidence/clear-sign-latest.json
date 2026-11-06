@@ -1,40 +1,40 @@
 {
- "ranAt": "2026-11-06T13:47:22.291Z",
+ "ranAt": "2026-11-06T23:14:30.913Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. A scripted wallet, not MetaMask",
  "chainId": 13370,
- "account": "0x4013BB5B6f3D5473a9B47C9862C83147CBB3cC89",
+ "account": "0x46e48ec758D46318C5C3E9EaE46d7818dFff65fc",
  "failures": 0,
  "mined": [
   {
    "step": "a spend, signed as typed data",
-   "hash": "0xcfd12b1b5ed9d65768143ddff876d1232026b80ecb8a640c87af6177e428eac6",
-   "block": 105,
-   "verifyGas": 49923,
-   "totalGas": 506534,
+   "hash": "0x066a4fcb5d0c769beb3d5315910c6a2bbc9fe0be3458405608804928f5d648fd",
+   "block": 697,
+   "verifyGas": 49945,
+   "totalGas": 506566,
    "attempts": 1
   },
   {
    "step": "a spend over the limit, signed as typed data, which queues",
-   "hash": "0xa01f1b7ceda7ec2fca9a16b342ea3ffe032d1f1a944309a0cbf7987c3487d3bf",
-   "block": 108,
-   "verifyGas": 49923,
-   "totalGas": 634327,
+   "hash": "0xf154dbee4c6203ef3aa4873348ffa9e9f73b4e0d97974ff5c3a5626f788e066f",
+   "block": 700,
+   "verifyGas": 49945,
+   "totalGas": 634359,
    "attempts": 1
   },
   {
    "step": "executing it, signed as typed data",
-   "hash": "0x8d195fec7b7d82363ea5bff529ca824ee05c3e5aa6dac67b5b80d3e36fdd5500",
-   "block": 113,
-   "verifyGas": 48280,
-   "totalGas": 285267,
+   "hash": "0x771db0a08de107ac9d1a1ee3576dadc4b915a551ac9686a2189c0acdbdd039e3",
+   "block": 705,
+   "verifyGas": 48302,
+   "totalGas": 285277,
    "attempts": 1
   },
   {
    "step": "the honest spend, with the balance leaving room for the signed cost and no more",
-   "hash": "0x646554a60161d60bc751eb5f76083a6258b64cfb2f16be8c99bdedde1b0a16e6",
-   "block": 116,
-   "verifyGas": 49923,
-   "totalGas": 506546,
+   "hash": "0x548c5d7534bae9c5a7d457ca255ee8e45475abe9ddb443d1cc888eb132603a02",
+   "block": 708,
+   "verifyGas": 49945,
+   "totalGas": 506578,
    "attempts": 1
   }
  ],

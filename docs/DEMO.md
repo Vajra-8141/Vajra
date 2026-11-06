@@ -129,6 +129,8 @@ Then the same beats with `VAJRA_STACK=local`, and say that it is local. The page
 
 **What if the thief steals the phone too?** With a software signer, a stolen phone plus a stolen daily key could empty the account. That is why Pay needs a hardware signer unless someone turns that off, as we did here. **Not me** is the safer button: it can only stop a payment.
 
+**What if I am asleep when the thief strikes?** Then the phone cannot help, and the queue would run out. So someone you trust holds one transaction your hash key signed in advance, which moves everything to your harbor and can do nothing else. If a payment is still waiting close to the end, nobody answered, and it goes. They hold no key. It has run on the mirror, not the public chain, and it cannot tell you from a thief, so a real payment you leave unanswered sets it off. **Your nominee** in the menu, or `vajra nominee-e2e`.
+
 **Why Telegram?** It gave us a real push and buttons in a day, and the laptop only makes outbound connections. Any channel would do.
 
 **The MetaMask popup only shows a hash. How do you know what you signed?** On a V1 account you do not, from the popup: it is a `personal_sign` of a digest. On V2 it is EIP-712 typed data, with the asset, the recipient and the amount in it, and the account rebuilds the digest from the transaction, so a popup that shows one thing cannot sign another. An amount shows in wei, and ETH as the zero address. We have run that with a scripted wallet, and have not looked at it in MetaMask itself since the change.

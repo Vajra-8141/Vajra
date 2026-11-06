@@ -6,9 +6,12 @@ import {
   POOL_DEPTH,
   flatten,
   limbs,
+  SEED_GAP,
   newNote,
   noteCommitment,
+  noteFromSeed,
   noteNullifier,
+  notesInPool,
   poolPath,
   poseidon,
   prove,
@@ -61,6 +64,50 @@ describe("Poseidon matches the circuit and the contract", () => {
 
   it("keeps a commitment from doubling as a nullifier", async () => {
     expect(await recoveryCommitment(5n)).not.toBe(await poseidon(5n, 0n));
+  });
+});
+
+describe("notes from one seed", () => {
+  const seed = `0x${"5e".repeat(32)}` as Hex;
+  const other = "0x1111111111111111111111111111111111111111" as Address;
+  const commitments = (indices: number[], from = seed) => Promise.all(indices.map((i) => noteCommitment(noteFromSeed(from, account, 13370, i))));
+
+  it("gives the same note every time, inside the field", () => {
+    expect(noteFromSeed(seed, account, 13370, 3)).toEqual(noteFromSeed(seed, account, 13370, 3));
+    for (let i = 0; i < 200; i++) {
+      const note = noteFromSeed(seed, account, 13370, i);
+      for (const value of [note.secret, note.nullifierSeed]) expect(value > 0n && value < FIELD).toBe(true);
+    }
+  });
+
+  it("makes notes the chain cannot link, across numbers, accounts, chains and seeds", () => {
+    const base = noteFromSeed(seed, account, 13370, 0);
+    const others = [noteFromSeed(seed, account, 13370, 1), noteFromSeed(seed, other, 13370, 0), noteFromSeed(seed, account, 1337, 0), noteFromSeed(`0x${"5f".repeat(32)}`, account, 13370, 0)];
+    const values = [base, ...others].flatMap((n) => [n.secret, n.nullifierSeed]);
+    expect(new Set(values).size).toBe(values.length);
+    expect(base.secret).not.toBe(base.nullifierSeed);
+  });
+
+  it("finds a seed's notes among other people's, each at its own leaf", async () => {
+    const [a, b] = await commitments([0, 1]);
+    const leaves = [11n, a!, 22n, 33n, b!];
+    const found = await notesInPool(seed, account, 13370, leaves);
+    expect(found.map((f) => [f.index, f.leaf])).toEqual([[0, 1], [1, 4]]);
+    expect(found[0]!.note).toEqual(noteFromSeed(seed, account, 13370, 0));
+  });
+
+  it("crosses a gap under the limit, which is what a failed deposit leaves, and stops at the limit", async () => {
+    const [first, last] = await commitments([0, SEED_GAP]);
+    expect((await notesInPool(seed, account, 13370, [first!, last!])).map((f) => f.index)).toEqual([0, SEED_GAP]);
+    const [far] = await commitments([SEED_GAP + 1]);
+    expect((await notesInPool(seed, account, 13370, [first!, far!])).map((f) => f.index)).toEqual([0]);
+    expect((await notesInPool(seed, account, 13370, [first!, far!], SEED_GAP + 1)).map((f) => f.index)).toEqual([0, SEED_GAP + 1]);
+  });
+
+  it("finds nothing for the wrong seed or the wrong account", async () => {
+    const leaves = await commitments([0, 1, 2]);
+    expect(await notesInPool(`0x${"5f".repeat(32)}`, account, 13370, leaves)).toEqual([]);
+    expect(await notesInPool(seed, other, 13370, leaves)).toEqual([]);
   });
 });
 

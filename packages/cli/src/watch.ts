@@ -13,6 +13,7 @@
  */
 import { type Address, formatEther } from "viem";
 import { ETH, accountV2Abi, deployments, publicClient, readAccount } from "@vajra/core";
+import { localRescueMargin } from "./nominee.ts";
 import { type MasterResult, requireWallet, runMasterOp } from "./wallet.ts";
 
 export type Button = { action: "veto" | "pay"; id: bigint };
@@ -51,19 +52,26 @@ export interface Alert {
   amount: bigint;
   secondsLeft: number;
   recovery: boolean;
+  /** Set when a nominee holds a rescue: how long before the item leaves that it goes out. */
+  rescueMargin?: number | null;
 }
+
+/** What the owner is told when a nominee holds a rescue: their answer is what stops it. */
+export const rescueNotice = (secondsLeft: number, margin: number | null | undefined) =>
+  margin ? ` If you do not answer, your nominee's rescue moves everything to your harbor in ${Math.max(0, Math.ceil((secondsLeft - margin) / 60))} min.` : "";
 
 export function alertMessage(a: Alert) {
   const left = a.secondsLeft > 0 ? `${Math.ceil(a.secondsLeft / 60)} min` : "now";
+  const rescue = rescueNotice(a.secondsLeft, a.rescueMargin);
   if (a.recovery) {
     return {
-      text: `Someone is replacing your master key with a recovery proof. It takes effect in ${left}. Was this you?`,
+      text: `Someone is replacing your master key with a recovery proof. It takes effect in ${left}.${rescue} Was this you?`,
       buttons: [{ text: "Not me, cancel", callback_data: `veto:${a.id}` }],
     };
   }
   const what = a.asset === ETH ? `${formatEther(a.amount)} ETH` : `${a.amount} of token ${a.asset}`;
   return {
-    text: `${what} to ${a.recipient}. It leaves in ${left} unless you stop it. Was this you?`,
+    text: `${what} to ${a.recipient}. It leaves in ${left} unless you stop it.${rescue} Was this you?`,
     buttons: [
       { text: "Not me, cancel", callback_data: `veto:${a.id}` },
       { text: "Pay, it's me", callback_data: `pay:${a.id}` },
@@ -145,7 +153,7 @@ export async function watch(o: { allowSoftwarePay: boolean }) {
       const now = Number((await publicClient.getBlock()).timestamp);
       for (const item of items) {
         if (alerted.has(item.id)) continue;
-        const { text, buttons } = alertMessage({ ...item, secondsLeft: Number(item.executeAfter) - now, recovery: recoveries.has(item.id) });
+        const { text, buttons } = alertMessage({ ...item, secondsLeft: Number(item.executeAfter) - now, recovery: recoveries.has(item.id), rescueMargin: localRescueMargin() });
         await telegram(token, "sendMessage", { chat_id: owner, text, reply_markup: { inline_keyboard: [buttons] } });
         alerted.add(item.id);
         console.log(`alerted: item ${item.id}`);

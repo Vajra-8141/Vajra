@@ -1,7 +1,7 @@
 /** Reading a VajraAccount, and the master- and daily-key operations a client can ask of it. */
 import { type Address, type Hex, concat, decodeEventLog, decodeFunctionResult, encodeFunctionData, hexToBytes, keccak256, zeroAddress, zeroHash } from "viem";
 import { publicClient, waitForSuccess, walletFor, LEGACY_GAS_PRICE } from "./chain.ts";
-import { DEVNET, rpcBatch } from "./devnet.ts";
+import { DEVNET, rpc, rpcBatch } from "./devnet.ts";
 import {
   type Call,
   type Fees,
@@ -166,9 +166,26 @@ export interface AccountView {
   items: QueuedView[];
 }
 
+/** The newest items, whatever their state, for a page to show. */
 const QUEUE_WINDOW = 12n;
+const QUEUE_PAGE = 100;
+const WAITING = 1;
+const EXECUTED = 2;
+const VETOED = 3;
+/**
+ * For each account, below which id nothing is waiting any more. An item that was executed or vetoed stays that way, on that chain: so the
+ * mark keeps the head it was read at, and goes if that block does. A reset can bring back the same address on the same genesis.
+ */
+const settledBelow = new Map<Address, { below: bigint; block: Hex; hash: Hex }>();
 
-/** Everything a page shows about an account, in at most two requests, the second only when items are queued. */
+/**
+ * Everything a page shows about an account: the newest items, and every older one still waiting. Usually two requests, and the second
+ * only when items are queued.
+ *
+ * Older ones matter. A thief can queue a dozen more behind a theft, in one transaction, and a reader of the newest items alone would
+ * never alert on the theft: see docs/FINDINGS.md section 22.
+ */
+// ponytail: reads every item that might still be waiting on each poll. An index of Queued logs would be cheaper if a thief queues thousands.
 export async function readAccount(address: Address): Promise<AccountView> {
   const call = (functionName: string, args: unknown[] = []) => ({
     method: "eth_call",
@@ -176,17 +193,41 @@ export async function readAccount(address: Address): Promise<AccountView> {
   });
   const decode = <T>(functionName: string, data: Hex | undefined) => decodeFunctionResult({ abi: accountAbi, functionName, data: data! }) as T;
 
-  const [dailyKey, frozen, nextItem, rule, balance] = await rpcBatch<Hex>(DEVNET.execution, [
-    call("dailyKey"),
-    call("frozen"),
-    call("nextItem"),
-    call("rule", [ETH]),
-    { method: "eth_getBalance", params: [address, "latest"] },
-  ]);
+  const mark = settledBelow.get(address);
+  let answers: Hex[];
+  try {
+    answers = await rpcBatch<Hex>(DEVNET.execution, [
+      call("dailyKey"),
+      call("frozen"),
+      call("nextItem"),
+      call("rule", [ETH]),
+      { method: "eth_getBalance", params: [address, "latest"] },
+      ...(mark ? [{ method: "eth_getBlockByNumber", params: [mark.block, false] }] : []),
+    ]);
+  } catch (error) {
+    // Some nodes call a block they have pruned an error and not a null, and that must not fail every read from then on.
+    if (!mark) throw error;
+    settledBelow.delete(address);
+    return readAccount(address);
+  }
+  const [dailyKey, frozen, nextItem, rule, balance, anchor] = answers;
   const next = decode<bigint>("nextItem", nextItem);
   const start = next > QUEUE_WINDOW ? next - QUEUE_WINDOW : 0n;
-  const ids = Array.from({ length: Number(next - start) }, (_, i) => start + BigInt(i));
-  const items = await rpcBatch<Hex>(DEVNET.execution, ids.map((id) => call("queuedItem", [id])));
+  const settled = mark && (anchor as unknown as { hash: Hex } | null)?.hash === mark.hash ? mark.below : 0n;
+  const from = settled < start ? settled : start;
+  const ids = Array.from({ length: Number(next - from) }, (_, i) => from + BigInt(i));
+  const read: QueuedView[] = [];
+  for (let at = 0; at < ids.length; at += QUEUE_PAGE) {
+    const page = ids.slice(at, at + QUEUE_PAGE);
+    const answers = await rpcBatch<Hex>(DEVNET.execution, page.map((id) => call("queuedItem", [id])));
+    answers.forEach((data, i) => read.push({ id: page[i]!, ...decode<Omit<QueuedView, "id">>("queuedItem", data) }));
+  }
+  // Only what the chain has finished with counts as settled. `None` is what a replica behind the head says of an item it has not seen yet.
+  const open = read.findIndex((item) => item.id >= start || (item.state !== EXECUTED && item.state !== VETOED));
+  if (open > 0) {
+    const head = await rpc<{ number: Hex; hash: Hex }>(DEVNET.execution, "eth_getBlockByNumber", ["latest", false]);
+    settledBelow.set(address, { below: read[open]!.id, block: head.number, hash: head.hash });
+  }
   const [, limit, allowance, spent] = decode<readonly [boolean, bigint, bigint, bigint]>("rule", rule);
   return {
     dailyKey: decode<Address>("dailyKey", dailyKey),
@@ -195,7 +236,7 @@ export async function readAccount(address: Address): Promise<AccountView> {
     limit,
     allowance,
     spent,
-    items: items.map((data, i) => ({ id: ids[i]!, ...decode<Omit<QueuedView, "id">>("queuedItem", data) })),
+    items: read.filter((item) => item.id >= start || item.state === WAITING),
   };
 }
 

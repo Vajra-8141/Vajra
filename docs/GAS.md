@@ -37,6 +37,7 @@ leaf as its sequence would save it, at the cost of being unable to skip a leaf t
 | Daily key, signed by a stock wallet with personal_sign | 42,318 |
 | Daily key on V2, signed by a stock wallet as typed data, on the mirror | 49,923 |
 | The exit's VERIFY frame, on the mirror, with the digest under 430 hashes | about 97,000 |
+| A rescue, which is that same frame, signed in advance, on the mirror. About 490,000 for the whole transaction, to a fresh harbor. At a 10 gwei cap the reserve has to hold about 0.0125 ETH, and 0.009 more for each token | about 97,000 |
 
 ## The third w=256 checksum chain
 
@@ -46,23 +47,78 @@ it is a one-constant change: `len2` is a constructor argument of `VajraAccount`.
 
 ## Proofs
 
-Measured on the local mirror, 2026-11-06, the same way: `ethrex_simulateFrameTransaction`, a fresh proof per sample. Reproduce with `vajra measure-zk`.
+Measured on the local mirror, 2026-11-07, on the V2 with the claim path, the same way: `ethrex_simulateFrameTransaction`, a fresh proof per sample. Reproduce with `vajra measure-zk`.
 Recorded in `docs/evidence/zk-gas-latest.json`. **These are mirror numbers, not public devnet ones:** same client, same commit, a different chain.
 
 | Path | Samples | VERIFY gas (min / median / max) | Whole tx (median) | vs the 100,000 cap | vs the staked 1,000,000 | Sidecar as deployed |
 |---|---|---|---|---|---|---|
-| Recovery, Groth16, 8 public inputs | 24 | 298,084 / **298,084** / 298,084 | 876,901 | 3.0x over | fits | refused |
-| Unshield, Groth16, 6 public inputs | 32, one per ring position | 286,226 / **321,330** / 354,240 | 661,927 | 2.9x to 3.5x over | fits | refused |
+| Recovery, Groth16, 8 public inputs | 24 | 301,575 / **301,575** / 301,575 | 1,111,988 | 3.0x over | fits | refused |
+| Unshield, Groth16, 6 public inputs | 32, one per ring position | 287,292 / **322,396** / 355,306 | 662,910 | 2.9x to 3.5x over | fits | refused |
 
-A recovery's cost does not move, because its path through the verifier is the same whatever the proof. An unshield's depends on where its root sits in the
+These replace an older measurement. The claim added 67 gas to an unshield's VERIFY, like for like: 287,225 on the bytes before it and 287,292 after, in `docs/evidence/pool-latest.json`. The rest of the rise, and all of a recovery's, came from earlier fixes that this table had not caught up with. A recovery's cost does not move, because its path through the verifier is the same whatever the proof. An unshield's depends on where its root sits in the
 ring: the check walks it, at about 2,200 gas a slot, which is the whole spread. The VERIFY limit declared is 500,000.
 
 | Other | Gas |
 |---|---|
-| Shield, the first note, SENDER frame (twenty Poseidon hashes) | 896,305 |
-| Shield, later notes, whole transaction (31 samples) | 965,798 / **986,904** / 1,008,017 |
+| Shield, the first note, SENDER frame (twenty Poseidon hashes) | 896,371 |
+| Shield, later notes, whole transaction (31 samples) | 965,864 / **986,970** / 1,008,083 |
+| A claim, whole transaction, an ordinary call paying an address that exists, root early in the ring | 291,262 |
+| The same, paying a fresh address | 482,141 |
+| The same, with the root in the ring's last slot | 547,985 |
+| A refused unshield, SENDER frame, root in the ring's last slot: recipient burning all its gas, or eating the frame's state gas | 478,574 of the 500,000 pinned |
+| The same: recipient reverting with 450,000 bytes | 471,605 |
+| The same walk, an ordinary payment to a fresh address | 42,626 |
 
-A proof takes about 80 ms for recovery and about 340 ms for an unshield, on a 16-core x86-64 machine. Recovery has 937 constraints and the pool 11,336.
+Those six are single runs from `vajra pool-e2e`, in `docs/evidence/pool-latest.json`. A claim costs its sender, and never the account. What a refused unshield leaves unused, 21,426 gas, is the margin on a frame that must not fail: it holds back 30,000 from the recipient, and the call and the two writes after it take the rest. It writes no new slot after the call, so it needs no state gas there.
+
+A proof takes about 80 ms for recovery and about 340 ms for an unshield, on an idle 16-core x86-64 machine. The file in `docs/evidence/` was recorded beside another test run, so it says 141 ms and 624 ms. Recovery has 937 constraints and the pool 11,336.
 
 The note fee on the mirror is 0.005 ETH, out of a 0.1 ETH note. It is the cap on what a proof transaction may cost. At these limits that is about 3 gwei, so
 honest proof transactions cannot be included above that. The fee is immutable, which is fine here and would not be on a network with a real fee market.
+
+## leanSphincs-S: a hash key with no leaves to run out of
+
+Measured on the local mirror, 2026-11-06, with `vajra sphincs-bench`, and recorded in `docs/evidence/leansphincs-gas-latest.json`. **These are mirror numbers, not public devnet ones, and no account relies on this key.** Each row is 24 fresh digests, each a real signature, through `ethrex_simulateFrameTransaction`.
+
+leanSphincs-S is a parameter set from [nconsigny/SPHINCs-](https://github.com/nconsigny/SPHINCs-) at `4c76aaf`: one tree of height 26, FORS 13 x 12, WOTS+C with 64 chains, and 16-byte hashes over keccak256. The verifier is that repository's file, unchanged. The sender around it, `contracts/src/bench/LeanSphincsBench.sol`, is ours: a clone that keeps its key in storage, so that it pays what a clone of the account or the exit pays.
+
+| Path | Key | Bytes in the signature entry | VERIFY gas (min / median / max) | Whole tx (median) | Fits the 100,000 cap |
+|---|---|---|---|---|---|
+| A payment, `validateMaster` on V2, new nonce key | hash key, w=16 | 2,337 | 88,373 / **91,754** / 93,311 | 173,162 | yes |
+| A payment, the same steps, new nonce key | leanSphincs-S | 4,164 | 90,591 / **90,732** / 90,868 | 288,042 | yes |
+| A payment, the same steps, a nonce key used before | leanSphincs-S | 4,164 | 70,624 / **70,742** / 70,854 | 288,042 | yes |
+| A payment, the same steps, linear nonce | leanSphincs-S | 4,164 | 70,619 / **70,771** / 70,932 | 285,994 | yes |
+| Veto, `VajraExit`, new nonce key | hash key, w=16 | 2,337 | 95,610 / **97,293** / 97,887 | 172,833 | yes |
+| Veto, a sender of its own, new nonce key | leanSphincs-S | 4,164 | 101,417 / **101,554** / 101,699 | 284,346 | **no** |
+| Veto, a sender of its own, linear nonce | leanSphincs-S | 4,164 | 81,451 / **81,574** / 81,729 | 282,298 | yes |
+| Escape, `VajraExit`, new nonce key | hash key, w=16 | 2,337 | 96,181 / **97,243** / 98,050 | 490,115 | yes |
+| Escape, a sender of its own, linear nonce | leanSphincs-S | 4,164 | 81,372 / **81,518** / 81,635 | 569,962 | yes |
+
+"The same steps" means what `validateMaster` does, on a sender of its own. V2 has no such path, and adding one is a contract change. The veto and escape rows run against a real `VajraAccountV2`, which needed no change: `setExit` takes any address.
+
+**It fits, if the sender keeps one nonce.** Every row on a kept nonce is under the 99,900 limit, with no stake. These were really sent and mined: the payment on a new nonce key through both mempools, the payment on a kept nonce key and the veto through the alt mempool, and the escape through the canonical mempool past a thief's pending transaction. The one row over the cap is a veto on a new nonce key, where the walk over the frames costs too much. Its limit was raised to 120,000 so that the number could be read, and the admission simulator says both mempools refuse that. That row was not sent.
+
+**VERIFY costs about the same as the hash key's, and the transaction costs more.** Like for like, on a new nonce key, a payment costs the same and a veto 4% more. The linear rows look cheaper only because a stateless key can skip the 20,000 a new nonce key costs. The verifier itself takes about 40,000 gas in `forge test`, and the rest of VERIFY is the frame opcodes through helper contracts, the clone, and storage.
+
+A byte in a transaction has a floor of 64 gas, so 4,164 bytes cost 266,496 gas whatever VERIFY does. So a veto costs 63% more and a payment 66% more. An escape costs 16% more, because both keys pay the same 281,520 of state gas for it.
+
+**The gas does not depend on the digest.** A signature always takes 249 keccak calls, so these rows spread by under 300 gas, against 6,183 for the hash key's payment, and nothing has to be redrawn before signing.
+
+| Signing, TypeScript on one thread, AMD Ryzen 7 6800H | leanSphincs-S, Light tier | Hash key, w=16 |
+|---|---|---|
+| Generating a key | 1,851,418 keccak calls, 21 s | 1.3 s |
+| A signature | about 158,000 keccak calls, median 1.6 s, worst 3.4 s, 181 samples | median 12 ms, 48 samples |
+| What the signer keeps | the seed and a 16 KiB cache | the seed and a record of every leaf revealed |
+| How many signatures | rated 20,000 by upstream, an estimate, and nothing counts them | 63, then rotate |
+
+Upstream reports 7 to 29 ms a signature from its Rust signer on 8 cores. **We did not run that signer**, so that number stays upstream's. Ours was written from the spec and matches upstream's six known-answer vectors byte for byte. The Standard and Full tiers were not run: they change the work and the lifetime, and not the signature or the gas.
+
+**It has not run on the ESP32, and the firmware has no such signer.** The board's recorded boot derives a tree, which is 68,735 keccak calls in 10 seconds, about 6,900 a second. At that rate a signature would take about 23 seconds and generating a key about 4.5 minutes. That is arithmetic, not a run.
+
+| On chain | Gas to deploy | Code |
+|---|---|---|
+| The verifier, shared by every sender | 6,189,395 | 3,872 B |
+| The sender's implementation | 5,788,126 | 2,541 B |
+| `VajraExitFactory`, for it | 1,610,617 | 906 B |
+
+**What is left is a lifetime.** Upstream's estimate of security after N signatures on the Light tier: 135.9 bits at 20,000, 127 at 43,715, 116 at 100,000, with a ceiling of 128 from the 16-byte hash. It wears down with use, and there is no cliff. `coverBits` in `packages/core/src/leansphincs.ts` reproduces upstream's 43,715. **This is an estimate, and it has not been proved for these parameters.**

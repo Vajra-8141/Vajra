@@ -109,8 +109,8 @@ export async function preFixFactory(deployer: Hex): Promise<Address> {
   return place(load("VajraFactory"), [await place(load("VajraAccount.pre-fix"), [4, 3, DEVNET.stakingRegistry])]);
 }
 
-/** V2 as it stood before `docs/FINDINGS.md` sections 13 and 14, with the mirror's own verifiers, for the same reason. */
-export async function preFixV2Factory(deployer: Hex): Promise<Address> {
+/** V2 as it stood before `docs/FINDINGS.md` sections 13 and 14, or before section 21, with the mirror's own verifiers, for the same reason. */
+export async function preFixV2Factory(deployer: Hex, artifact = "VajraAccountV2.pre-fix"): Promise<Address> {
   const load = (name: string) => JSON.parse(readFileSync(new URL(`../../core/src/artifacts/${name}.json`, import.meta.url), "utf8"));
   const wallet = walletFor(deployer);
   const place = async (artifact: { abi: never; bytecode: Hex }, args: unknown[]) => {
@@ -118,7 +118,7 @@ export async function preFixV2Factory(deployer: Hex): Promise<Address> {
     return (await waitForSuccess(hash, "placing the pre-fix contract")).contractAddress!;
   };
   const { v2 } = deployments();
-  const implementation = await place(load("VajraAccountV2.pre-fix"), [4, 3, DEVNET.stakingRegistry, v2!.recoveryVerifier, v2!.shieldVerifier, v2!.poseidon, BigInt(v2!.denomination), BigInt(v2!.noteFee), v2!.workBits ?? 0]);
+  const implementation = await place(load(artifact), [4, 3, DEVNET.stakingRegistry, v2!.recoveryVerifier, v2!.shieldVerifier, v2!.poseidon, BigInt(v2!.denomination), BigInt(v2!.noteFee), v2!.workBits ?? 0]);
   return place(load("VajraFactory"), [implementation]);
 }
 

@@ -95,6 +95,7 @@ bounded by its balance. With no pending transaction, the canonical mempool admit
 | 04 §4 | Each rule is one validation check | TIMESTAMP is banned in every mempool and VERIFY is static, so the rulebook runs in the SENDER frame. VERIFY enforces who may act and the shape of the transaction |
 | 04 §3 | Nonce key = leaf index | Derived from root and leaf, or a rotated tree would collide with the keys the old tree used |
 | 04 §5 | 3 checksum chains at w=256 | 2 are enough: see GAS.md |
+| 04 §4 | Nominee: a claim key, an inactivity timer, a 30-day veto | A rescue signed in advance, held by someone with no key, set off by an unanswered queue item. A thief's daily-key use would have kept an inactivity timer alive, and it needs no contract change. See section 23 |
 | 03 §9 | No faucet, gateway is `altmempool.forshtat.com` | A faucet exists when funded; `altmempoolgateway.forshtat.com` also exists, and the miner's sidecar is the reliable one |
 
 ## 6. Two traps the specs do not mention, both closed
@@ -329,11 +330,11 @@ Suspected by a review of the unshield nonce key, then reproduced. **Real, and th
 
 **Weighing the two keys.** The recipient-bound key stops no copy of a proof: a proof is already bound to its recipient, and a copy moved to another address dies with `ShieldProofInvalid` under either key. What the key bought was a retry after a recipient refused. The nullifier alone gives that up, so a note has one mined attempt. To keep that from being a trap, `unshield` no longer reverts once VERIFY has passed:
 
-- The note is spent whatever the recipient does. If it refuses, the money stays in the account and the holder has lost the note. `vajra unshield` asks the recipient first.
+- The note is spent whatever the recipient does. If it refuses, the money stays in the account and the holder has lost the note. `vajra unshield` asks the recipient first. Section 26 changed this: the money stays owed, and that closed a hole this left.
 - The copy attack in section 8 stays closed, because the gas is still pinned. VERIFY checks everything `unshield` checks, against the same state.
 - Our first version of this could still be made to revert, and an independent review of the fix found both ways. A recipient returning a huge blob ran the frame out of gas in the copy, so the call is now in assembly and copies nothing. And the circuit takes any field element as a recipient, so high bits passed the proof and failed the decoder. VERIFY now refuses them.
 
-Same attacks after the fix: 1 of 6 admitted, the rest `Frame transaction cannot be replaced: fee too low`. One mined attempt at a refusing contract, the note spent, the second refused. The account's balance fell by a 0.0027 ETH fee and it keeps the rest of the note, so the holder paid. `vajra shielded` now attempts a second valid proof to another recipient, before and after the note is spent, and the old key.
+Same attacks after the fix: 1 of 6 admitted, the rest `Frame transaction cannot be replaced: fee too low`. One mined attempt at a refusing contract, the note spent, the second refused. The account's balance fell by a 0.0027 ETH fee and it keeps the rest of the note, so the holder paid. Section 26 has since changed what happens to the rest: it stays held for the note, and the holder can claim it. `vajra shielded` now attempts a second valid proof to another recipient, before and after the note is spent, and the old key.
 
 **What is left.** A second proof with a 10% higher fee is a replacement, and counts as seen until the sidecar rule is in. Fees run out at the proof cost cap, a few rungs above an honest fee. Anyone can do the same to a pending proof transaction, since nothing signs its fee.
 
@@ -420,3 +421,271 @@ An account that names nobody refuses every DEFAULT frame, as before, so a daily 
 **What is left.** Naming a paymaster is a real grant. A stolen daily key can then spend what the account approved to it on gas, up to `maxDailyTxCost` a transaction, with no limit on how many, and use up the day's quota. The tip part can reach a colluding block producer, up to the paymaster's `feeCap`. So keep the approval small, and name only what the daily key should use. V1 keeps its gap: `VajraAccount` is unchanged. And only the two frames' positions and target are held: what they do is up to the named paymaster.
 
 **The fixes in sections 16 to 19 are in the V2 deployed on the public devnet on 6 November, but only recovery and one note were run there. Their tests ran on the mirror.** They have had no second independent review, and nothing here has been audited.
+
+## 20. leanSphincs-S, measured
+
+A benchmark, on the mirror, of a hash key with no leaves to run out of. `vajra sphincs-bench`, `docs/evidence/leansphincs-gas-latest.json`, and the numbers are in [`GAS.md`](GAS.md). **It was not run on the public devnet, and no account relies on it.**
+
+**It fits in a VERIFY frame, if the sender keeps one nonce.** About 81,500 gas for a veto or an escape from a sender of its own, on its linear nonce, with no stake. Both mempools admitted it and mined it, and an escape went through the canonical mempool past a thief's pending transaction, which is the shape section 12 argues for. On a new nonce key every time, as `VajraExit` runs, the same veto takes about 101,550, which is over the cap. The admission simulator says both mempools refuse that, and it was not sent.
+
+**It is not cheaper to verify.** Like for like, on a new nonce key, a veto is about 4% dearer than the hash key's and a payment costs the same. Our first write-up said cheaper, by comparing a linear nonce with a keyed one, and an independent review caught it. What a stateless key can do is keep one nonce and skip the 20,000 a new nonce key costs.
+
+**It needs no change to `VajraAccountV2`.** `setExit` takes any address, so a real V2 account named this sender and took its `veto` and `escape` unchanged. Holding the key to those functions is the sender's job, and it does that with the same walk as `VajraExit`. Section 21 is what that trust costs.
+
+**It removes the one-time key problem, as far as this run can show.** Each of these is a thing a one-time key must not do, done here and mined:
+
+- Sign, show the signature to a node, never send it, then sign something else on the same nonce.
+- Sign the same payment again at twice the fee, and have it replace the first. A one-time key can only rebroadcast the same bytes, as section 4 says, so it is stuck at the fee it first signed.
+- Rebuild the key from its seed on a second device, with no record of what the first signed, and sign. There is no leaf to reconcile, so no registry and no restore check are needed for this key.
+
+**Signing twice being safe brings a rule of its own.** A retry has to stay on the same nonce, so that it replaces. Signed again on a new nonce key, the first attempt stays valid for good, and anyone holding it can send it. The run does that, and the payment lands twice. A real path should pin the nonce it uses. This bench does not.
+
+**What it does not remove:**
+
+- **A lifetime.** Upstream rates the Light tier for 20,000 signatures. That is an estimate, and it has not been proved for these parameters. Nothing counts them: not the signer, the key or the verifier. It wears down rather than breaking: 127 bits at 43,715 signatures and 116 at 100,000, by upstream's formula, which we reproduced.
+- **One seed, one key.** A seed used with two tree sizes lets a signature under one become a signature under the other, with no secret. Nothing can detect that.
+- **The software key.** It sits in memory here, as the master key sits in a file. It has not run on a board, and the firmware has no such signer.
+
+**What it costs:**
+
+- **A transaction costs more.** 63% on a veto and 66% on a payment, because a byte has a floor of 64 gas and the signature is 4,164 bytes.
+- **Half the hash.** These are 16-byte hashes, where our chains use 32, so there is a smaller margin against a quantum computer. That is the class of SLH-DSA-128, and it comes with tweaks our plain chains do not have, but it is not simply stronger.
+- **A research parameter set.** It comes from a fork of the sphincs.art parameter work. The candidate in EthLib and leanVM is a different one, with three layers and 7,740 bytes, and it is still being settled. EIP-8288's 3,000 gas figure is for a signature checked outside the EVM, which this devnet does not have, so it says nothing about these numbers. The verifier here is unaudited, and upstream's formal proofs do not cover it.
+
+**The length check closes one open hole, on this path.** Section 15 left the signature blob's padding open, because the check did not fit. It fits here on the linear nonce: `validateExit` reads the length, and a padded copy dies with `SignatureLengthInvalid`. `VajraAccountV2` and `VajraExit` keep that hole.
+
+**The bench sender is not a whole exit.** It cannot take its reserve back, so that money is stranded. It cannot replace its key, so a leaked key means a new clone and a new reserve. It cannot carry a recovery, so a banned owner who lost the master key has no way round through it, which section 12 says `VajraExit` gives. It has been reviewed once, and that review found section 21 and the claims corrected above.
+
+**What was decided, on 2026-11-07.** leanSphincs-S is to become the exit's key, and not a second master key in V2. A second master key takes a new path in `VajraAccountV2`, which is a contract change and a public redeploy for a third kind of key, and V2's code is near the 24,576 limit on contract size. Whether that limit applies on this fork has not been checked. **The exit contract that decision needs is not built.**
+
+## 21. A named exit could replace the master tree, if nothing held it back
+
+Found by the independent review of section 20, then reproduced on the real client. **A design limit, and it needed a master signature on the wrong address. Fixed in the source. It reaches the public devnet with the next redeploy, which has not happened,** so the V2 deployed there still has it.
+
+`queueRecovery` is `onlySelfOrExit`, and it checks no proof. The proof is checked in VERIFY, and only a proof transaction's VERIFY. The account relied on the exit to refuse the selector in its walk, and `VajraExit` does. But `setExit` took any address, so a contract named with no such walk could call `queueRecovery` with a root it chose. With no paper set the delay is 0, so `executeQueued` installed that root in the same transaction, and a freeze does not stop a recovery.
+
+On the mirror, against the bytes before the fix, kept in `artifacts/VajraAccountV2.pre-section-21.json` (`vajra sphincs-bench`, step 8): a V2 account names a bench sender with no walk, and that sender's key signs `[VERIFY, queueRecovery(root, 1), executeQueued(id)]`. Mined, with no proof and no paper, and the account's master tree is the new root. **It was not run on the public devnet.**
+
+**Who could reach this.** Only the master key can call `setExit`, and the master key can do anything anyway. So this is about a mistake or a phished signature, and about what we hand a second key. Outside this bench, every client path that names an exit in this repository names a clone of `VajraExit`.
+
+**The fix is two checks:**
+
+- `queueRecovery` refuses when no commitment is set, with `RecoveryNotSet`. No honest recovery reaches it in that state, since `_checkRecovery` refuses first. That closes the one-transaction replacement.
+- `setExit` asks the contract for its `account()` and refuses another answer, with `ExitNotForThisAccount`. That catches naming the wrong clone. Zero still turns the route off, and an address with no code is refused.
+
+**What is left.** Using a paper leaves its commitment set, so a lying exit can go on queuing roots after that, and each one still waits out the delay: `test_aLyingExitCanGoOnQueuingAfterThePaperIsUsed`. A contract written to lie passes the second check. With a paper set it can still spend that paper: the gate closes and the commitment is marked used, so the owner's real recovery is gone, and the root waits out the delay, where the master key can cancel it and an owner who lost the master key cannot. `test_aLyingExit_canStillSpendAPaperThatIsSet_andTheRootHasToWait` holds this as a limit. Only the master key can name such a contract.
+
+**The lesson is the one in section 19.** Naming a contract is a real grant, and this one was wider than the three functions `VajraExit` allows. The list lived in the exit, where the account cannot see it.
+
+## 22. A thief could hide a queued payment from every alert
+
+Found while building the nominee, then reproduced on the real client. **Real, with only the daily key. Fixed in the client: the contracts did not change.** A client not yet updated, such as a hosted dashboard, still has it.
+
+The phone alert, the push service, the extension, the bridge and the dashboard's alarm all read the queue through `readAccount`, which read the newest 12 items. `validateDaily` lets a daily transaction carry many `spend` frames. So a thief puts the theft first and a dozen more behind it, in one transaction, and the theft is never in what any of them reads. No alert, no red page, and no row in the queue. It matures in silence, and anyone can execute it.
+
+On the mirror, with only the daily key: 13 items queued in one transaction, 6,075,706 gas, and a reader saw items 1 to 12. **It was not run on the public devnet.** The story page said "The thief cannot hide it." That was true of the chain and false of everything that read it, which is how section 9 happened too.
+
+**What bounds it.** The cost cap. Thirteen frames take about 6.1 million gas at the least, so under a 0.01 ETH `maxDailyTxCost` this works at a fee up to about 1.6 gwei, which is arithmetic and not a run. Its VERIFY limit is over the canonical cap, so it goes through the alt mempool, on a staked account. Fewer frames do not hide anything: it takes twelve behind it. Spread over several transactions, a reader that polls between them has already seen the first.
+
+**The fix.** `readAccount` now reads every item that may still be waiting, and the newest 12 for show. Every reader goes through it, so none of them had to change. `vajra watch-e2e` sends the real attack and the alert names the thief's address, thirteen items back. `vajra nominee-e2e` sends it and the rescue lands ahead of it. `packages/core/test/queue-read.test.ts` holds the reader to it.
+
+**What is left.** Each poll reads every waiting item, so a thief who queues thousands makes reads slower. Each one needs a veto. A freeze or an escape stops them from leaving, for as long as the account stays frozen, and does not end them: section 23. A spend under the limit does not queue at all, as before.
+
+**Two ways back in, which the second review found.** The mark that saves reading settled items again counted `None` as settled, so a replica behind the head could hide an item for good, and a mark outlived a chain reset, because a reset can bring back the same address on the same genesis. It now moves only past items the chain has finished with, and it keeps the head it was read at and goes if that block does. `packages/core/test/queue-read.test.ts` holds both. The other way back in, a flood that broke the reader itself, is in section 23.
+
+## 23. The nominee: a rescue signed in advance
+
+Built on the mirror. `vajra nominee-e2e`, `apps/dashboard/test/nominee.mjs`, `docs/evidence/nominee-latest.json`. **It was not run on the public devnet. It needs no contract change,** so it should work on the V2 deployed there, and that is reasoning and not a run.
+
+**The gap.** A theft has to wait in public, and you get asked. If you are asleep or on a plane, the item matures and the thief takes it. Everything built so far needed you to be there.
+
+**What it is.** The exit's key signs one transaction in advance: `escape`, from the exit. The owner hands the bytes to someone they trust, who holds no key. `vajra nominee-watch`, or the **Your nominee** page, reads the queue. An answer ends an item: cancelled, or paid. So an item still waiting when the margin is reached means nobody answered, and the rescue goes. The margin is a quarter of the delay, at most an hour.
+
+**Why it needs frame transactions.** On an ordinary account a transaction signed in advance waits on the next nonce, so the owner's next transaction kills it, and so does a thief's. Here it sits on a nonce key of its own, on a sender of its own, and section 8's check keeps the daily key off both. The signature hash holds every frame and the fee, so the holder can change none of them. And the exit pays, so a thief's pending transaction, a ban and an empty account do not reach it: section 12.
+
+**What the run shows,** with a 60-second delay and a 15-second margin, and a real process that starts with an empty folder and leaves it empty:
+
+- The owner answers both ways, **Not me** and **Pay, it's me**. Past the time those items would have left, nothing was sent.
+- Nobody answers, with a thief sending a transaction every second. The rescue lands with seconds to spare, the harbor holds the money, the thief's collection dies with `AccountFrozen`, and the thief has nothing. The run looks in the node's own pool, and a thief's transaction was there for part of that time and just before the rescue landed. It was not there the whole time: each one mines, and the next takes its place.
+- A theft hidden behind a dozen more, as in section 22, on an account that could really pay it and holds tokens. The rescue lands ahead of it, all 25 tokens and every wei of the account's ETH reach the harbor, so the exit paid, and the thief's collection dies with `AccountFrozen`.
+- A stolen paper on a frozen account. A freeze stops a payment, so nothing goes for that. It does not stop a recovery, so the proof sets the switch off, and the money reaches the harbor before the thief's key tree can.
+- The owner moves the harbor and forgets. The tool says it would fail, and the watcher says so and does not send it, because a mined failure would spend the nonce key for nothing.
+- The owner replaces the exit's tree. Every rescue signed under it dies, and a new one works.
+- The network fails the holder, each with a real theft, a real holder process and the real chain. A proxy stands between them: it refuses, it replays an old block, and for a sidecar that sits on a transaction it answers in its place. A node that will not simulate is unknown, not broken. When that node dies altogether, reads and sends, the holder goes on the last good read, through the sidecar. A node stuck at one block does not stop the clock. With the sidecar down, and with one that takes it and never relays it, the canonical mempool carries it.
+- A reserve too small. Both mempools turn it away, so nothing burns, and once anyone tops it up, the rescue lands.
+- A signer restored from an old backup spends the rescue's own leaf on a veto. The tool says the key was spent and nothing reached the harbor, and the holder does not say it was rescued.
+- The owner's real commands. `nominee-setup` refuses with the seed lost and makes no new tree, and says not to hand over a rescue the reserve cannot pay for. `nominee-revoke` ends it, and a new one works. `unfreeze` refuses while anything is waiting, and works once it is cancelled.
+
+**What a second independent review found.** It read the V2 fix, the queue reader and all of this, and wrote its own mock node and forge tests. Everything below was reproduced or read in the code before it was changed. The first version of this section claimed more than the code did.
+
+| What it found | What changed | What holds it |
+|---|---|---|
+| **A thief could stop the rescue firing.** The soonest item was found with a spread, which throws past about 125,000 items, so every poll failed and the watcher only said "state unknown". Queuing that many takes hours: that is arithmetic, and it was not run | A loop. A frozen account's recovery reads all went out at once, so they are paged now, and only for items with no recipient. The watcher and the page list the first few | `rescue-watch.test.ts`, 150,000 items on a mock |
+| A spent nonce key read as "a copy landed". The node checks the key and not what spent it, so a leaf reused on a veto stopped the watcher, and the page said Rescued with nothing moved | Only an `Escaped` log for this harbor counts as sent, and it names the real transaction | `vajra nominee-e2e` steps 10 and 12 |
+| Any negative JSON-RPC code from the simulation read as broken, and so did a forged `genesis`. Broken meant never sent, with no override | Broken now says whether sending would burn the nonce key, and only that holds a rescue back. A refusal costs nothing, so the rest are tried | step 11, a node that will not simulate |
+| A failed read at the moment it mattered sent nothing, and `rpc` had no timeout, so a hung node left the page saying Ready | `rpc` gives up after two minutes, and after twenty seconds in the watcher. If the chain stops answering, the rescue goes when the last good read said to, without knowing whether the owner has answered since | step 11, a node that dies at the margin. The timeout on a mock |
+| The canonical mempool was tried only after a refusal, so a sidecar that was down, or sat on it, left the rescue unsent | Anything short of a receipt moves on to the canonical mempool, after 20 seconds at most | step 11, both cases |
+| A rescue signed for one new slot a token, and a token that spent the frame's state gas could halt it | Three new slots a token, and `escape` now pays the harbor before any token, which is a contract change the owner chose | `vajra nominee-e2e` step 14, at the old bytes and the new |
+| A margin of 0 parsed, and fired when the thief could already collect. A huge one fired at once. `--margin 1h` was NaN, so the rescue never went | Zero is refused, a margin that makes no sense falls back to the default, and the watcher refuses a flag that is not a whole number | step 2, and `rescue-watch.test.ts` |
+| A lost `signer.exit.json` became a new tree without a word, and `nominee-setup` said to hand over whatever it signed. A crash between `nominee-revoke`'s two renames left no tree at all | It refuses with the seed missing or wrong, and says to hand over only what would work. The old tree is copied first, and one rename replaces it | step 13. No crash was staged |
+| The docs said "an escape, which ends them all", the page said "for good" and "Nothing is lost". All three were wrong | Corrected, here and on the page | `contracts/test/EscapeAfterRescue.t.sol` |
+| The suite's own attacks were weaker than their names. Step 6's 0.6 ETH theft sat on an account holding 0.032, so it could never have paid, and "the thief has nothing" proved nothing. Step 5 said a transaction stayed pending, and nothing looked | Step 6 now holds the money, and the theft is really collected and dies. Step 5 looks in the node's pool, and says how often it saw one | steps 5 and 6 |
+
+We found one more while fixing these: a rescue that mined with a failed frame stopped the watcher with "already sent", and exit code 0. It now says the frame failed, and exits 1.
+
+**What a third review found, in those fixes.** None of it needs less than a bad node, a flake or a bad file, and two were rated high.
+
+| What it found | What changed | What holds it |
+|---|---|---|
+| **The fallback read a receipt before it sent,** so a dead node meant the sidecar was never asked. That is the outage it was written for. Step 11 passed only because its proxy let sends through | `sendRescue` sends first, and no read stands in front of a send. The proxy now blocks everything to the node | step 11, and `rescue-watch.test.ts` |
+| **A head that stopped moving never reached the deadline,** because each good read showed the same time left and pushed the send back | Time spent behind counts. The next review rebuilt how, below | step 11, a node stuck at one block |
+| One flaked read turned a known burn into unknown, which goes. A wrong `genesis` skipped every burn check | Only a clear answer ends a known burn, and `genesis` is now the last word and not the first | `rescue-watch.test.ts` |
+| "After 20 seconds at most" was false: a hung sidecar cost four minutes, and a hung node about eight | Each mempool gets the patience, a third of the margin up to 20 seconds, and no read can use more than 10 | `rescue-watch.test.ts` |
+| `vajra unfreeze` warned after mining, when a matured item could already be run against what the account held | It refuses before signing while anything is waiting. `--anyway` overrides that | step 13 |
+| `nominee-setup` loaded the tree before two reads, so another process could sign the same leaf meanwhile. A route was called canonical when it could not be told. A node that errors on a missing block failed every read | The tree is loaded next to the signing, the route says it cannot tell, and a read that fails with a mark drops the mark and reads again | by reading, and `queue-read.test.ts` |
+
+**What a fourth review found, in paying the harbor first and in those fixes.** Nothing high.
+
+| What it found | What changed | What holds it |
+|---|---|---|
+| **Paying the harbor first gave it nearly all the gas,** so a contract harbor that burned it halted the frame: nothing swept, and the account not frozen, where the old order swept every token and froze. Its return data was copied too | The harbor's call is bounded by `SWEEP_GAS` and copies nothing back, like a token's sweep | `test_aHarborThatBurnsItsGasCannotStopTheRest` |
+| **One new block reset the stall clock,** so a node crawling at two seconds for every 25 never looked stuck, and a step of the system date could fire a rescue early | `chainClock` compares time passed on the chain with monotonic time elapsed here. It only adds what really elapsed, so it cannot run ahead of the real chain | `rescue-watch.test.ts`, and step 11 |
+| Nothing read `SweepFailed`, so "rescued" could hide what stayed behind | The watcher and the page name it, the ETH included | step 14, and `rescue-watch.test.ts` |
+| Step 14 passed on any failed frame and only printed the 281,520. A forge test read `poolClosed` after the fact, so it passed in either order | Step 14 has a control token and pins the state gas, and the test reads `poolClosed` from inside the token's transfer | step 14, and `EscapeAfterRescue.t.sol` |
+
+**Not changed.** Step 7 recovers from the account and never from the exit. Step 3's "spends the rescue's nonce key" passes on any revert, and `sphincs-bench`'s last check passes on any failed frame, though a forge test names that error. A flood of 150,000 items was read on a mock, so how long a real node takes is not measured, and the dashboard's account page and the phone app still draw every item they are given. The dashboard's Unfreeze button does not refuse. An earlier `Escaped` to this harbor reads as sent if the rescue's key was also spent, and `Escaped` is logged even when the harbor refused the ETH. A margin of one second, or one just under the delay, is accepted. A page on the mixnet can wait two minutes on each hung read, and viem retries `publicClient` reads, so one hung read can take four timeouts: 80 seconds in the watcher, and 8 minutes on the page. A plain `escape` signs 400,000 state gas whatever the token count, so a second configured token can fail there, and only a rescue's tool says so.
+
+**What the holder can do.** Send it early, which moves everything to the harbor and freezes the account: disruption, and no theft. Refuse, or be offline, in which case nothing happens, so give it to two people. Learn the harbor, which is in the bytes, so a rescue unseals it for them. Pad a copy, the hole in section 15: 8 KB cost the reserve about 0.001 ETH, and the money still went to the harbor.
+
+**What it does not do:**
+
+- **It cannot tell the owner from a thief.** A real payment left unanswered sets it off, so every queued payment needs an answer. **Pay, it's me** on a phone needs the hardware signer or `--allow-software-pay`, so without one of those, answering yes means a terminal.
+- **A spend under the limit does not queue,** so it never sets this off. A thief with an absent owner gets a day's limit each day.
+- **It needs the exit,** set up and funded before the thief arrives. The exit is software only today.
+- **It does not end what is waiting.** An escape leaves every queued item pending. None can leave while the account is frozen. Unfreeze it and anything matured can be run by anyone, against whatever is paid in next, so the owner has to veto first. `vajra unfreeze` refuses until they do, and the dashboard's button does not yet. `contracts/test/EscapeAfterRescue.t.sol` holds both halves.
+- **A recovery of the owner's own sets it off too.** Someone who has lost the master key cannot answer, so a nominee sees an item nobody answers. The money goes to the harbor first.
+- **It closes a pool for good.** An escape pays the pool to the harbor, including notes other people deposited. With nobody answering, a thief with the daily key can force that, by queuing anything at all.
+- **Its fee and gas were fixed at signing.** If the base fee stays over its cap it cannot land, and a higher cap needs more reserve. If tokens are added later it can run out of gas. The tool simulates it and says so, and a holder cannot fix it: the owner signs a new one.
+- **On the V2 deployed on the public devnet, a token can halt it.** `SWEEP_GAS` bounds a token's execution and not its state gas, which is one pool for the frame, and a transfer that succeeds keeps what it spent. There a token sweeps before the harbor is paid, and a fresh harbor and the pool closing take 281,520 of that pool after it. `vajra nominee-e2e` step 14 sends a token that writes five new slots at those bytes: the frame halts, the harbor holds nothing, and the rescue's key is spent. It has to be a token the owner configured or signed for, so a thief cannot add one, and the simulation only sees it if the token misbehaves when asked. **The V2 in this repo pays the harbor first, as the owner chose,** so inside the gas that was signed for, a token can fail its own transfer and starve the tokens after it, and nothing else: the same step, on the new bytes, spent exactly 281,520, and the tool names the token left behind. More tokens than were signed for can still run the frame out of gas. All of this reaches the public devnet with a redeploy.
+- **The harbor should be a plain address.** Its call is bounded, so one that burns its gas fails its own payment, the money stays in the frozen account, and the tokens still go. But a contract harbor can spend the frame's state gas, and four new slots there would halt the frame. The owner chooses the harbor, and a thief cannot.
+- **A stolen paper can reach the reserve.** A recovery sent from the exit pays from the same reserve, so it can leave too little for the rescue. The holder's tool says so, and anyone can top the reserve up.
+- **The watcher has to be running,** and the page only watches while it is open. The holder has no way to reach the owner when a rescue breaks: nothing here tells the owner.
+- **The holder has to trust their node.** Every check shows it the signed bytes, so whoever runs it learns the harbor and could send the rescue, which is the disruption above and no theft. A node that lies about a receipt can stop a watcher.
+- **A hardware signer cannot revoke it yet.** `vajra nominee-revoke` signs with the software master key.
+- **A leaf is revealed and stays out in the world.** The exit's tree is not in the Arkiv registry, so a restored signer state could sign that leaf again, and two signatures from one leaf let someone forge a third. The exit's key can only reach `veto`, `freeze` and `escape` to the sealed harbor, so that forgery cannot steal. A stateless exit key, as section 20 decided, ends this. It is not built.
+- **It is not a will.** The money goes to the harbor. A claim that pays the nominee would be inheritance, with no thief in it, and it would blur the one story, so it is not built. An owner can choose a harbor their family could reach.
+
+## 24. Notes rebuilt from one seed
+
+Built on the mirror. `vajra pool-e2e`, `docs/evidence/pool-latest.json`. **It was not run on the public devnet. It needs no contract change,** so it should work on the V2 deployed there, and that is reasoning and not a run.
+
+**The gap.** A note lived in one file on one machine. A lost or wiped laptop took it, because nothing else could prove it. An owner still had the escape, which sweeps the pool to the harbor. An outside depositor had nothing.
+
+**What it is.** One seed makes every note. A note's `secret` and `nullifierSeed` are a keccak of a label, the seed, the account, the chain and a number, cut to 248 bits to fit the field. `vajra notes-restore` walks the numbers, looks for each commitment in the pool's `Shielded` log, and asks the chain what became of it. `notes.json` is now a cache of what the seed and the chain already say. No circuit changed: a note is still `Poseidon(secret, nullifierSeed)`.
+
+**Why it is not the master seed,** which is where spec 04 section 10.3 put a viewing key:
+
+- An outside depositor has no master key, and needs this most.
+- The hardware signer never lets its seed out.
+- A rotation installs a new seed, and a recovery is for the day the old one is lost. Neither may lose a note.
+- A stolen master seed would take the notes as well.
+
+The price is one more secret to keep. `vajra backup` carries it, encrypted.
+
+**What the run shows,** with the real commands, from a folder that starts empty:
+
+- The machine is gone. A new one knows nothing, says that is not the same as none, and refuses to spend. Given the seed and the account, it finds every note among other people's, and which are spent.
+- A rebuilt note is spent from the new machine, and the recipient holds 0.095 ETH.
+- A failed deposit leaves a gap in the numbers, and the walk crosses it. `vajra notes` says that note never reached the pool, and it does not read as money.
+- A note the chain has seen spent, sent again from a rebuilt machine, dies with `NullifierSpent`.
+- Another seed finds nothing, and is not kept, so a mistyped paper cannot lock out the right one. The right seed on another account finds nothing. An outsider's seed finds only the outsider's note.
+- A restore over a different seed on this machine is refused, because it may be the only copy of other notes.
+- A rotation of the master key changes nothing, and a backup restored on a fresh machine rebuilds them.
+- A note from before there was a seed stays in the file through a rebuild.
+- After an escape, a rebuild says swept to the harbor, and no note reads as money still in the pool.
+
+**What it does not do:**
+
+- **The seed can spend.** It is not a viewing key, so it cannot be handed to an auditor. Viewing keys are still not built.
+- **A stolen seed is worse than a stolen file.** The file held the notes so far, and the seed holds every note it will ever make. A note leaves at once, with no queue, so a thief with the seed is a race. Only a freeze or an escape beats it, and only on an account you own. After a theft, move to a new seed.
+- **It does not save you from a stolen machine.** The seed sits in plain text beside `daily.key`, in the same folder with the same mode. Whoever copies that folder can spend every note, now and later, with no queue, and only a freeze in time stops them. `notes.json` was already plain text, and the seed adds the notes still to come. With a hardware signer this is the weakest path on the machine. What the seed gives back is the notes on a new machine, not protection from a thief who has the old one.
+- **Reading your notes shows them to the node.** `vajra notes`, `notes-restore` and `unshield` ask about each nullifier, the unspent ones too, so one node can link your withdrawals to come with each other and with your IP. The logs could answer this locally, and that is not built.
+- **A backup can miss it.** `vajra backup` refuses on a hardware signer, and says to copy the seed by hand. A backup made before the first `shield` holds no seed, and says so.
+- **You need the account's address as well.** It is public, but you have to know it. An outsider with notes in two pools rebuilds each.
+- **One seed, one machine at a time.** `vajra shield` skips any number already in the pool. A deposit still in flight from another machine cannot be seen, and a second copy of one note could never be spent, because the nullifier is the same.
+- **The walk stops after 20 numbers in a row with no deposit.** It says so, and `--gap` looks further. Twenty failed deposits in a row would hide what came after.
+- **A note made before there was a seed** is still only in the file. A rebuild keeps it and cannot make it.
+
+## 25. A meter for what the pool hides
+
+Built on the mirror. `vajra pool <address>`, a card on the account page, `vajra pool-e2e`, `apps/dashboard/test/pool.mjs`. **It was not run on the public devnet.** It reads only what is already public, and needs no key and no contract change.
+
+**The gap.** The docs said the pool hides little while it is small, and nothing told a person how little. A count of notes would have been worse than nothing: thirty notes from one address look like a crowd and hide nobody.
+
+**What it counts.** Addresses, not notes, from each deposit's transaction. One address means it hides nothing, and it says so. More than one means it hides little, with the ceiling, and the odds of a guess at the largest depositor, in the words a person would use: "right about 3 times in 4". On the page a bar has one block for each address, so a pool that hides nothing is one solid block.
+
+**How it avoids overstating:**
+
+- **It has no top setting.** No number of addresses makes it say the pool hides you well, because a count cannot show they are different people. `packages/core/test/pool.test.ts` holds this at 5,000 addresses.
+- **The count is a ceiling and never a floor.** It says at most, and that the real number could be one.
+- **It keeps three things apart.** What the chain shows, what this read could not find out, and what no chain can show. The last list is always on the screen: whether addresses are people, which note left, your IP, and how much timing gives away.
+- **It always says the other limit,** that any withdrawal shows this account paid that recipient.
+- **Unknown stays unknown.** A sender the chain did not answer for makes the count unknown, not smaller. A chain that does not answer gives no figure. A read that does not add up gives none either: the log has to match `noteCount`, and the notes and what is owed have to come to `poolHeld` exactly, so a node that drops logs cannot produce a confident wrong number.
+- **Having no pool is not an empty pool,** and neither is a failed read. A V1 account reverts, an address with no code answers nothing, and a dead connection throws. The tests tell all three apart.
+
+**What it does not do:**
+
+- It does not weigh timing. A withdrawal soon after a deposit is easy to match, and the chain shows that, so a better attacker than this guess exists. It says so.
+- It counts the address that sent a deposit. Deposits made through one contract or relayer count as one, which understates and never overstates.
+- The odds assume every note is as likely to leave as any other.
+- It reads the logs from the first block on each poll, which is fine on this chain and would not be on a long one.
+
+## 26. A failed payment fell where a stolen key could spend it
+
+Found while designing the claim, then reproduced on the real client. **Real, and small: it needs a payment to fail. Fixed in the source. It reaches the public devnet with the next redeploy, which has not happened,** so the V2 deployed there still has it.
+
+Section 13 made a note spent whatever its recipient does. The money then stayed in the account, with nothing holding it. `poolHeld` fell by the whole note, so what the note was owed became free balance, and the rulebook's only limit on free balance is the daily limit. On the mirror, against the bytes before the fix, kept in `artifacts/VajraAccountV2.pre-section-26.json` (`vajra pool-e2e`, step 9): a note paid to a contract that refuses it, `poolHeld` at zero, and a daily spend of 0.15 ETH mined, from an account with only 0.085 ETH free before the note failed. A thief cannot make a payment fail alone, since the holder picks the recipient. The holder had lost the note either way.
+
+**The fix.** What the recipient would have got stays in `poolHeld`, and the note is marked owed. `claim` pays it, once, to whichever address the holder proves it to now. It changes `unshield`, one line of `validateUnshield`, and the `noteSpent` view, which reads the new state. No circuit changed: the holder makes a new proof of the same note, with a new recipient, against the same verifier.
+
+**Keeping it in `poolHeld` is what makes the rulebook hold, with no other change.** `_transfer`, `validateDaily`, `_checkRecovery`, `shield` and `escape` already protect that number, and none of them was touched:
+
+| Rule | How a claim obeys it | Tested on the mirror by |
+|---|---|---|
+| A freeze stops it | `claim` refuses | `AccountFrozen`, really sent, and by `vajra claim` |
+| An escape sweeps it and ends it | the sweep takes the balance, and `claim` refuses a closed pool | `PoolClosed`, against money that arrived later |
+| The daily key cannot reach it | `validateDaily` allows neither the selector nor a proof | `EscapeKeyOutranks` |
+| A spend cannot reach it | `_transfer` counts `poolHeld` | the same 0.15 ETH spend, whose frame now fails |
+| Fees cannot eat it | `validateDaily` and `_checkRecovery` count `poolHeld` | `ValueNotConserved`, on a daily transaction and on a recovery |
+| A nominee's rescue still works | `escape` did not change | a rescue signed before any claim existed, landing with one outstanding |
+
+**Why `claim` is an ordinary call,** and not a second proof transaction. A retry from the account would need a fee, so a nonce key, and that is section 13 again: one note holding many slots, and refused payments burning a fee each. It would also need a VERIFY function, with V2 near its size limit. As an ordinary call, whoever sends it pays its gas. It has no nonce key of the account's, and a failure costs the account nothing: each failed claim in the run checks that the balance and `poolHeld` did not move. By reading, nothing is counted against the account's address. That was not measured. A recipient that refuses reverts it, which is safe here, and the claim stays.
+
+**Retrying to the same recipient with no proof** was the other way. It would need the recipient stored after the call, a new slot in a frame that must not fail, and a contract that refuses for good would strand the money.
+
+**The frame still cannot fail.** `unshield` must not revert once VERIFY has passed, and a failure after the call would be worse than before: the note alive, its nonce key gone, and the fee paid by the owner.
+
+- Both slots written after the call were written before it, so they cost no state gas at all. Each refused frame in the run used 97,920 state gas, which is one new slot, whatever the recipient did. `noteSpent` became `noteState`, in the same place: 0, 1 for spent, and 2 for owed.
+- `UNSHIELD_KEPT_GAS` keeps 30,000 back from the recipient. A recipient that burns everything used to leave a sixty-fourth. The call and the writes after it took 8,574 of the 30,000, measured.
+- `UNSHIELD_EXECUTION_GAS` and `UNSHIELD_STATE_GAS` did not change.
+
+On the mirror, at the longest walk of the root ring, with the proof's root in the ring's last slot: a recipient that burns all its gas, one that reverts with 450,000 bytes, and one that writes new slots until it dies, to leave no state gas. Each frame succeeded, and each note is owed. An ordinary payment to a fresh address, which needs 183,600 spare gas at the call, was paid on the same walk. The frame used at most 478,574 of its 500,000, so what it keeps back was enough with 21,426 to spare, and that is the frame's worst case.
+
+**Attacks, each really sent:** a corrupted proof, a seen proof moved to a thief, a proof for another account, a larger denomination, a note never spent, a note that was paid, the same claim twice, the public first proof after a claim, a recipient that still refuses, and half a note, proved in a tree of the thief's own, which dies at the root check. A recipient that re-enters for a second payment is in `VajraAccountV2.t.sol`.
+
+**What is left:**
+
+- **A leaked `nullifierSeed` reaches a claim.** Knowing that half alone, someone can deposit `Poseidon(x, seed)` in the real pool, so that their root is known, prove it, and claim what is owed. They get 0.095 ETH, the holder gets `NothingOwed`, and 0.1 ETH is stranded. A forge run with a real proof and verifier did this. It needs a leak nothing here produces. An earlier version of this section said the root check stops half a note: that is true only of a tree of the thief's own.
+- **A note paid to the account itself becomes plain balance,** so a stolen daily key can spend it. `vajra unshield` and `vajra claim` refuse that. The contract does not.
+- **A claim can cancel what is pending.** The sidecar's `enforceBalances` cancels `New` frames when a balance falls, and a claim lowers it with no key, on an account whose ETH is mostly that claim. The exit is not touched. This is from reading the sidecar, and it was not run.
+- **It needs someone with gas.** A claim is an ordinary transaction, and its sender is public beside it. The proof fixes the recipient, so a friend can send it and cannot change where it goes.
+- **It links the two recipients.** The same nullifier is on both attempts, so the chain shows that the same note tried one address and then another. `vajra claim` says so.
+- **The first proof stays valid, and it is public.** If the first recipient ever takes money, anyone can send it there, until the holder claims. It cannot go anywhere the holder did not name.
+- **The fee is gone.** A refused payment costs its fee, and a claim pays the same 0.095 ETH a good payment would. The sender also pays the claim's gas.
+- **It has no expiry.** A claim nobody makes stays in `poolHeld` until an escape, and the owner cannot spend it.
+- **It is only as good as the master key,** like any note. An escape sends it to the owner's harbor. A note's holder from outside should know that.
+- **A master transaction's fee is not held to `poolHeld`,** and never was. The master key can take the pool anyway, so this is not a new reach.
+
+**A separate review read this on 2026-11-07,** at `6b32527`, with forge tests of its own, and found no critical or high issue: no note paid twice in any order, no way round the proof's recipient, and the rulebook held. Its fuzz is `contracts/test/NoteFuzz.t.sol`. What it did find is in the limits above, and in the words of sections 24 and 25, which it showed had claimed too much. Nothing here has been audited.
+
+**Size.** V2's runtime went from 23,332 to 23,923 bytes, under the 24,576 limit. **That limit does not apply on this fork,** which section 20 said had not been checked: on the mirror, contracts of 24,577 and 30,000 bytes deployed, and their code is on chain (`vajra pool-e2e`, step 15). That is one client on the mirror, and no reason to rely on it elsewhere.
