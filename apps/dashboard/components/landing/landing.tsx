@@ -115,6 +115,13 @@ export function Landing({ facts }: { facts: ThreadFacts }) {
           scrollTrigger: { trigger: ".flood", start: "top top", end: "45% top", scrub: true, invalidateOnRefresh: true },
         },
       );
+      // On a short screen the panel is taller than the view, so the rest of it slides up. Nothing in it can be cut off.
+      const inner = flood.querySelector<HTMLElement>(".flood-inner")!;
+      gsap.to(inner, {
+        y: () => -Math.max(0, inner.offsetHeight - flood.clientHeight),
+        ease: "none",
+        scrollTrigger: { trigger: ".flood", start: "48% top", end: "bottom bottom", scrub: true, invalidateOnRefresh: true },
+      });
     }, page);
 
     let lenis: Lenis | null = null;
@@ -139,13 +146,17 @@ export function Landing({ facts }: { facts: ThreadFacts }) {
       ScrollTrigger.refresh();
     };
     window.addEventListener("resize", resized);
-    ScrollTrigger.addEventListener("refresh", measure);
+    const refreshed = () => {
+      measure();
+      paint();
+    };
+    ScrollTrigger.addEventListener("refresh", refreshed);
     document.fonts?.ready.then(resized);
 
     return () => {
       window.removeEventListener("resize", resized);
       window.removeEventListener("scroll", still);
-      ScrollTrigger.removeEventListener("refresh", measure);
+      ScrollTrigger.removeEventListener("refresh", refreshed);
       gsap.ticker.remove(tick);
       gsap.ticker.remove(smoothly);
       lenis?.destroy();

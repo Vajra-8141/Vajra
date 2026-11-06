@@ -3,6 +3,7 @@
 
 .land-top { position: fixed; inset: 0 0 auto; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: var(--s3); height: 64px; padding: 0 var(--s5); background: var(--scrim); border-bottom: 1px solid var(--line); }
 .land-nav { display: flex; align-items: center; gap: var(--s3); }
+.land-nav .button { white-space: nowrap; }
 .land-link { display: inline-flex; align-items: center; gap: var(--s2); min-height: var(--touch); padding: 0 var(--s2); font-size: var(--t-sm); color: var(--t60); text-decoration: none; transition: color var(--fast) var(--ease); }
 .land-link:hover { color: var(--t100); }
 .land-progress { position: fixed; top: 63px; left: 0; right: 0; z-index: 31; height: 1px; background: var(--t100); transform: scaleX(var(--progress)); transform-origin: left; }
@@ -68,7 +69,7 @@
 .is-live .flood { height: 340svh; }
 .is-live .flood-pin { position: sticky; top: 0; height: 100svh; overflow: hidden; display: flex; align-items: center; }
 .is-live .flood-before { padding-block: 0; }
-.is-live .flood-fill { position: absolute; inset: 0; display: flex; align-items: center; overflow: hidden; }
+.is-live .flood-fill { position: absolute; inset: 0; display: flex; align-items: safe center; overflow: hidden; }
 .is-live .flood-inner { width: 100%; padding-block: 80px var(--s4); }
 
 /* The end */
@@ -91,6 +92,8 @@
   .land-top { height: 56px; padding: 0 var(--s4); }
   .land-progress { top: 55px; }
   .land-link[href="/proof"] { display: none; }
+  .land-nav { gap: var(--s2); }
+  .land-nav .button { padding-inline: var(--s3); }
   .land-hero { align-items: flex-start; padding: 88px var(--s4) var(--s6); }
   .land-hero-text, .chap-body, .flood-before { margin-left: 0; }
   .chap { align-items: flex-end; min-height: 120svh; padding: 48svh var(--s4) var(--s6); }
