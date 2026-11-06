@@ -12,6 +12,7 @@
     "@forshtat/hegota-support": "0.0.1",
     "@serialport/parser-readline": "13.0.0",
     "@vajra/core": "workspace:*",
+    "@vajra/shared": "workspace:*",
     "circomlibjs": "0.1.7",
     "serialport": "13.0.0",
     "snarkjs": "0.7.5",

@@ -20,7 +20,7 @@ function parse(list: string[]) {
   const rest: string[] = [];
   for (let i = 0; i < list.length; i++) {
     const a = list[i]!;
-    if (a.startsWith("--")) flags[a.slice(2)] = list[++i] ?? "";
+    if (a.startsWith("--")) flags[a.slice(2)] = list[i + 1]?.startsWith("--") ? "" : (list[++i] ?? "");
     else rest.push(a);
   }
   return { flags, rest };
@@ -170,6 +170,23 @@ switch (command) {
   case "watch":
     await (await import("./watch.ts")).watch({ allowSoftwarePay: args.includes("--allow-software-pay") });
     break;
+  case "phone":
+    (await import("./phone.ts")).startPhone({ allowSoftwarePay: args.includes("--allow-software-pay"), port: Number(flags.port ?? process.env.VAJRA_PHONE_PORT ?? 3210) });
+    break;
+  case "backup":
+    await (await import("./backup.ts")).backupCommand(flags);
+    break;
+  case "restore":
+    await (await import("./backup.ts")).restoreCommand(flags);
+    break;
+  case "move":
+    await (await import("./move.ts")).moveCommand(flags);
+    break;
+  case "phone-e2e":
+  case "backup-e2e":
+  case "move-e2e":
+    await import(`./${command}.ts`);
+    break;
   case "thief": {
     // The demo's thief: the same daily key, sending far more than the limit to an address nobody has seen.
     const { account } = requireWallet();
@@ -231,6 +248,11 @@ account:  create --harbor <address> [--daily <address>] [--limit eth] [--allowan
           status
 daily:    spend <to> <eth>
 alerts:   watch [--allow-software-pay]  (asks you on Telegram about anything queued; needs TELEGRAM_BOT_TOKEN in .env)
+phone:    phone [--allow-software-pay] [--port n]  (the phone app's local service; see apps/phone)
+backup:   backup --out file [--passphrase-file file]
+          restore --in file [--passphrase-file file] [--check] [--advance-past-chain]
+move:     move --key-file file --harbor <address> [--tokens a,b] [--limit eth] [--allowance eth] [--delay s] [--cooling s]
+          (a new account, with an EOA's ETH and tokens in it, in one transaction; mirror only)
 demo:     thief [eth]                    (the same daily key, sending over the limit to a fresh address)
 master:   pay <id> | veto <id> | freeze | unfreeze | escape | rotate | set-daily <address>
 service:  bridge
@@ -247,5 +269,5 @@ devnet:   deploy [w16|w256|stealth] | e2e | device-e2e | stealth | measure | pin
     process.exit(1);
 }
 
-if (command !== "bridge") await closeDevice();
+if (command !== "bridge" && command !== "phone") await closeDevice();
 if (command?.startsWith("recover") || command === "shield" || command === "unshield") await (await import("./proving.ts")).stopProver();

@@ -68,6 +68,9 @@ importers:
       '@vajra/core':
         specifier: workspace:*
         version: link:../core
+      '@vajra/shared':
+        specifier: workspace:*
+        version: link:../shared
       circomlibjs:
         specifier: 0.1.7
         version: 0.1.7
@@ -108,6 +111,28 @@ importers:
       '@noble/post-quantum':
         specifier: 0.7.1
         version: 0.7.1
+      viem:
+        specifier: ^2.57.7
+        version: 2.57.16(typescript@5.9.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.5
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.5)
+
+  packages/shared:
+    dependencies:
+      '@forshtat/hegota-support':
+        specifier: 0.0.1
+        version: 0.0.1(viem@2.57.16(typescript@5.9.3))
+      '@vajra/core':
+        specifier: workspace:*
+        version: link:../core
       viem:
         specifier: ^2.57.7
         version: 2.57.16(typescript@5.9.3)

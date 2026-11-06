@@ -40,6 +40,7 @@ import { fileStore, loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 import { Device } from "./device.ts";
 import { claimLeaf, publishUse, theRegistry } from "./registry.ts";
+import { withSignerLock } from "./signer-lock.ts";
 
 /** Above this, the fitted cost would pass the VERIFY limit; the digest is redrawn before anything is revealed. */
 const MAX_HASHES = 660;
@@ -253,7 +254,7 @@ export function recordSigned(key: "daily" | "master", signed: Signed) {
 
 /** Signs and lands one master operation. Refuses before signing if the chain's root is not this signer's. */
 export async function runMasterOp(request: MasterOp, log: (line: string) => void = () => {}): Promise<MasterResult> {
-  const result = await (useDevice() ? runOnDevice(request, log) : runOnSoftware(request, log));
+  const result = await withSignerLock(() => (useDevice() ? runOnDevice(request, log) : runOnSoftware(request, log)));
   recordSigned("master", { gas: result.verifyGas, hash: result.hash });
   return result;
 }
@@ -292,7 +293,9 @@ async function runOnSoftware(request: MasterOp, log: (line: string) => void): Pr
 }
 
 /** One master transaction, for a call that is not in `MasterOp`: the mirror's V2 operations. Software signer only. */
-export async function runCalls(calls: Call[], op: string, log: (line: string) => void = () => {}): Promise<MasterResult> {
+export const runCalls = (calls: Call[], op: string, log: (line: string) => void = () => {}) => withSignerLock(() => signCalls(calls, op, log));
+
+async function signCalls(calls: Call[], op: string, log: (line: string) => void): Promise<MasterResult> {
   if (useDevice()) throw new Error("the hardware signer does not know this operation, and it signs nothing it cannot show");
   const wallet = requireWallet();
   const signer = masterSigner();
