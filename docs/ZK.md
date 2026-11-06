@@ -21,7 +21,7 @@ Both run on the local mirror only, never on the public devnet. [`JUDGES.md`](../
 `contracts/src/VajraAccount.sol` is what is deployed on the public devnet, and it is unchanged. New code lives in
 `contracts/src/VajraAccountV2.sol`, a copy with every difference marked `V2:`. It had to be a copy: recovery goes through
 `executeQueued`, and the pool has to reach into `spend`, `escape` and `validateDaily`, none of which are virtual.
-`VajraAccountV2Parity.t.sol` runs all 48 rulebook tests against V2.
+`VajraAccountV2Parity.t.sol` runs all 48 rulebook tests against V2. V2 also carries one fix the deployed contract lacks: see `FINDINGS.md` section 8.
 
 A pairing check cannot pass the deployed sidecar. The same transaction, byte for byte, from a staked account, on the same chain
 (`vajra compare`, recorded in `docs/evidence/compare-latest.json`):
@@ -39,11 +39,16 @@ frames or its fee, and anyone who sees it in a mempool can resend it changed. `s
 with one more frame paying the attacker would run with the account's authority.
 
 So `_requireProofShape` pins, in VERIFY, what a signature would have committed to: exactly `[VERIFY, SENDER]`, the SENDER frame being
-this account calling this function with no value and exactly the arguments the proof is checked against, a nonce key derived from the
-nullifier, and a cap on what the transaction can cost. Each is tested on its own, because any one left open drains the account.
+this account calling this function with no value, exactly the arguments the proof is checked against, and exactly the gas it needs, a
+nonce key derived from the nullifier and what the proof installs or pays, and a cap on what the transaction can cost. Each is tested on its
+own, because any one left open is an attack.
+
+The gas is pinned because a mined failure is permanent. A copy with too little gas would pass the proof, spend the nonce and fail in the SENDER
+frame, and the nullifier's nonce key could never be used again. That attack worked against the first version: see `FINDINGS.md` section 8.
 
 The nonce key means a retry is the identical bytes, and that a thief's pending daily transaction cannot hold a recovery up on a
-mempool that keeps the two nonce domains apart. That is the same reason an escape uses one.
+mempool that keeps the two nonce domains apart. That is the same reason an escape uses one. It includes the recipient, so if a recipient
+reverts, the note is not spent and a fresh proof to another address still works.
 
 ## Recovery
 
@@ -67,7 +72,8 @@ values. Attacks that change each one are in `vajra recover`.
 
 ## The shielded pool
 
-Fixed denomination, ETH, inside the account. A note is `Poseidon(secret, nullifierSeed)` in a depth-20 Poseidon tree, and the
+Fixed denomination, ETH, inside the account. On the mirror a note is 0.1 ETH, and 0.095 ETH reaches the recipient: the rest is the note's fee,
+and what its transaction does not spend stays with the account. A note is `Poseidon(secret, nullifierSeed)` in a depth-20 Poseidon tree, and the
 withdrawal circuit proves membership without saying which leaf.
 
 **The rulebook survives inside the pool:**
@@ -79,7 +85,9 @@ withdrawal circuit proves membership without saying which leaf.
 | An escape drains the pool to the sealed harbor | the sweep takes the whole balance, then the pool closes for good, so an old note cannot claim money that arrives later |
 | The daily key cannot touch it | neither selector is allowed, and a daily frame cannot carry value |
 | A spend cannot reach into the notes | `_transfer` keeps `poolHeld` out of reach, even of a spend inside the limit |
-| Fees cannot eat the notes | VERIFY needs the balance to cover the notes and the fee. A staked sender may read its balance in validation, so an account with a pool must be staked |
+| Fees cannot eat the notes | a note pays its own fee, out of its value. A daily transaction or a recovery needs the balance to cover the notes and the fee. A staked sender may read its balance in validation, so an account with a pool must be staked |
+| Nobody can use the pool to burn the owner's money | since a note pays its own way, a shield-and-unshield loop costs whoever runs it |
+| Only the owner opens a pool | the first note has to come from the account, so an outsider cannot switch the balance check on for an unstaked account |
 
 **The root ring is 32 deep.** A proof takes time to reach a block, and the tree moves under it. The EF's guidance is that validity
 resting on fast-changing state leaks reputation, so an unshield may prove against any of the last 32 roots. A root that has left the

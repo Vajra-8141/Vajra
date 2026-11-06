@@ -1,116 +1,120 @@
 {
- "ranAt": "2026-11-06T04:24:07.145Z",
+ "ranAt": "2026-11-06T04:41:27.773Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch",
  "chainId": 13370,
  "genesis": "0x74f05f1d3d0589fbf8e763a064aefe6d9941f6ab907cb52993142ede6c23cf3c",
  "verifier": "0xe2b9debd5859418cbee5213d84c8ff6d551ce5aa",
  "implementation": "0x668e5b07b106c3ea01e113830636e19262d4db12",
- "account": "0xec833A614D1e8112162DAFFC9C10232B618a93e0",
- "denomination": "10000000000000000",
- "proverMs": 557,
- "unshieldVerifyGas": 289688,
- "shieldSenderGas": 896245,
+ "account": "0xCb34a4f2A750b75b013E55D5A93F25a3C200e9BE",
+ "denomination": "100000000000000000",
+ "proverMs": 548,
+ "unshieldVerifyGas": 290614,
+ "shieldSenderGas": 896305,
  "shieldExecutionLimit": 2500000,
  "failures": 0,
  "mined": [
   {
    "step": "shield note A, master key",
-   "hash": "0xa34c56041609aa569e12b069c14c1d50bb229108aa9c467e583a0de7ef5bd67b",
-   "block": 85,
-   "verifyGas": 89427,
-   "totalGas": 3295554,
+   "hash": "0xde95ad929a645f72adcb13eb34b90445bcd86df779ce0f5c307de3a67c3a5ec7",
+   "block": 61,
+   "verifyGas": 91620,
+   "totalGas": 3297735,
    "attempts": 1
   },
   {
    "step": "shield note B, master key",
-   "hash": "0x2f7cee2723030187e52401f7825aec5510c8e01b2574ba0de5d1bf305aab4a9f",
-   "block": 89,
-   "verifyGas": 87714,
-   "totalGas": 1129017,
+   "hash": "0xe0a32ae89d0feeec263f38467d594ead4756e4b2c0f7ab9c6e9c2281e5934d85",
+   "block": 64,
+   "verifyGas": 89709,
+   "totalGas": 1131048,
    "attempts": 1
   },
   {
    "step": "unshield note A",
-   "hash": "0x980e01ee5f4cc0e4368c0a6672a9816b35e2a66d6e6600a09d3b90db1b4b27cf",
-   "block": 93,
-   "verifyGas": 289688,
-   "totalGas": 627490,
+   "hash": "0xda852b1974fa07f088f72e942979b75b703a99abd0ce5efa1233f9c0301b5606",
+   "block": 67,
+   "verifyGas": 290614,
+   "totalGas": 628447,
    "attempts": 1
   },
   {
    "step": "unshield note B, proved 30 deposits ago",
-   "hash": "0x2c4edee4a51a1cac39992804f01670ffd823220bbbdc1bb6dd1a5f2d61579ee1",
-   "block": 97,
-   "verifyGas": 289688,
-   "totalGas": 443866,
+   "hash": "0x836c945f7742487eeca06ff300a43e9a4d7d6060171b715ec7e0bcd544d67759",
+   "block": 71,
+   "verifyGas": 290614,
+   "totalGas": 444883,
    "attempts": 1
   },
   {
    "step": "shield note C, master key",
-   "hash": "0x7845cd17a110641b2e730b8640566580daf7697ea31ccd06d672cea5ff8ab1ac",
-   "block": 99,
-   "verifyGas": 91308,
-   "totalGas": 1024169,
+   "hash": "0x9b4ac803c4759b0b188f0bd789f4186702ef0a69c58ff154fc3cd4944eb3cd46",
+   "block": 72,
+   "verifyGas": 89709,
+   "totalGas": 1022546,
    "attempts": 1
   },
   {
    "step": "unshield note C, proved again",
-   "hash": "0x150c030f24e7a483db988976d63ce11e9dad94ccf4212124aef4eeb0075a4fe5",
-   "block": 102,
-   "verifyGas": 287494,
-   "totalGas": 441526,
+   "hash": "0x69329f5568c875c2d2accb62ccd50dfc1f28f454875828527195ace2b5152a26",
+   "block": 76,
+   "verifyGas": 288420,
+   "totalGas": 442519,
    "attempts": 1
   },
   {
    "step": "shield a note on the small account",
-   "hash": "0x05bbf768c6c065a145f4a7d430d4bf0fb90c6d66a6e4889f64ce4d9fe1937cea",
-   "block": 105,
-   "verifyGas": 90120,
-   "totalGas": 3296175,
+   "hash": "0x4af7165744452536e5c78c47a406694c6269bebec2c9a4de0516d9aacd2ddc19",
+   "block": 80,
+   "verifyGas": 91422,
+   "totalGas": 3297537,
    "attempts": 1
   },
   {
    "step": "shield note D, master key",
-   "hash": "0x534e0076ae82f3d77fdb1200363e5c3520602e78b3277d0cc0d138838303f074",
-   "block": 107,
-   "verifyGas": 88746,
-   "totalGas": 1021511,
+   "hash": "0x1d813fcb52537b83e6bbfb896cd5e10c5964049f16e760bda1472f7c74e7bc0a",
+   "block": 82,
+   "verifyGas": 94335,
+   "totalGas": 1027100,
    "attempts": 1
   },
   {
    "step": "freeze, master key",
-   "hash": "0xa41a178ec9531161d7853db7d38fc4514247acff875f75e035294df5f24b23bc",
-   "block": 109,
-   "verifyGas": 87912,
+   "hash": "0xc336ba24338b845a0062f59c079a39dbaf11e331d09ced5e629c256098965e0c",
+   "block": 84,
+   "verifyGas": 88110,
    "totalGas": 167418,
    "attempts": 1
   },
   {
    "step": "unfreeze, master key",
-   "hash": "0xb3612c67317f36ed86ee689adfe0b1a14e2d26a216e941a594ae661e538990f1",
-   "block": 111,
-   "verifyGas": 87048,
+   "hash": "0xe84466e039d4f91231cc8fc00315e3ea48f6b3d6aa344a7509f910bed4247efd",
+   "block": 87,
+   "verifyGas": 89043,
    "totalGas": 167418,
    "attempts": 1
   },
   {
    "step": "escape, master key",
-   "hash": "0xa939ca70720efb3932c6ec21b18606f8b1dc689451349e71689f5305c9da80c6",
-   "block": 112,
-   "verifyGas": 90741,
-   "totalGas": 376047,
+   "hash": "0x2d3e33ba10bba947de4f4d3fdfaf9bcccb5c228339dd5212712ce500110d348c",
+   "block": 89,
+   "verifyGas": 91194,
+   "totalGas": 376488,
    "attempts": 1
   },
   {
    "step": "unfreeze after the escape, master key",
-   "hash": "0xd737346a5137018844aaaf658c518b5ef804b458a8a0ef7c21e622a77a9b7b4c",
-   "block": 115,
-   "verifyGas": 89382,
+   "hash": "0xbc656ce57529432de28f55841b1cbb41de7414399be3304032f169a23ff52d72",
+   "block": 92,
+   "verifyGas": 87783,
    "totalGas": 167418,
    "attempts": 1
   }
  ],
  "refusals": [
+  {
+   "attack": "An outsider opens the pool on someone else's account",
+   "refusal": "PoolClosed"
+  },
   {
    "attack": "A deposit of the wrong size",
    "refusal": "ValueNotConserved"
@@ -158,6 +162,14 @@
   {
    "attack": "A seen proof, resent with a huge fee",
    "refusal": "ProofTxCostExceeded"
+  },
+  {
+   "attack": "A seen proof, resent with too little execution gas, to kill the note",
+   "refusal": "ProofTxShapeInvalid"
+  },
+  {
+   "attack": "A seen proof, resent with too little state gas, to kill the note",
+   "refusal": "ProofTxShapeInvalid"
   },
   {
    "attack": "A seen proof, on a nonce key of the attacker's choosing",

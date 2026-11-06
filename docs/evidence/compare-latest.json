@@ -1,8 +1,8 @@
 {
- "ranAt": "2026-11-06T04:27:56.291Z",
+ "ranAt": "2026-11-06T04:41:47.121Z",
  "stack": "local mirror: ethrex 9aa3645, two sidecars at 2e22ff0, one with sidecar-budget-010.patch",
  "chainId": 13370,
- "bytes": "0xd15ec4ef37a53ca484cd874dfbf405a8e7cb867d0e40dc5bb32da5cbae0c3e46",
+ "bytes": "0x4f59b84d94d5deda11bd6c4fd5b61ee594a9e3de6e3fb39102309cd785b73546",
  "unpatched": {
   "refused": "validation prefix execution gas sum 500000 + signature-verification cost 0 = 500000 exceeds MAX_VERIFY_GAS 100000"
  },
@@ -10,9 +10,9 @@
   "refused": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
  },
  "patched": {
-  "hash": "0xd15ec4ef37a53ca484cd874dfbf405a8e7cb867d0e40dc5bb32da5cbae0c3e46",
-  "block": 230,
-  "verifyGas": 294080
+  "hash": "0x4f59b84d94d5deda11bd6c4fd5b61ee594a9e3de6e3fb39102309cd785b73546",
+  "block": 102,
+  "verifyGas": 298084
  },
  "failures": 0
 }

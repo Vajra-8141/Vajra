@@ -24,6 +24,8 @@ currently be admitted through the sidecar by anyone. This looks like a feature t
 than a protocol limit: ethrex's source treats `max_verify_gas` as mempool policy, and `ethrex_simulateFrameTransaction`
 runs a 378,879-gas VERIFY frame to success. A VERIFY frame that large has not been tested in a mined block.
 
+**Update:** the patch now compiles and runs. A staked 400,000 VERIFY limit is admitted, and a 298,084-gas VERIFY frame mined. See section 7.
+
 ## 2. Every precompile is refused during validation
 
 CALLING-040 allows precompiles `0x01` to `0x11`. The live node has `precompiles: []`, and the check at
@@ -95,3 +97,53 @@ bounded by its balance. With no pending transaction, the canonical mempool admit
   touch the rulebook. `validateDaily` walks every frame.
 - The protocol checks an ECDSA signature against whatever `msg` holds, so without a check, any signature the daily key
   ever produced would authorize a transaction. `validateDaily` requires `msg` to be empty or the rebuilt digest.
+
+## 7. The local mirror: what ran, and what it showed
+
+Everything here ran locally, on 2026-11-06: ethrex `9aa3645`, by its published image, and the sidecar `2e22ff0` with
+`docs/upstream/sidecar-budget-010.patch`.
+
+- **The patch compiles and passes.** It builds as part of the sidecar, and the sidecar's own validation and explorer suites pass, 146 of 146.
+- **A VERIFY frame over 100,000 mines.** 298,084 gas, a Groth16 pairing check through precompiles `0x06` to `0x08`, in a mined block. Finding
+  1 said that had not been tested.
+- **The same bytes, on two sidecars.** The sidecar as deployed refuses, and the patched one mines. `docs/evidence/compare-latest.json`.
+- **Hegota at genesis needs no consensus client.** A real one refuses that genesis, and ethrex's `--dev` producer still calls FCUv4, which refuses
+  Hegota attributes. A hundred lines driving FCUv5, getPayloadV6 and newPayloadV6 mine from block 1, in one container, in seconds. `stack/miner.mjs`.
+- **The frozen flows reproduce on the mirror, unmodified.** `vajra e2e`: 11 mined, 21 refused, 0 failures, as on the public devnet. `vajra pin`: the
+  canonical mempool refuses and the alt mempool mines.
+- **`SELFBALANCE` in validation needs a stake strictly above the minimum.** `frameTx.ts` compares with `>`, so a stake of exactly 0.01 does not pass.
+- **A precompile that fails burns all the gas it is forwarded.** A proof with a point off the curve spends 63/64 of what is left. The named
+  refusal still comes back at a 500,000 limit, but it would not at a much lower one.
+- **`bundleInterval` is in milliseconds.** A value of 2 starves the reconciler: mined transactions stay `Submitted`, keep counting against the
+  sender's balance, and new ones get refused with `cannot cover its pending frame transactions`.
+- **The node's mempool cap is a separate check from the sidecar's.** ethrex refuses a prefix over 100,000 at `eth_sendRawTransaction`, whatever the
+  sidecar's budget, and a sidecar patch does not change that. The patched sidecar's own submission path goes around it.
+
+## 8. A thief with the daily key can end the master key
+
+Found by an independent review of `VajraAccountV2`, then reproduced. **It is in the deployed contract.**
+
+`validateDaily` checks who signed and which functions the frames reach. It never looks at the transaction's nonce keys. Approving a transaction
+spends every nonce key it names, and the master key's keys are public: `keccak(root, leaf)`. So a thief signs ordinary daily no-ops on those keys,
+three to a transaction under the 100,000 cap. Each key's nonce moves to 1. `validateMaster` needs 0, so that leaf can never sign again.
+
+Against the deployed source, on the mirror, with only the daily key (`vajra nonce-burn`, `docs/evidence/nonce-burn-deployed-contract-latest.json`):
+
+    64 of 64 leaves burned, in about 90 seconds, for about 0.003 ETH of the victim's own balance
+    the owner's escape: Nonce mismatch: expected 1, got 0
+
+That includes the rotation leaf, so the tree cannot be replaced. No veto, no freeze, no escape, no new daily key, for good. A queued spend then cannot
+be cancelled, so the thief takes everything after one queue delay. This is worse than finding 3, which lasts only while a transaction is pending.
+
+**It was not run on the public devnet.** The mirror runs the same source and the same client, and the deployed sidecar's limits are no looser for a
+daily transaction, but that is reasoning, not a measurement. Accounts on chain 1337 should be taken to be exposed.
+
+**The fix is one check,** in `VajraAccountV2`: the daily key stays on the linear nonce, or `DailyNonceKeyInvalid`. Same attack: 0 of 64, and the escape
+is admitted (`docs/evidence/nonce-burn-v2-latest.json`). The deployed contract does not have it, and a fix there needs a redeploy.
+
+The same review found a bug of the same family in the first version of V2, also reproduced live, and fixed. A proof transaction has no signature, so anyone
+could copy a pending one and cut its SENDER frame's gas. The proof passes, the nonce is spent, the frame fails, and the transaction is mined. The
+nullifier is untouched but its nonce key is gone, so a recovery or a note is dead for good, for the cost of nothing. VERIFY now pins that gas exactly.
+
+**The lesson:** in EIP-8141, approving a transaction spends its nonce keys, and a mined transaction whose SENDER frame failed still spent them. An account
+has to decide which nonce keys each path may touch, and everything that consumes a nonce has to be pinned by whatever authorizes it.

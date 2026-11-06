@@ -7,9 +7,11 @@
  *     vajra nonce-burn v2      VajraAccountV2
  */
 import { randomBytes } from "node:crypto";
+import { writeFileSync } from "node:fs";
 import { keccak256, parseEther, toHex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
+  DEVNET,
   ETH,
   type FrameTx,
   MasterSigner,
@@ -73,6 +75,7 @@ async function burn(leaves: number[]): Promise<FrameTx> {
 
 const PER_TX = 3;
 let burned = 0;
+let firstRefusal: string | null = null;
 for (let leaf = 0; leaf < 64; leaf += PER_TX) {
   const leaves = Array.from({ length: Math.min(PER_TX, 64 - leaf) }, (_, i) => leaf + i);
   try {
@@ -81,7 +84,8 @@ for (let leaf = 0; leaf < 64; leaf += PER_TX) {
     if (leaf === 0) console.log(`leaves ${leaves} burned by the daily key, in block ${Number(BigInt(receipt.blockNumber))}, status ${receipt.status}`);
   } catch (error) {
     const name = error instanceof RpcError ? refusalNameV2(error.message) : String(error);
-    console.log(`daily key on leaves ${leaves}: REFUSED ${name.slice(0, 200)}`);
+    firstRefusal = name.slice(0, 200);
+    console.log(`daily key on leaves ${leaves}: REFUSED ${firstRefusal}`);
     break;
   }
 }
@@ -94,4 +98,21 @@ const outcome = await sendAlt(escape.tx).then(
 );
 console.log(`the owner's escape, on leaf ${escape.leaf}: ${outcome}`);
 console.log(`account balance ${await publicClient.getBalance({ address: account })}, harbor balance ${await publicClient.getBalance({ address: harbor })}`);
+writeFileSync(
+  new URL(`../../../docs/evidence/nonce-burn-${v2 ? "v2" : "deployed-contract"}-latest.json`, import.meta.url),
+  JSON.stringify(
+    {
+      ranAt: new Date().toISOString(),
+      stack: "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
+      chainId: DEVNET.chainId,
+      contract: v2 ? "VajraAccountV2" : "VajraAccount, the same source the public devnet runs",
+      account,
+      leavesBurned: burned,
+      firstRefusal,
+      escape: outcome,
+    },
+    null,
+    1,
+  ) + "\n",
+);
 process.exit(0);

@@ -1,6 +1,6 @@
 # Sidecar patch: per-entity validation budgets and precompiles
 
-For `forshtat/mempool-workshop-sidecar` at `2e22ff0`. Nothing here has been sent upstream.
+For `forshtat/mempool-workshop-sidecar` at `2e22ff0`.
 
 The deployed sidecar applies a flat 100,000 cap to validation, staked or not, and refuses every precompile during
 validation. ERC-8421 says otherwise on both counts: BUDGET-010 gives a staked entity 1,000,000, and CALLING-040 allows
@@ -25,20 +25,19 @@ The budgets are the draft's 100,000 and 1,000,000, not the landing page's 250,00
 
 ## What has and has not been verified
 
+Ran against the patched sidecar on 2026-11-06, with ethrex `9aa3645`.
+
 | Check | Status |
 |---|---|
-| `entityBudget.ts` and its 14 tests | **Passed**, run on their own, outside the sidecar's test setup |
 | `git apply --check` against `2e22ff0` | **Passed** |
-| ethrex traces a transaction over the cap, so nothing else in `validate()` stops it | **Passed**, live: a 900,000 VERIFY limit returned a full trace with `executionStatus: success` |
-| Compiles as part of the sidecar | **Not run** |
-| The sidecar's own test suite | **Not run** |
-| Running on a node | **Not run** |
-| A VERIFY frame over 100,000 in a mined block | **Not run** |
+| Compiles as part of the sidecar | **Passed**, `bun run build` |
+| The sidecar's own tests for what it touches | **Passed**, 146 of 146, `test/services/UserOpValidation` and `test/services/ExplorerService` |
+| The sidecar's full test suite, and its e2e suite | **Not run** |
+| Running on a node | **Passed**, in `stack/docker-compose.yml` |
+| A staked sender's 400,000 VERIFY limit | **Admitted**, `vajra budget` |
+| An unstaked sender over 100,000 | **Refused** |
+| A VERIFY frame over 100,000 in a mined block | **Passed**, 298,084 gas, `docs/evidence/recovery-latest.json` |
+| A precompile in validation | **Passed**, `0x06` to `0x08`, in that same frame |
+| The same bytes refused unpatched and mined patched | **Passed**, `docs/evidence/compare-latest.json` |
 
-The three "not run" rows are what to check before trusting this:
-
-    bun install && bun run build
-    cd packages/executor && npx vitest run test/services/UserOpValidation test/services/ExplorerService
-
-Then `node packages/cli/src/main.ts budget` against a patched node should show the 400,000 limit admitted for a staked
-sender and refused for an unstaked one.
+[`REPRO.md`](REPRO.md) reproduces all of this in a few commands.

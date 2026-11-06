@@ -1,0 +1,10 @@
+{
+ "ranAt": "2026-11-06T04:46:55.085Z",
+ "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
+ "chainId": 13370,
+ "contract": "VajraAccount, the same source the public devnet runs",
+ "account": "0x689B726f2F76fa7FAd668F5429AF0133f3f792CE",
+ "leavesBurned": 64,
+ "firstRefusal": null,
+ "escape": "REFUSED Invalid Transaction: Nonce mismatch: expected 1, got 0"
+}

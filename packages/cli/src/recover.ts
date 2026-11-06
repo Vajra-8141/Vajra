@@ -152,9 +152,8 @@ const theftId = (await read<bigint>(account2, "nextItem")) - 1n;
 await mined("owner vetoes it", master(owner, account2, epochSalt, [ops.veto(theftId)]));
 await reverts("Installing a vetoed root", "RecoveryVetoed", { address: account2, functionName: "executeQueued", args: [theftId], account: privateKeyToAccount(deployer).address });
 const again = await proveRecovery({ secret: paper, newRoot: keccak256(toHex("second try")), account: account2, epochSalt, chainId: DEVNET.chainId });
-// Nonce 0 on this key is already used, so an attacker has to come in on nonce 1, and that is where the contract answers.
-const retry = recoveryTx({ account: account2, newRoot: keccak256(toHex("second try")), nullifier: again.nullifier, proof: again.proof });
-await refused("The thief tries again with the same paper", { ...retry, nonceSeq: 1n }, "NullifierSpent");
+// A new root is a new nonce key, so this reaches the contract on nonce 0, and the nullifier is what stops it.
+await refused("The thief tries again with the same paper", recoveryTx({ account: account2, newRoot: keccak256(toHex("second try")), nullifier: again.nullifier, proof: again.proof }), "NullifierSpent");
 
 const queueGas = evidence.find((e) => e.step === "queue recovery")?.verifyGas ?? null;
 mkdirSync(new URL("../../../docs/evidence/", import.meta.url), { recursive: true });

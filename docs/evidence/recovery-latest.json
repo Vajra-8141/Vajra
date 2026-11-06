@@ -1,76 +1,76 @@
 {
- "ranAt": "2026-11-06T04:22:56.869Z",
+ "ranAt": "2026-11-06T04:45:31.151Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch",
  "chainId": 13370,
  "genesis": "0x74f05f1d3d0589fbf8e763a064aefe6d9941f6ab907cb52993142ede6c23cf3c",
  "verifier": "0x0bbae1e5766c24010a08080299fa91eaa973185a",
  "implementation": "0x668e5b07b106c3ea01e113830636e19262d4db12",
- "account": "0x97cf11239BaBCa51f5fAFfDC46b5B5581a2670C0",
- "proverMs": 296,
- "verifyGas": 294080,
+ "account": "0x6554FCCa29A2BFb8B5875Da49c266F95F44BbB34",
+ "proverMs": 309,
+ "verifyGas": 298084,
  "failures": 0,
  "mined": [
   {
    "step": "set recovery",
-   "hash": "0xcccfa9e277d3d0b142fdc50c46d0db43199c8756b6487e181d4d80acaf180d93",
-   "block": 52,
-   "verifyGas": 88125,
+   "hash": "0x397ca307539656ed6d03d92f5eda68f3695087ee24902ba0995c5213edca0e70",
+   "block": 188,
+   "verifyGas": 86682,
    "totalGas": 367354,
    "attempts": 1
   },
   {
    "step": "queue recovery",
-   "hash": "0xe0b1b1cc1fc7ed5ad2573a350082a7b5a682009d90e72df4998090b62b636080",
-   "block": 54,
-   "verifyGas": 294080,
-   "totalGas": 872909,
+   "hash": "0x3289ba5eb48a59cf4e22770a9e8b906c331e934ad2a72cb6ca1e940ac11e7052",
+   "block": 190,
+   "verifyGas": 298084,
+   "totalGas": 876901,
    "attempts": 1
   },
   {
    "step": "install root",
-   "hash": "0x15c2553444be3f5d2d8a12b03d03c1ef0e477fe5161bd90035251a3a7eb229ae",
-   "block": 66,
+   "hash": "0xe0074510a3f9a05c55f1ae4ce8a01c0701621cb87d095db2150f8527398a143f",
+   "block": 202,
    "verifyGas": 0,
    "totalGas": 53572,
    "attempts": 1
   },
   {
    "step": "freeze, signed by the NEW tree",
-   "hash": "0xcac49a568c8be8b7660b5bb7ed348de3723dd19520d29ab398cfa58e8280c997",
-   "block": 68,
-   "verifyGas": 89526,
+   "hash": "0x6900b44d7f59b95f0247d7d993af8f5837186afbd091f7b0c3c7eaf3a462f56c",
+   "block": 204,
+   "verifyGas": 93219,
    "totalGas": 167418,
    "attempts": 1
   },
   {
    "step": "unfreeze, signed by the NEW tree",
-   "hash": "0x400e5684e5b24420923763ce3d08af270535e3948484d58061201b68ffea24e3",
-   "block": 69,
-   "verifyGas": 87417,
+   "hash": "0xcf3c84c2a63180ebe70d8bb13e136079c9ff47e8019029591541d4cc2303c33e",
+   "block": 205,
+   "verifyGas": 93600,
    "totalGas": 167418,
    "attempts": 1
   },
   {
    "step": "set recovery on the second account",
-   "hash": "0x8086f991c562fa91324a0fe8b892fc5165c57e7f24344594f0bf20d158cb232e",
-   "block": 73,
-   "verifyGas": 91422,
-   "totalGas": 367354,
+   "hash": "0x91b70e5ac358f5f0923543d3c086d7e17581d18ffb42957a447460f140d53fd4",
+   "block": 209,
+   "verifyGas": 94167,
+   "totalGas": 369094,
    "attempts": 1
   },
   {
    "step": "thief queues a root, with a stolen paper",
-   "hash": "0x461343c5bc31d61d604ecd25b2060f83dc0562e552b24eff0dfc8849dad53920",
-   "block": 76,
-   "verifyGas": 294080,
-   "totalGas": 872885,
+   "hash": "0xce1d2acb8339aa26a4cf03607b45e0dce8c41ea21dd101242a15c148ae0a5da4",
+   "block": 212,
+   "verifyGas": 298084,
+   "totalGas": 876913,
    "attempts": 1
   },
   {
    "step": "owner vetoes it",
-   "hash": "0x4da9d233c47851613fd267fe0b696585d21c59a06753ed5da3cfba79d478efe3",
-   "block": 79,
-   "verifyGas": 88959,
+   "hash": "0xaf53ec5e824d4f8fe3b89d5bb40caa322ab1a8c32cd53d9e01e6a8fdaf621050",
+   "block": 213,
+   "verifyGas": 94152,
    "totalGas": 169466,
    "attempts": 1
   }
@@ -87,6 +87,14 @@
   {
    "attack": "Daily key queues a root with no proof",
    "refusal": "EscapeKeyOutranks"
+  },
+  {
+   "attack": "Daily key burns a master leaf's nonce key",
+   "refusal": "DailyNonceKeyInvalid"
+  },
+  {
+   "attack": "Daily key burns the recovery's nonce key",
+   "refusal": "DailyNonceKeyInvalid"
   },
   {
    "attack": "A corrupted proof",
@@ -119,6 +127,14 @@
   {
    "attack": "A seen proof, resent with a huge fee to burn the balance",
    "refusal": "ProofTxCostExceeded"
+  },
+  {
+   "attack": "A seen proof, resent with too little execution gas, to kill it",
+   "refusal": "ProofTxShapeInvalid"
+  },
+  {
+   "attack": "A seen proof, resent with too little state gas, to kill it",
+   "refusal": "ProofTxShapeInvalid"
   },
   {
    "attack": "A seen proof, on a nonce key of the attacker's choosing",

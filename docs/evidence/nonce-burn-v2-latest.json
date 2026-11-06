@@ -1,0 +1,10 @@
+{
+ "ranAt": "2026-11-06T04:45:35.299Z",
+ "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
+ "chainId": 13370,
+ "contract": "VajraAccountV2",
+ "account": "0x4831939db072f54cec5faD03023b1b8315c119AB",
+ "leavesBurned": 0,
+ "firstRefusal": "DailyNonceKeyInvalid",
+ "escape": "admitted 0x0a07b51736b30c37456baec5cc2c74228bd62bb29a2f8e9b5b4c4d843b0b21de"
+}

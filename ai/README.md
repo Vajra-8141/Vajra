@@ -32,3 +32,16 @@ These came from running the code rather than from reasoning about it, and each o
 - The original stealth derivation let the sender spend what it paid. See `docs/STEALTH.md`.
 - A review of the account's own validation found that splitting approval across two frames skipped the fee cap. It was
   confirmed as exploitable on the previous deployment, fixed, and added to the live attack suite.
+
+## Recovery and the shielded pool
+
+Claude Code wrote the circuits, `VajraAccountV2`, the local mirror and their tests, from a brief the team set.
+
+The first version passed all 164 of its Foundry tests and both of its live runs, and it was wrong. A second AI agent, given the code and the threat surface but not
+the author's reasoning, read it adversarially and reported two critical bugs. Neither was taken on its word: each was reproduced on the local chain first.
+
+- **Anyone could kill a pending recovery or note** by copying it with less gas. The tests pinned the frame's shape and not its gas.
+- **A thief with the daily key could end the master key.** That one is in the deployed contract, and had passed everything since the first day. See `docs/FINDINGS.md` section 8.
+
+Testing also corrected the author's own reports. A first "clean" run came from a sidecar left over from an earlier boot, still answering on the port, and it was only caught
+because the mempool's transaction count did not add up.

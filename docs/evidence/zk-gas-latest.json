@@ -1,52 +1,52 @@
 {
- "ranAt": "2026-11-06T04:29:51.686Z",
+ "ranAt": "2026-11-06T04:43:45.319Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch",
  "chainId": 13370,
  "genesis": "0x74f05f1d3d0589fbf8e763a064aefe6d9941f6ab907cb52993142ede6c23cf3c",
  "method": "ethrex_simulateFrameTransaction, a fresh proof per sample",
  "recoveryVerify": {
-  "min": 294080,
-  "median": 294080,
-  "max": 294080,
+  "min": 298084,
+  "median": 298084,
+  "max": 298084,
   "samples": 24
  },
  "recoveryWholeTx": {
-  "min": 872849,
-  "median": 872897,
-  "max": 872909,
+  "min": 876853,
+  "median": 876901,
+  "max": 876913,
   "samples": 24
  },
  "unshieldVerify": {
-  "min": 302852,
-  "median": 329180,
-  "max": 353314,
-  "samples": 24
+  "min": 286226,
+  "median": 321330,
+  "max": 354240,
+  "samples": 32
  },
  "unshieldWholeTx": {
-  "min": 641818,
-  "median": 670498,
-  "max": 696754,
-  "samples": 24
+  "min": 623695,
+  "median": 661927,
+  "max": 697735,
+  "samples": 32
  },
- "shieldFirstNoteSenderFrame": 896245,
+ "shieldFirstNoteSenderFrame": 896305,
  "shieldLaterWholeTx": {
-  "min": 965762,
-  "median": 986868,
-  "max": 1007981,
+  "min": 965798,
+  "median": 986904,
+  "max": 1008017,
   "samples": 31
  },
  "proverMs": {
   "recovery": {
    "min": 77,
-   "median": 83,
-   "max": 318,
+   "median": 80,
+   "max": 316,
    "samples": 24
   },
   "unshield": {
-   "min": 324,
-   "median": 341,
-   "max": 368,
-   "samples": 24
+   "min": 320,
+   "median": 342,
+   "max": 375,
+   "samples": 32
   }
  }
 }

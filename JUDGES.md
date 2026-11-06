@@ -7,7 +7,7 @@ Needs Docker, Node 22.18 or newer, pnpm, make, and git.
     git clone https://github.com/Vajra-8141/Vajra.git && cd Vajra
     make judge
 
-It ends by printing `GREEN` and a demo account. MEASURED_CLEAN_CLONE
+It ends by printing `GREEN` and a demo account.
 
     alias vajra='VAJRA_STACK=local node packages/cli/src/main.ts'
 
@@ -39,11 +39,12 @@ Times are from one machine, on a warm mirror.
 | Rulebook, and every attack on it | `vajra e2e` | 2.5 min | 11 mined, 21 refused, 0 failures |
 | The blocked escape, on both mempools | `vajra pin` | 1 min | canonical refuses, alt mines |
 | Stealth payment and paymaster | `vajra stealth` | 1 min | 0 failures |
-| Recovery by proof, and every attack | `vajra recover` | 70 s | MEASURED_RECOVER |
+| Recovery by proof, and every attack | `vajra recover` | 70 s | 8 mined, 21 refused, 0 failures |
 | Recovery, step by step, on the demo account | `vajra recover-setup`, `recover-prove --secret <file>`, `recover --proof <file>` | 1 min | the new tree signs |
-| The shielded pool, and every attack | `vajra shielded` | 80 s | MEASURED_SHIELDED |
-| One note in, one note out | `vajra shield`, `vajra unshield 0xAddress` | 10 s each | the recipient holds 0.01 ETH |
+| The shielded pool, and every attack | `vajra shielded` | 80 s | 12 mined, 24 refused, 0 failures |
+| One note in, one note out | `vajra shield`, `vajra unshield 0xAddress` | 10 s each | the recipient holds 0.095 ETH: a 0.1 ETH note, less its fee |
 | The same proof on the sidecar as deployed and as patched | `make unpatched`, then `vajra compare` | 2 min | refused, refused, mined |
+| The flaw in the deployed contract, and its fix | `vajra nonce-burn`, then `vajra nonce-burn v2` | 2 min | 64 of 64 leaves burned and the escape refused, then 0 of 64 and admitted |
 | Gas table | `vajra measure`, `vajra measure-zk` | 2 min each | close to `docs/GAS.md` |
 | A staked VERIFY limit over 100,000 | `vajra budget` | 5 s | 400,000 admitted. The 900,000 line says "fee too low": same nonce, not the cap |
 | Hardware logic | `make -C firmware test emulator`, then the three lines below | 1 min | 143 checks, then 7 mined |

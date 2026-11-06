@@ -3,7 +3,7 @@
 Replaces the demo in spec 03 §7. Its opening beat, the public mempool rejecting a transaction on gas while the alt mempool
 admits it, does not happen on the live devnet: both refuse over 100,000 gas. See `FINDINGS.md`.
 
-Every beat below has run on the live devnet. If the hardware is on the table, run the bridge with `VAJRA_SIGNER=device` and
+Every beat below has run on the live devnet, except the two marked as local. If the hardware is on the table, run the bridge with `VAJRA_SIGNER=device` and
 press BOOT once each time the screen shows `BOOT = approve`. Otherwise the master key is a software signer, so say that.
 
 ## Before you go on stage
@@ -30,18 +30,34 @@ faucet has been dry. Failing that, the proof page and `docs/evidence/` are the f
 
 | Time | Beat | On screen |
 |---|---|---|
-| 0:00 | "Your seed phrase gets stolen. In every wallet in this room, that is the end. Here, the thief gets a day's limit, and when you press escape, they cannot stop you." | Dashboard |
-| 0:30 | A normal spend, signed by MetaMask. Nothing about daily life changes. | Sign and send |
-| 0:50 | Now the thief, with the same key, sends something large. It is not refused: it joins a public queue and starts counting down. "You don't need to notice the theft. The theft has to announce itself and wait." | Queue, countdown |
-| 1:20 | Veto it. Signed by a key made of hashes, verified inside the account. | Veto, then the VERIFY gas in the log |
-| 1:40 | "So the thief goes for the exit." Run the attacks: harbor, keys, limits, a second frame paying themselves. Each one dies in validation, by name. | `vajra e2e` output, or the proof page |
-| 2:10 | **The moment.** "Here is the attack that needs the alt mempool. The thief keeps a transaction pending, and the public mempool will not take your escape." | `vajra pin`, split screen |
-| 2:40 | The same signed bytes, offered to the alt mempool. Admitted, mined. "That is why this has to exist." Then press escape for real, and the funds land in the sealed harbor. | Escape, harbor balance |
-| 3:10 | The track author's request: a stealth payment received over ML-KEM, spent with a hash signature, gas paid by a paymaster, no ETH anywhere. | `vajra stealth` |
-| 3:40 | Say what this does not prove. Close. | README section |
+| 0:00 | "Your seed phrase gets stolen. In every wallet in this room, that is the end. Here, the thief gets a day's limit." | Dashboard |
+| 0:20 | A normal spend, signed by MetaMask. Nothing about daily life changes. | Sign and send |
+| 0:35 | Now the thief, with the same key, sends something large. It joins a public queue and starts counting down. "The theft has to announce itself and wait." | Queue, countdown |
+| 1:00 | Veto it. Signed by a key made of hashes, verified inside the account. | Veto, then the VERIFY gas in the log |
+| 1:15 | "So the thief goes for the exit." The attacks: harbor, keys, limits, a second frame paying themselves. Each dies in validation, by name. | `vajra e2e` output, or the proof page |
+| 1:40 | **The moment.** "The thief keeps a transaction pending, and the public mempool will not take your escape." | `vajra pin`, split screen |
+| 2:05 | The same signed bytes, offered to the alt mempool. Admitted, mined. "That is why this has to exist." Press escape for real, and the funds land in the sealed harbor. | Escape, harbor balance |
+| 2:30 | The track author's request: a stealth payment over ML-KEM, spent with a hash signature, gas paid by a paymaster, no ETH anywhere. | `vajra stealth` |
+| 2:55 | **The upstream finding, and recovery.** "Everything so far ran on your public devnet. Here is what your deployed sidecar does with a proof." Show it refused at the 100,000 cap. "Here is our patch, which restores your own spec, and you okayed a local sidecar for judging." The same bytes mine, at 298,000 gas. The master key is gone, and a proof queues a new tree behind the same veto. | `vajra compare`, then the recover log |
+| 3:20 | **The rulebook survives inside the shielded world.** A valid unshield, refused because the account is frozen. Escape: the pool lands in the harbor. "Groth16 is not post-quantum, and the anonymity set is tiny, and we will tell you exactly what it does not hide." | `vajra shielded`, steps 6 and 7 |
+| 3:45 | Say what this does not prove, starting with the flaw in the deployed contract. Close. | README section |
+
+Timings are tighter than before, to fit the two new beats in four minutes. Stealth and the attacks gave up the most.
+
+Run `make judge` and `make unpatched` before going on stage, and have logs of `vajra compare`, `vajra recover` and `vajra shielded` open. Those runs take a minute or more each, so
+do not run them live. Beats 2:55 and 3:20 are on the local mirror: chain 13370, 2-second blocks. Say so.
+
+**If the public devnet is down:** the mirror runs every beat. `make judge`, then run the same commands with `VAJRA_STACK=local`, and say that it is local.
 
 ## Say these first, before anyone asks
 
+- **"A thief with the daily key can disable the master key on the deployed contract."** They spend the master key's public nonce keys. We found it reviewing our own new code,
+  reproduced it locally, and fixed it in V2, but the deployed contract does not have the fix. `docs/FINDINGS.md` section 8. **Do not say "the thief cannot stop your escape"
+  without "while a transaction is pending", unless the contract has been redeployed with the fix.**
+- **"Groth16 is not post-quantum."** The recovery path is weaker against a quantum computer than the key it replaces. v2 is a STARK, and it is not built.
+- **"The pool hides which deposit paid, not that this account paid that recipient."** That is the price of a pool the rulebook can govern.
+- **"Recovery and the pool run locally."** The deployed sidecar refuses them, and the EF said a local sidecar is fine for judging.
+- **"The trusted setup has one contributor, us."**
 - **"We measured, and post-quantum signatures do not have to exceed the budget."** At w=16 the full verification costs about
   90,000 gas and fits under the 100,000 cap. The reason we need your mempool is the blocked exit, not the gas.
 - **"The deployed sidecar caps validation at 100,000 even for staked senders."** ERC-8421 says 1,000,000. We have a patch.
@@ -50,8 +66,7 @@ faucet has been dry. Failing that, the proof page and `docs/evidence/` are the f
 - **"The master key here is software."** Unless the hardware is on the table.
 - **"Plugged into a compromised computer, this board gives up its key."** Any program there can copy it over USB in half a
   second and press BOOT for it. The signer keeps the key off the machine the rest of the time. It is a prototype.
-- **"Balances are public, and sending shows your IP to the mempool."** Reads go over the mixnet. Hidden balances and STARK
-  recovery are designed. No proof exists.
+- **"Balances are public, and sending shows your IP to the mempool."** Reads go over the mixnet. STARK recovery is designed, and no STARK proof exists.
 
 ## Questions to expect
 
@@ -70,6 +85,12 @@ equal to yours, and only a second factor enforced in validation can outrank it.
 **What if someone restores a backup of the key?** That is the failure one-time keys cannot survive, and the chain cannot catch all of
 it: a signature that was revealed and never mined leaves no trace there. Every signature is published on Arkiv and checked before
 signing. `vajra arkiv` shows a restored copy moving past a key the chain still thinks is unused. See `arkiv/why-arkiv.md`.
+
+**Why Groth16 and not a STARK?** It was what could ship, and it is labelled. On-chain STARK verification is millions of gas, which is the v2 and the point of the alt mempool. Not built.
+
+**Who can spend a note?** Whoever holds it, with a proof and no key. Unless the account is frozen, or has escaped, in which case nobody can.
+
+**What stops someone copying a proof from the mempool?** A proof has no signature, so VERIFY pins everything one would commit to: the frames, the arguments, the gas, the nonce key and a fee cap.
 
 **What happens when the tree runs out?** The last leaf can only install a new tree, and rotation is tested live.
 

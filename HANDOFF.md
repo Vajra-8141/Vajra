@@ -1,6 +1,9 @@
 # VAJRA handoff notes
 
-State at commit `ba303e5`, Friday 6 November 2026, 04:10 IST.
+State at commit `ba303e5`, Friday 6 November 2026, 04:10 IST, with sections 3 and 7 updated later that day for recovery, the pool and the local mirror.
+
+> **Read `docs/FINDINGS.md` section 8 first.** A thief with only the daily key can disable the master key on the deployed contract. Reproduced on the local mirror. Not fixed on
+> chain 1337. Whether to redeploy is the owner's call.
 
 **Deadline: submit by 06:00 IST on Saturday 7 November.** That is the team's target from the spec. The event closes at 09:00 IST.
 
@@ -109,8 +112,8 @@ Serial access on Arch needs the `uucp` group and a fresh login. The owner's mach
 
     git submodule update --init
     pnpm install
-    pnpm test               # 129 passing: 105 core, 24 CLI
-    pnpm test:contracts     # 57 passing
+    pnpm test               # 162 passing: 121 core, 41 CLI
+    pnpm test:contracts     # 179 passing
     pnpm test:firmware      # 143 checks, 0 failures
     alias vajra='node packages/cli/src/main.ts'
     vajra status            # reads the devnet, needs .vajra/
@@ -136,10 +139,11 @@ Status follows the spec's rule: a module is BUILT only if it runs on the live de
 | Master key on hardware | BUILT | `docs/evidence/device-esp32-latest.json` and `device-dashboard-latest.json` |
 | Leaf registry on Arkiv | BUILT | `docs/evidence/arkiv-latest.json` |
 | Nominee | NOT STARTED | Stretch item |
-| STARK recovery | DESIGNED | Spec §9. **No code and no proof exist** |
-| Shielded notes | DESIGNED | Spec §10. **No code and no hidden balances exist** |
+| Recovery by proof, Groth16 v1 | BUILT, LOCAL | `docs/evidence/recovery-latest.json`. Local mirror only |
+| Shielded pool, fixed denomination v1 | BUILT, LOCAL | `docs/evidence/shielded-latest.json`. Local mirror only |
+| STARK recovery and shielded v2 | DESIGNED | Spec §9, §10. **No STARK proof exists** |
 
-The spec's ledger asks for "design + started" on the last two. The scaffolding was never started, so only the design can be claimed.
+See [`JUDGES.md`](JUDGES.md) for the mirror, and [`docs/ZK.md`](docs/ZK.md) for the design. New contracts go in `VajraAccountV2.sol`: `VajraAccount.sol` is what is deployed, and stays as it is.
 
 ### Live results
 
@@ -162,7 +166,7 @@ Say these plainly, and do not let them drift into "done":
   full 20 of 20 ran just before two small read changes.
 - **The last browser test with the Arkiv panel was cut off** by a time limit after all 11 of its checks through Unfreeze passed. The
   page checks after that (proof page, scanner, phone width) passed in earlier runs and do not touch Arkiv.
-- **The upstream sidecar patch has never been compiled or run in the sidecar.** Only its 14 logic tests have run.
+- **The upstream sidecar patch has now been compiled and run.** Its full test suite and e2e suite have not. See `docs/upstream/README.md`.
 
 ---
 
@@ -334,7 +338,7 @@ on Arkiv (from scratch)"). The third pick stays empty on purpose. Confirm the ru
 
 - **Take `docs/FINDINGS.md` and the patch to the track authors.** The spec names Pierre and Alex. It is third-party verification from the
   people who wrote the protocol. Be clear that the patch has only had its logic tests run.
-- **Compile the patch in the sidecar.** Nobody has. The AI tooling was not permitted to build that external code, so this needs a person.
+- **Compile the patch in the sidecar.** Done, on the owner's instruction, with the mirror.
 - **Run `vajra arkiv` to the end on the final code,** so the evidence matches exactly. 5 minutes, about 0.05 tGLM and 0.004 ETH.
 - **Run the browser test once more at the end.** 8 minutes.
 
@@ -380,7 +384,10 @@ boundary is stated before anyone asks. The two spec files were written before th
 | "Cut the cable and the key is unreachable" | Fine as a statement about the network, not about a computer it is plugged into |
 | "This is production post-quantum cryptography" | Unreviewed parameters. Plain keccak chains give multi-target attacks about a 19-bit discount. Production means LMS, XMSS or SPHINCS+ |
 | "The sender cannot spend, ever" | A sender who also owns a quantum computer can. See `docs/STEALTH.md` |
-| "Hidden balances" or "STARK recovery" | Designed only. No proof exists |
+| "The thief cannot stop your escape" | A pending transaction cannot. On the deployed contract a thief with the daily key can disable the master key: `docs/FINDINGS.md` section 8 |
+| "Hidden balances" | A local pool that hides which deposit paid a withdrawal. The chain still shows the account paid the recipient |
+| "STARK recovery" | Groth16 recovery, locally. Not post-quantum. STARK is designed, and no STARK proof exists |
+| "Runs on the devnet", of recovery or the pool | Runs on a local mirror. The deployed sidecar refuses them |
 | "All reads are private" | Dashboard chain reads are. Arkiv reads are not on Nym, the bridge connects directly, and sending shows your IP to the mempool |
 | "Tested with MetaMask" | Scripted wallet, until task 6 passes |
 
