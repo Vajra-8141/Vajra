@@ -227,7 +227,7 @@ process.
 Protocol at 115200: `INFO`, `PAIR`, `SIGN`, `PART`, `NEXTROOT`, `ROTATED`, `SHOW`, `WIPE`, `DIAG`. `SIGN` answers `OK SIGNED <leaf> <size>
 <hash>`, and `PART <offset>` returns 128 bytes at a time. Repeating `SIGN` for the same digest costs no press and reveals nothing new.
 
-**The board is flashed with the current logic.** The only firmware change since is a comment.
+**The board is NOT flashed with the current logic.** The firmware now also signs "Pay, it's me", which shows `PAY 0.5 ETH` and the recipient. Until you reflash, the board refuses that transaction as `BadShape`. Tested on the emulator, not the board.
 
 ### Arkiv leaf registry (`packages/core/src/registry.ts`, `packages/cli/src/registry.ts`, `arkiv/`)
 
@@ -468,7 +468,8 @@ Flash the board, from `firmware/`: `pio run -e esp32 -t upload --upload-port /de
 | `VAJRA_DEVICE=emulator:<file>` | Use the emulator. Build it with `make -C firmware emulator` |
 | `VAJRA_DEVICE=/dev/ttyUSB1` | Use a specific port |
 | `VAJRA_CONFIRM=no` | Emulator declines every prompt |
-| `ARKIV`, `DEV_WALLET_PRIVATE_KEY` | In `.env`. The registry is off without them |
+| `ARKIV`, `DEV_WALLET_PRIVATE_KEY` | In `.env`. The registry is off without them, and always off on the mirror |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | In `.env`. For `vajra watch`. Run it once with only the token, send `/start`, and it prints your chat id |
 | `ARKIV_WRITERS` | Other wallets whose reservations to respect, comma separated |
 | `ROUTE`, `SHOTS`, `GATE` | For `apps/dashboard/test/flows.mjs` |
 

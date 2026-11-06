@@ -109,6 +109,8 @@ await page.waitForTimeout(500);
 await idle();
 check((await banner("ok")).includes("queued"), `an oversized spend was queued: ${(await banner("ok")).slice(0, 70)}${await banner("error")}`);
 await waitFor(async () => (await page.getByRole("button", { name: "Veto" }).count()) > 0, "the queue to update", 30_000);
+await waitFor(async () => (await page.locator(".alarm").count()) > 0, "the alarm", 15_000);
+check((await page.locator(".alarm").textContent()).includes("Was this you?"), "the alarm went off for the queued spend");
 await shot("3-queued");
 
 await approve("veto", () => page.getByRole("button", { name: "Veto" }).first(), async () => (await banner("ok")).includes("Veto"));

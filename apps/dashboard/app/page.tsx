@@ -59,6 +59,83 @@ function countdown(seconds: number) {
   return h ? `${h}h ${m}m` : m ? `${m}m ${seconds % 60}s` : `${seconds}s`;
 }
 
+/** Three short tones. A browser only plays sound after a click on the page, and connecting the wallet is that click. */
+function beep() {
+  try {
+    const audio = new AudioContext();
+    for (let i = 0; i < 3; i++) {
+      const tone = audio.createOscillator();
+      const gain = audio.createGain();
+      tone.frequency.value = 880;
+      gain.gain.value = 0.2;
+      tone.connect(gain).connect(audio.destination);
+      tone.start(audio.currentTime + i * 0.3);
+      tone.stop(audio.currentTime + i * 0.3 + 0.18);
+    }
+  } catch {
+    // No sound is not a failure: the red banner still shows.
+  }
+}
+
+/** Fires on what the chain says is queued, and nothing else. The queue is public, so a theft has to show up here. */
+function Alarm({ items, now, busy, onVeto, onPay }: { items: AccountView["items"]; now: number; busy: boolean; onVeto: (id: bigint) => void; onPay: (id: bigint) => void }) {
+  const heard = useRef(new Set<bigint>());
+  const [dismissed, setDismissed] = useState<Set<bigint>>(new Set());
+  useEffect(() => {
+    if (items.some((item) => !heard.current.has(item.id))) beep();
+    for (const item of items) heard.current.add(item.id);
+  }, [items]);
+  const live = items.filter((item) => !dismissed.has(item.id));
+  if (live.length === 0) return null;
+  return (
+    <div className="alarm" role="alert">
+      {live.map((item) => {
+        const left = Number(item.executeAfter) - now;
+        return (
+          <div key={item.id.toString()}>
+            <strong>
+              {eth(item.amount)} to <span className="mono">{short(item.recipient)}</span>
+            </strong>
+            <div>{left > 0 ? `Leaves in ${countdown(left)} unless you stop it. Was this you?` : "Matured. Anyone can execute it now."}</div>
+            <div className="actions">
+              <button className="danger" disabled={busy} onClick={() => onVeto(item.id)}>
+                Not me, cancel
+              </button>
+              <button disabled={busy} onClick={() => onPay(item.id)}>
+                Pay, it's me
+              </button>
+              <button disabled={busy} onClick={() => setDismissed((d) => new Set(d).add(item.id))}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** What actually signed. The same account, two kinds of signature, and the hash one outranks the other. */
+function SignedBy({ daily, master }: { daily: { gas: number; hash: string } | null; master: { gas: number; hash: string } | null }) {
+  return (
+    <section className="card" aria-labelledby="signed">
+      <h2 id="signed">Who signed</h2>
+      <div className="signed">
+        <div>
+          <span className="tag warn">Daily key</span>
+          <div>secp256k1, 65 bytes. A quantum computer can break this.</div>
+          <div className="sub">{daily ? `${daily.gas.toLocaleString()} gas to verify, ${short(daily.hash)}` : "Nothing signed yet"}</div>
+        </div>
+        <div>
+          <span className="tag good">Master key</span>
+          <div>Winternitz hash key, 2,144 bytes. No curve to break.</div>
+          <div className="sub">{master ? `${master.gas.toLocaleString()} gas to verify, ${short(master.hash)}` : "Nothing signed yet"}</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function CreateAccount({ daily, onCreated }: { daily: Address | null; onCreated: () => void }) {
   const [form, setForm] = useState({ harbor: "", dailyLimit: "0.001", coolingAllowance: "0.0002", queueDelay: "120", coolingPeriod: "60", fund: "0.015" });
   const [busy, setBusy] = useState(false);
@@ -132,6 +209,8 @@ export default function AccountPage() {
   const [armed, setArmed] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [operations, setOperations] = useState(0);
+  const [lastDaily, setLastDaily] = useState<{ gas: number; hash: string } | null>(null);
+  const [lastMaster, setLastMaster] = useState<{ gas: number; hash: string } | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
   const say = useCallback((line: string) => setLog((l) => [...l.slice(-40), line]), []);
@@ -201,6 +280,7 @@ export default function AccountPage() {
       say(bridge !== "down" && bridge?.signer === "esp32" ? `${label}: check the signer's screen and press BOOT` : `master: ${label}`);
       const r = await master(request);
       say(`mined ${short(r.hash)} in block ${r.block}, VERIFY ${r.verifyGas.toLocaleString()} gas, leaf ${r.leaf}`);
+      setLastMaster({ gas: r.verifyGas, hash: r.hash });
       setNotice(`${label} is on chain.`);
       // In this order. Read first, and the page sees the key it just used as spent by someone else, and raises a false alarm.
       await refreshBridge();
@@ -217,6 +297,7 @@ export default function AccountPage() {
       if (!framesSucceeded(receipt)) throw new Error(`${hash} was mined but the spend failed`);
       const [queued] = queuedEvents(receipt.frameReceipts[1]!.logs as { topics: `0x${string}`[]; data: `0x${string}` }[]);
       say(`mined ${short(hash)} in block ${Number(receipt.blockNumber)}`);
+      setLastDaily({ gas: Number(BigInt(receipt.frameReceipts[0]!.gasUsed)), hash });
       setNotice(
         queued
           ? `Over the rules, so it was queued as item ${queued.id}. It runs after the delay unless the master key vetoes it.`
@@ -276,6 +357,13 @@ export default function AccountPage() {
       {known?.frozen && <div className="banner frozen">Frozen. Every daily-key transaction is refused until the master key unfreezes the account.</div>}
       {problem && <div className="banner error">{problem}</div>}
       {notice && <div className="banner ok">{notice}</div>}
+      <Alarm
+        items={pending}
+        now={now}
+        busy={!!busy}
+        onVeto={(id) => asMaster(`Veto of item ${id}`, { op: "veto", id: id.toString() })}
+        onPay={(id) => asMaster(`Payment of item ${id}`, { op: "pay", id: id.toString() })}
+      />
 
       <div className="grid">
         <div className="stack">
@@ -319,6 +407,8 @@ export default function AccountPage() {
               </p>
             )}
           </section>
+
+          <SignedBy daily={lastDaily} master={lastMaster} />
 
           <section className="card" aria-labelledby="queue">
             <h2 id="queue">Public queue</h2>

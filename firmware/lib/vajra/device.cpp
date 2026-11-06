@@ -20,6 +20,8 @@ constexpr size_t PART_BYTES = 128;
 constexpr uint64_t FRAME_VERIFY = 1;
 constexpr uint64_t FRAME_SENDER = 2;
 constexpr uint64_t SCOPE_EXECUTION_AND_PAYMENT = 3;
+/** EIP-8141: this frame and the next stand or fall together. */
+constexpr uint64_t FLAG_ATOMIC_BATCH = 4;
 constexpr uint64_t SCHEME_ARBITRARY = 0;
 
 /** A compromised host could otherwise set a fee that drains the account through gas: 0.02 ETH, in gwei. */
@@ -182,6 +184,40 @@ bool isSelfCall(const FrameView& frame, const Bytes& sender) {
   return frame.target.length == 20 && memcmp(frame.target.data, sender.data, 20) == 0;
 }
 
+/** The first half of a release: the veto, tied to the payment, so that a failed veto cannot pay twice. */
+bool isAtomicSelfCall(const FrameView& frame, const Bytes& sender) {
+  if (frame.mode != FRAME_SENDER || frame.flags != FLAG_ATOMIC_BATCH || frame.value.length != 0) return false;
+  if (frame.target.length == 0) return true;
+  return frame.target.length == 20 && memcmp(frame.target.data, sender.data, 20) == 0;
+}
+
+/** The second half: plain ETH to someone else. A call with data would do something the screen cannot describe. */
+bool isPlainPayment(const FrameView& frame, const Bytes& sender) {
+  if (frame.mode != FRAME_SENDER || frame.flags != 0 || frame.data.length != 0) return false;
+  if (frame.value.length == 0 || frame.target.length != 20) return false;
+  return memcmp(frame.target.data, sender.data, 20) != 0;
+}
+
+/**
+ * Wei as ETH, exactly, in at most five decimals, so that "PAY x ETH" fits the screen. An amount it cannot show exactly is refused
+ * rather than rounded: a rounded number on this screen would be the device lying about what it signs.
+ */
+bool ethText(const Bytes& value, std::string& out) {
+  if (value.length == 0 || value.length > 8) return false;
+  uint64_t wei = 0;
+  for (size_t i = 0; i < value.length; ++i) wei = (wei << 8) | value.data[i];
+  const uint64_t unit = 1000000000000000000ULL;
+  const uint64_t step = 10000000000000ULL;
+  if (wei % step != 0) return false;
+  char text[32];
+  uint64_t fraction = (wei % unit) / step;
+  snprintf(text, sizeof(text), "%llu.%05llu", static_cast<unsigned long long>(wei / unit), static_cast<unsigned long long>(fraction));
+  out = text;
+  while (out.back() == '0') out.pop_back();
+  if (out.back() == '.') out.pop_back();
+  return true;
+}
+
 bool feeWithinCap(const TxView& tx) {
   uint64_t gas = OVERHEAD_GAS;
   for (int i = 0; i < tx.frameCount; ++i) {
@@ -298,13 +334,25 @@ std::string Device::sign(const std::string& hex) {
 
   if (tx.chainId != state_.chainId) return refuse("WrongChain");
   if (memcmp(tx.sender.data, state_.account, 20) != 0) return refuse("WrongAccount");
-  if (tx.signatureScheme != SCHEME_ARBITRARY || tx.frameCount != 2) return refuse("BadShape");
-  if (!isMasterVerify(tx.frames[0]) || !isSelfCall(tx.frames[1], tx.sender)) return refuse("BadShape");
+  // Two frames is one operation. Three is a release, and only ever a release: a veto tied to a plain payment.
+  const bool release = tx.frameCount == 3;
+  if (tx.signatureScheme != SCHEME_ARBITRARY || (tx.frameCount != 2 && !release)) return refuse("BadShape");
+  if (!isMasterVerify(tx.frames[0])) return refuse("BadShape");
+  if (release ? !(isAtomicSelfCall(tx.frames[1], tx.sender) && isPlainPayment(tx.frames[2], tx.sender)) : !isSelfCall(tx.frames[1], tx.sender)) {
+    return refuse("BadShape");
+  }
   if (tx.nonceSeq != 0) return refuse("LeafAlreadySpent");
   if (!feeWithinCap(tx)) return refuse("FeeTooHigh");
 
   Operation op;
   if (!decodeOperation(tx.frames[1].data, op)) return refuse("UnknownOperation");
+  if (release) {
+    if (op.title != "VETO") return refuse("UnknownOperation");
+    std::string amount;
+    if (!ethText(tx.frames[2].value, amount)) return refuse("AmountNotShowable");
+    op.title = "PAY " + amount + " ETH";
+    op.detail = "to " + shortHex(tx.frames[2].target.data, 20);
+  }
 
   int leaf = -1;
   for (int candidate = 0; candidate < TREE_LEAVES && leaf < 0; ++candidate) {

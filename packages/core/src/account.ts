@@ -185,6 +185,22 @@ export async function readAccount(address: Address): Promise<AccountView> {
 // address needs that much headroom left at the moment of the CALL.
 const encode = (functionName: string, args: unknown[]) => encodeFunctionData({ abi: accountAbi, functionName, args });
 
+/**
+ * Releases a queued payment now, which only the master key can do: one transaction that cancels the item and sends the same
+ * payment directly. The two frames are an atomic batch, and that matters. If the item matured and someone executed it first,
+ * the veto fails, and without the batch the second frame would still run and pay twice.
+ */
+export function releaseCalls(item: { id: bigint; recipient: Address; asset: Address; amount: bigint }): Call[] {
+  const veto: Call = { ...ops.veto(item.id), atomic: true };
+  if (item.asset === ETH) return [veto, { target: item.recipient, value: item.amount, data: "0x", execution: 400_000n, state: 300_000n }];
+  const data = encodeFunctionData({
+    abi: [{ type: "function", name: "transfer", stateMutability: "nonpayable", inputs: [{ type: "address" }, { type: "uint256" }], outputs: [{ type: "bool" }] }],
+    functionName: "transfer",
+    args: [item.recipient, item.amount],
+  });
+  return [veto, { target: item.asset, data, execution: 400_000n, state: 300_000n }];
+}
+
 export const ops = {
   spend: (asset: Address, recipient: Address, amount: bigint): Call => ({
     data: encode("spend", [asset, recipient, amount]),

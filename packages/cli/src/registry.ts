@@ -3,6 +3,7 @@
  * `DEV_WALLET_PRIVATE_KEY` pays for the writes. Without them there is no registry, and everything still works on the signer's
  * counter and the chain's nonce. `ARKIV_WRITERS` lists the other wallets, comma separated, whose reservations this one respects.
  */
+import { isLocalStack } from "@vajra/core";
 import { type Address, type Hex } from "viem";
 import { TreeExhausted } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
@@ -36,6 +37,8 @@ export const useRegistry = (registry: LeafRegistryWriter | null) => {
 };
 
 export function theRegistry(): LeafRegistryWriter | null {
+  // The mirror's keys are throwaway, and a public registry is no place for them.
+  if (isLocalStack) return null;
   if (shared !== undefined) return shared;
   const { ARKIV: accessKey, DEV_WALLET_PRIVATE_KEY: raw, ARKIV_WRITERS: others } = process.env;
   if (!accessKey || !raw) return (shared = null);

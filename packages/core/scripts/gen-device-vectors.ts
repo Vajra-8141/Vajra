@@ -2,7 +2,7 @@
 import { writeFileSync } from "node:fs";
 import { type Address, type Hex, bytesToHex, encodeFunctionData, keccak256, numberToHex, toBytes } from "viem";
 import { accountAbi, encodeTx, leafNonceKey, masterDigest, masterTx, sigHash, type Call, type FrameTx } from "../src/frame.ts";
-import { ops } from "../src/account.ts";
+import { ETH, ops, releaseCalls } from "../src/account.ts";
 import { KeyTree, WOTS_W16, encodeMasterSignature, keccak, wotsSign } from "../src/wots.ts";
 
 const text = (s: string) => new TextEncoder().encode(s);
@@ -27,6 +27,11 @@ function signed(tx: FrameTx, leaf: number) {
   const blob = encodeMasterSignature(leaf, wotsSign(WOTS_W16, seedOf(0), leaf, toBytes(digest)), tree.path(leaf));
   return { digest, blob: bytesToHex(blob).slice(2) };
 }
+
+const halfEth = 500_000_000_000_000_000n;
+const payment = { id: 7n, recipient: other, asset: ETH, amount: halfEth };
+const release = (leaf: number, calls: Call[]) => masterTx({ account, root, leaf, calls });
+const [vetoHalf, payHalf] = releaseCalls(payment) as [Call, Call];
 
 const freeze = at(0, ops.freeze());
 const first = signed(freeze, 0);
@@ -69,6 +74,17 @@ const values: Record<string, string> = {
     frames: [{ ...freeze.frames[0]!, data: encodeFunctionData({ abi: accountAbi, functionName: "validateDaily", args: [3] }) }, freeze.frames[1]!],
   }),
   TX_THREE_FRAMES: raw({ ...freeze, frames: [freeze.frames[0]!, freeze.frames[1]!, freeze.frames[1]!] }),
+  TX_FOUR_FRAMES: raw({ ...freeze, frames: [freeze.frames[0]!, freeze.frames[1]!, freeze.frames[1]!, freeze.frames[1]!] }),
+  TX_PAY_LEAF1: raw(release(1, [vetoHalf, payHalf])),
+  TX_PAY_NOT_ATOMIC: raw(release(0, [{ ...vetoHalf, atomic: false }, payHalf])),
+  TX_PAY_ATOMIC_LAST: raw(release(0, [vetoHalf, { ...payHalf, atomic: true }])),
+  TX_PAY_WITH_DATA: raw(release(0, [vetoHalf, { ...payHalf, data: "0xdeadbeef" }])),
+  TX_PAY_NO_VALUE: raw(release(0, [vetoHalf, { ...payHalf, value: 0n }])),
+  TX_PAY_TO_SELF: raw(release(0, [vetoHalf, { ...payHalf, target: account }])),
+  TX_PAY_TOKEN: raw(release(0, releaseCalls({ ...payment, asset: other }))),
+  TX_PAY_NOT_VETO: raw(release(0, [{ ...ops.freeze(), atomic: true }, payHalf])),
+  TX_PAY_INEXACT: raw(release(0, [vetoHalf, { ...payHalf, value: 123_456_789n }])),
+  TX_PAY_TOO_LARGE: raw(release(0, [vetoHalf, { ...payHalf, value: 100n * 10n ** 18n }])),
   TX_SIGNED_ENTRY: raw({ ...freeze, signatures: [{ ...freeze.signatures[0]!, signature: "0x01" as Hex }] }),
 };
 

@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { type Address, type Hex, formatEther, parseEther } from "viem";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { LeafRegistry } from "@vajra/core/registry";
 import { ETH, RpcError, accountAbi, accountState, isLocalStack, ops, publicClient, refusalName, signDaily, submit } from "@vajra/core";
 import { startBridge } from "./bridge.ts";
@@ -111,6 +112,9 @@ switch (command) {
   case "veto":
     report(await runMasterOp({ op: "veto", id: rest[0]! }, console.log));
     break;
+  case "pay":
+    report(await runMasterOp({ op: "pay", id: rest[0]! }, console.log));
+    break;
   case "freeze":
   case "unfreeze":
   case "escape":
@@ -158,11 +162,28 @@ switch (command) {
   case "budget":
     await import(`./${command}.ts`);
     break;
+  case "watch":
+    await (await import("./watch.ts")).watch({ allowSoftwarePay: args.includes("--allow-software-pay") });
+    break;
+  case "thief": {
+    // The demo's thief: the same daily key, sending far more than the limit to an address nobody has seen.
+    const { account } = requireWallet();
+    const to = privateKeyToAccount(generatePrivateKey()).address;
+    const tx = await signDaily({ key: localDailyKey(), dailyKey: localDailyAddress(), account, calls: [ops.spend(ETH, to, parseEther(rest[0] ?? "0.5"))] });
+    console.log(`the thief sends ${rest[0] ?? "0.5"} ETH to ${to}\nmined ${(await submit(tx, { log: console.log })).hash}`);
+    break;
+  }
   case "judge":
     await import("./judge.ts");
     break;
   case "nonce-burn":
     await import("./nonce-burn.ts");
+    break;
+  case "pay-e2e":
+    await import("./pay-e2e.ts");
+    break;
+  case "watch-e2e":
+    await import("./watch-e2e.ts");
     break;
   case "stealth-theft":
     await import("./stealth-theft.ts");
@@ -204,7 +225,9 @@ switch (command) {
 account:  create --harbor <address> [--daily <address>] [--limit eth] [--allowance eth] [--delay s] [--cooling s] [--fund eth]
           status
 daily:    spend <to> <eth>
-master:   veto <id> | freeze | unfreeze | escape | rotate | set-daily <address>
+alerts:   watch [--allow-software-pay]  (asks you on Telegram about anything queued; needs TELEGRAM_BOT_TOKEN in .env)
+demo:     thief [eth]                    (the same daily key, sending over the limit to a fresh address)
+master:   pay <id> | veto <id> | freeze | unfreeze | escape | rotate | set-daily <address>
 service:  bridge
 signer:   device | device wipe          (VAJRA_SIGNER=device keeps the master key on the hardware)
 registry: leaves [root]                 (what Arkiv knows about a key tree; needs no keys)

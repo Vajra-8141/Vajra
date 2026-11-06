@@ -1,6 +1,6 @@
 import { encodeErrorResult, keccak256, toBytes, concat, numberToHex } from "viem";
 import { describe, expect, it } from "vitest";
-import { type FlatProof, PROOF_FRAME_GAS, accountV2Abi, encodeTx, opsV2, recoveryNonceKey, recoveryTx, refusalNameV2, txHash, unshieldNonceKey, unshieldTx } from "../src/index.ts";
+import { ATOMIC_BATCH_FLAG, ETH, type FlatProof, PROOF_FRAME_GAS, accountV2Abi, masterTx, releaseCalls, encodeTx, opsV2, recoveryNonceKey, recoveryTx, refusalNameV2, txHash, unshieldNonceKey, unshieldTx } from "../src/index.ts";
 
 const account = "0x1111111111111111111111111111111111111111" as const;
 const recipient = "0x2222222222222222222222222222222222222222" as const;
@@ -81,5 +81,35 @@ describe("refusal names", () => {
   it("gives back a node's own message rather than inventing a name", () => {
     expect(refusalNameV2("prefix gas budget exceeded")).toBe("prefix gas budget exceeded");
     expect(refusalNameV2("reverted with data 0xdeadbeef")).toBe("reverted with data 0xdeadbeef");
+  });
+});
+
+describe("releasing a queued payment", () => {
+  const item = { id: 3n, recipient, asset: ETH, amount: 10n };
+
+  it("ties the veto to the payment, so a failed veto cannot pay twice", () => {
+    const [veto, pay] = releaseCalls(item);
+    expect(veto!.atomic).toBe(true);
+    expect(pay!.atomic).toBeUndefined();
+  });
+
+  it("sends the flag on the wire, and leaves it off the last frame, where it would be invalid", () => {
+    const tx = masterTx({ account, root, leaf: 0, calls: releaseCalls(item) });
+    expect(tx.frames[1]!.flags).toBe(ATOMIC_BATCH_FLAG);
+    expect(tx.frames[2]!.flags).toBe(0);
+  });
+
+  it("sends exactly what was queued, to who it was queued for", () => {
+    const [, pay] = releaseCalls(item);
+    expect(pay!.target).toBe(recipient);
+    expect(pay!.value).toBe(10n);
+  });
+
+  it("pays a token through the token, with no value", () => {
+    const token = "0x3333333333333333333333333333333333333333" as const;
+    const [, pay] = releaseCalls({ ...item, asset: token });
+    expect(pay!.target).toBe(token);
+    expect(pay!.value).toBeUndefined();
+    expect(pay!.data.startsWith("0xa9059cbb")).toBe(true);
   });
 });

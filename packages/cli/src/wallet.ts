@@ -15,6 +15,10 @@ import {
   ETH,
   MasterSigner,
   ROTATION_LEAF,
+  accountAbi,
+  accountV2Abi,
+  publicClient,
+  releaseCalls,
   WOTS_W16,
   accountState,
   assertRootMatches,
@@ -133,6 +137,7 @@ export async function createWallet(o: CreateOptions): Promise<Wallet> {
 
 export type MasterOp =
   | { op: "veto"; id: string }
+  | { op: "pay"; id: string }
   | { op: "freeze" }
   | { op: "unfreeze" }
   | { op: "escape" }
@@ -149,8 +154,27 @@ export interface MasterResult {
   leavesLeft: number;
 }
 
+/** Refuses unless the item is a spend still waiting: a release must never run against a stale view of the queue. */
+async function callsFor(request: MasterOp, wallet: Wallet): Promise<Call[]> {
+  if (request.op !== "pay") return [callFor(request, wallet)];
+  const id = BigInt(request.id);
+  const item = (await publicClient.readContract({ address: wallet.account, abi: accountAbi, functionName: "queuedItem", args: [id] })) as {
+    recipient: Address;
+    asset: Address;
+    amount: bigint;
+    state: number;
+  };
+  if (item.state !== 1) throw new Error(`item ${id} is not waiting`);
+  if (deployments().v2 && (await publicClient.readContract({ address: wallet.account, abi: accountV2Abi as never, functionName: "isRecovery", args: [id] } as never))) {
+    throw new Error(`item ${id} is a recovery, not a payment`);
+  }
+  return releaseCalls({ id, recipient: item.recipient, asset: item.asset, amount: item.amount });
+}
+
 function callFor(request: MasterOp, wallet: Wallet): Call {
   switch (request.op) {
+    case "pay":
+      throw new Error("a release is two calls: use callsFor");
     case "veto":
       return ops.veto(BigInt(request.id));
     case "freeze":
@@ -185,7 +209,7 @@ async function runOnDevice(request: MasterOp, log: (line: string) => void): Prom
     params: WOTS_W16,
     account: wallet.account,
     epochSalt: state.epochSalt,
-    calls: [rotating ? ops.rotateRoot(next!) : callFor(request, wallet)],
+    calls: rotating ? [ops.rotateRoot(next!)] : await callsFor(request, wallet),
     maxHashes: MAX_HASHES,
   });
   log(`confirm on the signer: ${request.op}`);
@@ -217,11 +241,11 @@ export async function runMasterOp(request: MasterOp, log: (line: string) => void
 
   const rotating = request.op === "rotate";
   const next = rotating ? new MasterSigner(WOTS_W16, fileStore(nextSignerPath), newSeed) : null;
-  const call = rotating ? ops.rotateRoot(next!.root) : callFor(request, wallet);
+  const calls = rotating ? [ops.rotateRoot(next!.root)] : await callsFor(request, wallet);
   // The reserved leaf is for when the ordinary ones are gone; a rotation before that uses an ordinary one.
   const rotation = rotating && signer.leavesLeft === 0;
   const leaf = await claimLeaf({ root: signer.root, leaf: signer.nextLeaf(rotation), account: wallet.account, op: request.op, canSkip: !rotation, log });
-  const signed = signMasterTx({ signer, account: wallet.account, epochSalt, calls: [call], rotation, leaf, maxHashes: MAX_HASHES });
+  const signed = signMasterTx({ signer, account: wallet.account, epochSalt, calls, rotation, leaf, maxHashes: MAX_HASHES });
   const use = { root: signer.root, leaf, account: wallet.account, digest: signed.digest, signature: signer.sign(leaf, signed.digest), op: request.op };
   const { hash, receipt } = await submit(signed.tx, { log }).catch(async (error: Error) => {
     await publishUse(use, log);

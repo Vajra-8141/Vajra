@@ -67,6 +67,7 @@ evidence, on the local mirror and nowhere else.
 | Dashboard, exposure scanner | BUILT | every flow driven in a real browser over the Nym mixnet, with a scripted wallet |
 | Master key on hardware | BUILT | a real ESP32 signed through the CLI (7 mined) and the dashboard (3 mined), with a person pressing BOOT. **Not safe from a computer it is plugged into**: see [`docs/HARDWARE.md`](docs/HARDWARE.md) |
 | Leaf registry on Arkiv | BUILT | `vajra arkiv`, on the live Arkiv testnet and devnet. The dashboard reads it and verifies each signature in the browser |
+| Phone alert, "Not me" and "Pay, it's me" | IN BUILD | `vajra watch`. Runs end to end on the mirror against a local stand-in for Telegram's servers. **Not yet tried with a real bot or phone** |
 | Nominee | NOT STARTED | |
 | Recovery by proof, Groth16 v1 | BUILT, LOCAL | `vajra recover`: 8 mined, 21 refused, 0 failures. **Not post-quantum**: see below |
 | Shielded pool, fixed denomination v1 | BUILT, LOCAL | `vajra shielded`: 12 mined, 24 refused, 0 failures. **Does not hide that the account paid the recipient**: see below |
@@ -109,6 +110,18 @@ Say these before anyone asks. [`docs/ZK.md`](docs/ZK.md) has the rest.
 - **Lost master key plus stolen paper means the thief wins.** The veto needs a master key.
 - **Nothing here is audited.** Two independent reviews found three critical bugs, each reproduced on a real client and fixed in the source.
   Two of them are the flaws at the top of this page.
+
+## A phone alert for anything queued
+
+A theft has to wait in the public queue, so an account can warn you. `vajra watch` asks you on Telegram: **"0.5 ETH to 0x72A9…2C49. Was this you?"**
+
+- **Not me** cancels it, signed by the hash key.
+- **Pay, it's me** sends it now, signed by the hash key. It is one transaction that cancels the item and sends the same payment, as an atomic batch, so if the item was executed first, nothing pays twice.
+
+The phone can ask, and only the master key can act. With the hardware signer, a tap still needs a press on the device. On a software signer a tap would be enough to move money, so Pay is off unless you turn it on. The laptop only makes outbound
+connections, so the bridge stays on loopback. Telegram sees what the alerts say, so this is off unless you set it up. The dashboard raises the same alarm, in the browser, from the same queue.
+
+**Limits:** a spend under the daily limit leaves at once, so the alert cannot stop it. An attack refused in validation never reaches the queue. The watcher has to be running.
 
 ## Leaf registry on Arkiv
 

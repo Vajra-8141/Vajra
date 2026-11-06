@@ -26,7 +26,7 @@ struct FrameView {
   Bytes data;
 };
 
-constexpr int MAX_FRAMES = 2;
+constexpr int MAX_FRAMES = 3;
 
 struct TxView {
   uint64_t chainId;
@@ -42,7 +42,7 @@ struct TxView {
 
 /**
  * Parses `0x06 ‖ rlp(payload)`. Fails on anything but the one shape the master key signs: one nonce key, one empty signature
- * entry, at most two frames, no blobs, no recent roots.
+ * entry, at most three frames, no blobs, no recent roots.
  */
 bool parseTx(const uint8_t* raw, size_t length, TxView& tx);
 

@@ -45,6 +45,8 @@ export interface Call {
   value?: bigint;
   execution: bigint;
   state: bigint;
+  /** Ties this frame to the next one: if either fails, both undo. EIP-8141's atomic batch. */
+  atomic?: boolean;
 }
 
 export interface Fees {
@@ -53,6 +55,9 @@ export interface Fees {
 }
 
 export const DEFAULT_FEES: Fees = { maxFeePerGas: 2_000_000_000n, maxPriorityFeePerGas: 1_000_000_000n };
+
+/** A frame flag: this frame and the next stand or fall together. */
+export const ATOMIC_BATCH_FLAG = 4;
 
 const SPONSOR_SELECTOR = keccak256(toBytes("sponsor()")).slice(0, 10) as Hex;
 
@@ -63,6 +68,7 @@ const senderFrame = (call: Call) =>
     state: call.state,
     value: call.value ?? 0n,
     data: call.data,
+    flags: call.atomic ? ATOMIC_BATCH_FLAG : 0,
   });
 
 const verifyFrame = (fn: "validateDaily" | "validateMaster", scope: number, execution: bigint) =>

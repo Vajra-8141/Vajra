@@ -121,6 +121,10 @@ Everything here ran locally, on 2026-11-06: ethrex `9aa3645`, by its published i
 - **The node's mempool cap is a separate check from the sidecar's.** ethrex refuses a prefix over 100,000 at `eth_sendRawTransaction`, whatever the
   sidecar's budget, and a sidecar patch does not change that. The patched sidecar's own submission path goes around it.
 
+## 7b. A failed SENDER frame does not stop the next one
+
+Unless they are an atomic batch. A release is a veto then a payment, and if the veto fails because the item was executed first, the payment would still run and pay twice. With the batch flag on the first frame, both undo: `vajra pay-e2e` races it on the mirror. The flag is bit 2 of `flags`, and it is invalid on the last frame.
+
 ## 8. A thief with the daily key could end the master key
 
 Found by an independent review of `VajraAccountV2`, then reproduced. **Fixed on chain:** the devnet was reset on 2026-11-06, and the suite deployed since has this fix. Below, "deployed" means the
