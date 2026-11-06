@@ -29,13 +29,24 @@ const chunk = (type, data) => {
   return out;
 };
 
-/** An ink square with a diamond in the hash key's colour, inside the safe zone of a maskable icon. */
+const BOLT = [[13.5, 2], [5, 13.5], [10.5, 13.5], [9.5, 22], [19, 9.5], [13, 9.5]];
+const inBolt = (x, y) => {
+  let inside = false;
+  for (let i = 0, j = BOLT.length - 1; i < BOLT.length; j = i++) {
+    const [xi, yi] = BOLT[i];
+    const [xj, yj] = BOLT[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+};
+
+/** An ink square with the thunderbolt in the hash key's colour, inside the safe zone of a maskable icon. */
 function icon(size) {
   const rows = [];
   for (let y = 0; y < size; y++) {
     const row = Buffer.alloc(1 + size * 3);
     for (let x = 0; x < size; x++) {
-      const inside = Math.abs(x - size / 2) + Math.abs(y - size / 2) < size * 0.3;
+      const inside = inBolt(12 + ((x - size / 2) / size) * 38, 12 + ((y - size / 2) / size) * 38);
       row.set(inside ? [0x8f, 0xa8, 0xff] : [0x0a, 0x0c, 0x1b], 1 + x * 3);
     }
     rows.push(row);

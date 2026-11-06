@@ -7,7 +7,7 @@ import { AddressInput, clock, DelayPicker, download, Failed, go, isAddr, Limit, 
 function Mark() {
   return (
     <svg className="mark" viewBox="0 0 24 24" aria-hidden>
-      <path d="M12 1c4 3.5 5 7.5 1.600 11C17 15.500 16 19.500 12 23 8 19.500 7 15.500 10.400 12 7 8.500 8 4.500 12 1Z" fill="currentColor" />
+      <path d="M13.5 2 5 13.5h5.5L9.5 22 19 9.5h-6L13.5 2Z" fill="currentColor" />
     </svg>
   );
 }
@@ -25,7 +25,7 @@ export function Welcome() {
       <Brand />
       <div className="welcome-mark" aria-hidden>
         <svg viewBox="0 0 24 24">
-          <path d="M12 1c4 3.500 5 7.500 1.600 11C17 15.500 16 19.500 12 23 8 19.500 7 15.500 10.400 12 7 8.500 8 4.500 12 1Z" fill="none" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+          <path d="M13.5 2 5 13.5h5.5L9.5 22 19 9.5h-6L13.5 2Z" fill="currentColor" />
         </svg>
       </div>
       <div className="welcome-body">

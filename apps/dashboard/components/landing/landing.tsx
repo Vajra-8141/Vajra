@@ -174,12 +174,15 @@ export function Landing({ facts }: { facts: ThreadFacts }) {
         </Link>
         <nav className="land-nav" aria-label="Main">
           {isLocalStack && <span className="tag warn">Local mirror</span>}
+          <Link className="land-link" href="/story">
+            Story
+          </Link>
           <Link className="land-link" href="/proof">
             Proof
           </Link>
-          <Link className="button primary" href="/story">
-            Start the demo
-          </Link>
+          <a className="button primary" href="https://wallet-production-a086.up.railway.app">
+                Open the wallet
+              </a>
         </nav>
       </header>
       <div className="land-progress" aria-hidden />
@@ -194,9 +197,9 @@ export function Landing({ facts }: { facts: ThreadFacts }) {
             <h1 id="land-title">Keep your wallet. We put a bank around it.</h1>
             <p className="land-lead">And the vault key is one a quantum computer can&apos;t break.</p>
             <div className="actions">
-              <Link className="button primary land-cta" href="/story">
-                Start the demo
-              </Link>
+              <a className="button primary land-cta" href="https://wallet-production-a086.up.railway.app">
+                Open the wallet
+              </a>
               <a className="land-link" href="#chapter-1">
                 Follow one person&apos;s money
               </a>
@@ -372,9 +375,9 @@ export function Landing({ facts }: { facts: ThreadFacts }) {
               </div>
             </div>
             <div className="end-actions">
-              <Link className="button primary land-cta" href="/story">
-                Start the demo
-              </Link>
+              <a className="button primary land-cta" href="https://wallet-production-a086.up.railway.app">
+                Open the wallet
+              </a>
               <Link className="land-link" href="/proof">
                 Read every recorded run
                 <ArrowRight size={16} aria-hidden />
