@@ -100,7 +100,7 @@ bridge connects to Arkiv directly, which shows it your IP and key tree.
 public queue as a large spend, so the master key can veto it if the paper was stolen, and the new tree signs once the delay passes.
 
 **The pool:** fixed-size notes inside the account, spent with a proof and no key. **The rulebook survives inside the shielded world:** a
-freeze blocks an unshield in validation, an escape drains the pool to the sealed harbor, and the daily key cannot reach it at all. Every note comes from one seed, so a stolen laptop does not take them. On the mirror, a payment that fails stays owed, out of a thief's reach, until its holder claims it.
+freeze blocks an unshield in validation, an escape drains the pool to the sealed harbor, and the daily key cannot reach it at all. Every note comes from one seed, so a lost or wiped machine does not lose them. A stolen one is different: the seed sits beside the daily key, and whoever copies it can spend every note, with no queue, so freeze first. On the mirror, a payment that fails stays owed, out of a thief's reach, until its holder claims it.
 
 Both need more validation gas than 100,000, and pairing precompiles. The canonical mempool refuses them, so the alt mempool is their only route. **On the public devnet, on 6 November:** the whole recovery story mined, 12 transactions and 24 refusals with 0 failures, a proof at 301,552 VERIFY gas ([`0xc06b…c5`](https://explorer.altmempool.wtf/tx/0xc06b44afa41b13237d812c24c3bbd17b106453e02096959f3a4e3e3107eb7cc5), `docs/evidence/recovery-public-latest.json`), and one note went in and came out (`docs/evidence/shield-public-latest.json`). The sidecar's maintainer lifted the cap and allowed precompiles after we reported both.
 

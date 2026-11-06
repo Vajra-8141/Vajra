@@ -45,6 +45,9 @@ export function PoolCard({ account, ready }: { account: Address; ready: boolean 
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    // Another account must not show this one's figures, for even one frame.
+    setFacts(undefined);
+    setFailed(false);
     if (!ready) return;
     let live = true;
     let timer: ReturnType<typeof setTimeout>;

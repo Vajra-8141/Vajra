@@ -38,7 +38,7 @@ async function sendersOf(hashes: Hex[]): Promise<(Address | null)[]> {
 }
 
 /** An account with no pool at all reverts, and an address with no code answers nothing. Anything else that fails is a failed read, not an empty pool. */
-async function noteCountOf(account: Address): Promise<bigint | null> {
+export async function noteCountOf(account: Address): Promise<bigint | null> {
   const data = encodeFunctionData({ abi: accountV2Abi, functionName: "noteCount" });
   try {
     const answer = await rpc<Hex>(DEVNET.execution, "eth_call", [{ to: account, data }, "latest"]);
@@ -118,7 +118,7 @@ export function poolWords(meter: PoolMeter): PoolWords {
   const { state, deposits, withdrawn, left, owed, shares, addresses } = meter;
   const own = shares?.find((share) => share.own)?.notes ?? 0;
   const largest = shares?.[0];
-  const shows = [`${notes(deposits)} paid in, ${withdrawn} spent, ${left} still in the pool.`];
+  const shows = [state === "closed" ? `${notes(deposits)} paid in, ${withdrawn} spent, and an escape took the rest to the harbor.` : `${notes(deposits)} paid in, ${withdrawn} spent, ${left} still in the pool.`];
   if (shares && addresses !== null) {
     shows.push(`Paid in from ${addresses === 1 ? "one address" : `${addresses} addresses`}.${own ? ` ${notes(own)} from this account.` : ""}`);
     if (addresses > 1) shows.push(`The largest paid in ${largest!.notes} of ${deposits}. If every note is as likely to leave, a guess at that address is right about ${largest!.notes} times in ${deposits}.`);
@@ -137,7 +137,7 @@ export function poolWords(meter: PoolMeter): PoolWords {
   };
 
   const cannotShow = [
-    "Whether those addresses are different people. The real number could be one, so this says at most, and never at least.",
+    "Whether those addresses are different people. One person can pass a note through many of them, for a fee each time, so the real number could be one. This says at most, and never at least.",
     "Which note left. So nobody can see whose notes are still in.",
     "Your IP address. Sending a transaction shows it to the mempool, and the chain does not record that.",
     "How much timing gives away. A withdrawal soon after a deposit is easy to match, and this does not weigh that.",

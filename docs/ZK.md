@@ -121,7 +121,7 @@ Every note comes from one seed, kept apart from the master seed. `vajra shield` 
     Hides nothing. Every note came from this account, so a withdrawal is plainly yours.
     Hides little. A withdrawal could have been paid for by any of at most 2 addresses.
 
-Then what the chain shows, and what no chain can show. The number is a ceiling on the people and never a floor, it has no top setting, and a read that fails or does not add up says unknown and gives no figure. See `FINDINGS.md` section 25. This ran on the mirror and not on the public devnet.
+Then what the chain shows, and what no chain can show. The number is a ceiling on the people and never a floor, and it has no top setting. A first read that fails or does not add up says unknown and gives no figure, and a later one that fails says so under the last answer. See `FINDINGS.md` section 25. This ran on the mirror and not on the public devnet.
 
 ### A failed payment stays money
 
@@ -137,8 +137,8 @@ If a note's recipient refuses, the note is spent and its fee is gone, and what t
 | An escape sweeps it to the harbor and ends it | the sweep takes the balance, and `claim` refuses a closed pool, whatever arrives later |
 | The daily key cannot reach it | it cannot reach the selector, and it has no proof |
 | A spend and fees cannot reach it | it is inside `poolHeld`, which `_transfer`, `validateDaily` and `_checkRecovery` already count |
-| A nominee's rescue still works | `escape` did not change, and a rescue signed before any claim existed landed with one outstanding |
-| Only the holder can move it | the proof is bound to its recipient, and only the note's secret makes a new one |
+| A nominee's rescue still works | a rescue signed before any claim existed landed with one outstanding, on the `escape` that pays the harbor first |
+| Only the holder can move it | the proof is bound to its recipient, and a new one takes what only the holder knows. A leaked `nullifierSeed` is the one way round: `FINDINGS.md` section 26 |
 
 A claim is an ordinary transaction, so whoever sends it pays its gas and is public beside it. A failed claim costs the account nothing, which is what keeps `FINDINGS.md` section 13 closed. **The chain shows that the same note tried two addresses.** The first proof stays valid and public, so if the first recipient ever takes money, anyone can send it there until the holder claims. See `FINDINGS.md` section 26. It is in the source, on the mirror, and **not in the V2 on the public devnet**: that needs a redeploy.
 
@@ -170,3 +170,13 @@ and needs a new deployment:
 
     cd circuits && bash scripts/build.sh recovery RecoveryVerifier && bash scripts/build.sh unshield ShieldVerifier
     node scripts/gen-pool-constants.mjs && node scripts/gen-vectors.mjs
+
+### Why there is no shared pool
+
+A pool shared across accounts would hide a note among far more of them. It was on the list on one condition: that freeze and escape keep working. They cannot, so it was dropped for this hackathon. Nothing was built, so this is reasoning from the code and not a measurement.
+
+`escape` sends the account's own balance, and it knows no notes. If a contract can tell which notes in a shared pool are one account's, so can everyone, and the set shrinks back to what it is today. If it cannot tell, a freeze could still work, because a spender can be made to prove their account is not frozen. An escape cannot: it would have to move notes it cannot find. A rescue is fixed bytes held by someone with no note secrets, so it would move nothing.
+
+The nearest design that holds, a hidden account with a proof that it is off a freeze list, turns an escape into a lock. Every note would need its own proof to reach the harbor, from the seed, and a lost seed would lock that money for good. It needs a new circuit and trusted setup, a vault contract and a new V2.
+
+It also works against the one story: money in a shared vault leaves the only place `escape` reaches, so it is harder to save, not easier.

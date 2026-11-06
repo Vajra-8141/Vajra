@@ -6,10 +6,9 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { type Address, type Hex, formatEther, getAddress, isAddress, parseAbiItem } from "viem";
+import { type Address, type Hex, formatEther, getAddress, isAddress, parseAbiItem, toEventSelector } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { DEVNET, type FrameTx, LEGACY_GAS_PRICE, RpcError, accountV2Abi, claimCall, deployments, framesSucceeded, opsV2, poolMeter, poolWords, publicClient, readPoolFacts, refusalNameV2, submit, unshieldTx, waitForSuccess, walletFor } from "@vajra/core";
-import { loadOrCreateKey } from "@vajra/core/node";
+import { DEVNET, type FrameTx, LEGACY_GAS_PRICE, RpcError, accountV2Abi, claimCall, deployments, framesSucceeded, noteCountOf, opsV2, poolMeter, poolWords, publicClient, readPoolFacts, refusalNameV2, submit, unshieldTx, waitForSuccess, walletFor } from "@vajra/core";
 import { keyPath } from "./deploy.ts";
 import { checkNoteSeed, installNoteSeed, localNoteSeed, noteSeed } from "./note-seed.ts";
 import { type Note, SEED_GAP, noteCommitment, noteFromSeed, noteNullifier, notesInPool, proveUnshield } from "./proving.ts";
@@ -45,7 +44,9 @@ const shieldedEvent = parseAbiItem("event Shielded(uint256 indexed commitment, u
 
 /** Every leaf in the pool, in order. A leaf missing from the log would give a wrong root, so a gap is an error. */
 export async function poolLeaves(account: Address): Promise<bigint[]> {
-  const logs = await publicClient.getLogs({ address: account, event: shieldedEvent, fromBlock: 0n, toBlock: "latest" });
+  const [logs, count] = await Promise.all([publicClient.getLogs({ address: account, event: shieldedEvent, fromBlock: 0n, toBlock: "latest" }), noteCountOf(account)]);
+  // A node that drops the newest logs would otherwise give a short list with confidence, and a restore would miss notes and say nothing.
+  if (count !== null && BigInt(logs.length) !== count) throw new Error("the pool's log does not match its count: chain state unknown");
   const leaves: bigint[] = [];
   for (const log of logs) {
     if (Number(log.args.leaf) !== leaves.length) throw new Error(`the pool's log has a gap at leaf ${leaves.length}: chain state unknown`);
@@ -193,14 +194,26 @@ export async function notesRestoreCommand(o: { seedFile?: string; account?: stri
   console.log(`a run of ${gap} numbers with no deposit ended the search, so a note past a longer gap would not be found: raise --gap to look further`);
 }
 
+/** A key on this machine that can pay for a trial. This never makes one: a new key is empty, so it could not run the trial, and would only sit there looking like a key. */
+async function trialFunder(value: bigint): Promise<Address | null> {
+  for (const name of ["deployer.key", "daily.key"]) {
+    if (!existsSync(keyPath(name))) continue;
+    const { address } = privateKeyToAccount(readFileSync(keyPath(name), "utf8").trim() as Hex);
+    if ((await publicClient.getBalance({ address })) >= value) return address;
+  }
+  return null;
+}
+
 /**
  * A plain address always takes a payment. A contract might not, so trial it, from an address with money: the node will not run a call
  * from the account, which has code, or one from an empty address. A check that could not run is not a pass, and stops the same way.
  */
 async function checkRecipient(recipient: Address, from?: Address) {
   if (!(await publicClient.getCode({ address: recipient }))) return;
-  const funder = from ?? privateKeyToAccount(loadOrCreateKey(keyPath("deployer.key"))).address;
-  const trial = await publicClient.call({ account: funder, to: recipient, value: denomination() - noteFee() }).then(
+  const value = denomination() - noteFee();
+  const funder = from ?? (await trialFunder(value));
+  if (!funder) throw new Error(`could not check that ${recipient} takes a payment: no key here holds ${formatEther(value)} ETH to try it from. Fund the daily key, or send it anyway with --no-check`);
+  const trial = await publicClient.call({ account: funder, to: recipient, value }).then(
     () => null,
     (error: Error) => error.message,
   );
@@ -208,9 +221,17 @@ async function checkRecipient(recipient: Address, from?: Address) {
   throw new Error(/reverted/i.test(trial) ? `${recipient} refuses a plain payment, so the money would not arrive: pick another recipient` : `could not check that ${recipient} takes a payment, so nothing was sent: ${trial}`);
 }
 
+/** A note paid back to its own account leaves `poolHeld` and becomes plain balance, which a stolen daily key can spend. See docs/FINDINGS.md section 26. */
+function refuseOwnAccount(recipient: Address, account: Address) {
+  if (getAddress(recipient) === getAddress(account)) throw new Error("that is this account: paid back here, a note becomes plain balance, which a stolen daily key can spend. Pick another address");
+}
+
+const UNPAID = toEventSelector("UnshieldUnpaid(uint256,address)");
+
 /** Spends the oldest unspent note. No key signs this. */
 export async function unshieldCommand(recipient: Address, o: { account?: string; noCheck?: boolean } = {}) {
   const account = accountOr(o.account);
+  refuseOwnAccount(recipient, account);
   const notes = loadNotes();
   // The chain decides, not the file: a process that stopped after the block and before the save would otherwise offer a spent note.
   let saved: SavedNote | undefined;
@@ -244,7 +265,10 @@ export async function unshieldCommand(recipient: Address, o: { account?: string;
       saved.spent = true;
       saveNotes(notes);
       console.log(`mined ${hash}, VERIFY ${Number(BigInt(receipt.frameReceipts[0]!.gasUsed))} gas`);
-      if ((await noteStatus(account, note)) === "owed") console.log(`${recipient} refused the money. The note is spent and its fee is gone, and ${formatEther(denomination() - noteFee())} ETH is still held for it: \`vajra claim <recipient> --key-file <file>\` pays it to any address`);
+      // Read from what happened, and not from the note's state: the V2 on the public devnet has no owed state, and a refused note there just reads as spent.
+      const refused = receipt.frameReceipts.some((frame) => (frame.logs as { topics?: Hex[] }[]).some((log) => log.topics?.[0] === UNPAID));
+      if (refused && (await noteStatus(account, note)) === "owed") console.log(`${recipient} refused the money. The note is spent and its fee is gone, and ${formatEther(denomination() - noteFee())} ETH is still held for it: \`vajra claim <recipient> --key-file <file>\` pays it to any address`);
+      else if (refused) console.log(`${recipient} refused the money. On this contract the note is spent, and nothing is held for it.`);
       else console.log(`${formatEther(denomination() - noteFee())} ETH to ${recipient}: a ${formatEther(denomination())} ETH note, less its ${formatEther(noteFee())} ETH fee`);
       return;
     } catch (error) {
@@ -264,6 +288,7 @@ export async function unshieldCommand(recipient: Address, o: { account?: string;
  */
 export async function claimCommand(recipient: Address, o: { account?: string; keyFile?: string }) {
   const account = accountOr(o.account);
+  refuseOwnAccount(recipient, account);
   if (!o.keyFile) throw new Error("--key-file <file> is required: whoever sends a claim pays its gas, and their address is public beside it");
   const notes = loadNotes();
   let saved: SavedNote | undefined;

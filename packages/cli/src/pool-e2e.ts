@@ -1,7 +1,8 @@
 /**
  * The pool as a person lives with it, on the mirror: notes rebuilt from one seed after the machine is gone, a meter that says how little the
- * pool hides, and a failed payment that stays money. The real commands, in folders of their own, against the real chain. Every attack is
- * really sent, and has to die with its name. `vajra shielded` is the pool's own proof and attacks; this is what happens around them.
+ * pool hides, and a failed payment that stays money. The real commands, in folders of their own, against the real chain. Every attack on the
+ * contract is really sent, and has to die with its name. Some refusals are the tool's, which stops them before anything is sent: `stops` is those.
+ * `vajra shielded` is the pool's own proof and attacks; this is what happens around them.
  */
 import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -195,9 +196,10 @@ const theirs = done("the outsider's seed finds the outsider's note and no other"
 check(theirs.includes("1 notes found in 6 deposits"), line(theirs, /\d+ notes found.*/));
 const elsewhere = join(dir, "elsewhere");
 mkdirSync(elsewhere);
-const { account: otherAccount } = await newHome("other");
+const { account: otherAccount, state: otherHome } = await newHome("other");
+done("a deposit on the other account, from a seed of its own", otherHome, ["shield"]);
 const otherAccountRun = done("the right seed, on another account", elsewhere, ["notes-restore", "--seed-file", paper, "--account", otherAccount]);
-check(otherAccountRun.includes("0 notes found"), "a seed's notes are the account's: the same seed elsewhere finds nothing here");
+check(otherAccountRun.includes("0 notes found in 1 deposits"), "a seed's notes are the account's: with a deposit there to find, the same seed finds nothing");
 stops("A restore over a different seed on this machine", laptop, ["notes-restore", "--seed-file", wrongPaper, "--account", account], "a different note seed is already");
 const junk = join(dir, "junk.txt");
 writeFileSync(junk, "not a seed");
@@ -235,8 +237,10 @@ check((JSON.parse(readFileSync(oldFile, "utf8")) as { index?: number }[]).some((
 
 console.log("\n8. An escape takes the notes to the harbor, and a rebuild says so");
 const heldBefore = await held(account);
+const allBefore = await publicClient.getBalance({ address: account });
 done("escape", home, ["escape"]);
-check((await publicClient.getBalance({ address: harbor })) >= heldBefore, `the harbor holds what the notes were owed, ${formatEther(heldBefore)} ETH`);
+const atTheHarbor = await publicClient.getBalance({ address: harbor });
+check(atTheHarbor > allBefore - parseEther("0.01") && atTheHarbor >= heldBefore && (await publicClient.getBalance({ address: account })) === 0n, `the account is empty, and the harbor holds all it had but the fee: ${formatEther(atTheHarbor)} ETH, ${formatEther(heldBefore)} of it what the notes were owed`);
 const swept = done("rebuild after the escape", join(dir, "after-rotation"), ["notes-restore", "--account", account]);
 check(/swept to the harbor/.test(swept) && !/: in the pool/.test(swept), `no note reads as money still in the pool: ${line(swept, /\d+ notes found.*/)}`);
 await meter("after the escape", account, "This pool is closed");
@@ -376,7 +380,7 @@ const elsewhereProof = await proveUnshield({ note: newNote.note, leaves: await p
 await claimDies("A proof made for another account", after.address, "ShieldProofInvalid", { proof: elsewhereProof.proof, root: refusedProof.root, nullifierHash: refusedProof.nullifierHash, recipient: thiefAddress });
 const biggerProof = await proveUnshield({ note: newNote.note, leaves: await poolLeaves(after.address), leaf: newNote.leaf, recipient: thiefAddress, denomination: DENOM * 2n, account: after.address, chainId });
 await claimDies("A proof claiming a larger denomination", after.address, "ShieldProofInvalid", { proof: biggerProof.proof, root: refusedProof.root, nullifierHash: refusedProof.nullifierHash, recipient: thiefAddress });
-// Someone who learned the nullifier seed and not the secret can make a real proof, in a tree of their own. Only the root stops it.
+// Someone who learned the nullifier seed and not the secret can make a real proof. In a tree of their own it dies at the root. A deposit in the real pool gets past that: docs/FINDINGS.md section 26.
 const half: Note = { secret: 12345n, nullifierSeed: newNote.note.nullifierSeed };
 const ownTree = await proveUnshield({ note: half, leaves: [await noteCommitment(half)], leaf: 0, recipient: thiefAddress, denomination: DENOM, account: after.address, chainId });
 await claimDies("Half a note, proved in a tree of the thief's own", after.address, "RootUnknown", { proof: ownTree.proof, root: ownTree.root, nullifierHash: ownTree.nullifierHash, recipient: thiefAddress });
@@ -419,6 +423,7 @@ const claimSeed = readFileSync(join(claims, "note-seed.key"), "utf8").trim() as 
 const refusesAll = await deployRefuser(deployer);
 stops("A recipient the trial shows will refuse, with nothing spent", claims, ["unshield", await place(RELENTS)], "refuses a plain payment");
 stops("A recipient the trial cannot read, with nothing spent", claims, ["unshield", refusesAll], "could not check");
+stops("A note paid back to its own account, where a stolen daily key could spend it", claims, ["unshield", claimsAccount], "becomes plain balance");
 const refusalSaid = done("the holder sends anyway, with --no-check", claims, ["unshield", refusesAll, "--no-check"]);
 check(refusalSaid.includes("refused the money") && !refusalSaid.includes(`ETH to ${refusesAll}`), "the command says the recipient refused, and does not say it was paid");
 const secondNote = noteFromSeed(claimSeed, claimsAccount, chainId, 1);
@@ -447,11 +452,12 @@ const health = await checkRescue(rescue);
 check(health.state === "ready", `the rescue checks out against the node: ${health.state}`);
 const stillOwed = await held(claimsAccount);
 check(stillOwed === PAID, `${formatEther(stillOwed)} ETH is still owed`);
+const accountHeld = await publicClient.getBalance({ address: claimsAccount });
 const landed = await sendRescue(rescue, { log: (text) => console.log(`    ${text}`) });
 steps.push({ step: "the rescue, with a claim outstanding", hash: landed.hash });
 check(framesSucceeded(landed.receipt), `the rescue landed: ${landed.hash}`);
 const atHarbor = await publicClient.getBalance({ address: claimsHarbor });
-check(atHarbor >= stillOwed, `the harbor holds ${formatEther(atHarbor)} ETH, with the claim's money in it`);
+check(atHarbor === accountHeld && atHarbor >= stillOwed, `the harbor holds every wei the account held, ${formatEther(atHarbor)} ETH, with the claim's money in it`);
 const ended = await proofOf(claimsAccount, secondNote, 1, fresh());
 await waitForSuccess(await walletFor(deployer).sendTransaction({ to: claimsAccount, value: parseEther("0.2"), gas: 500_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" }), "new money arriving");
 await claimDies("A claim after the rescue, while frozen", claimsAccount, "AccountFrozen", ended);

@@ -35,7 +35,7 @@ import {
 import { fileStore } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 import { theRegistry } from "./registry.ts";
-import { installNoteSeed, localNoteSeed } from "./note-seed.ts";
+import { checkNoteSeed, installNoteSeed, localNoteSeed } from "./note-seed.ts";
 import { withSignerLock } from "./signer-lock.ts";
 import { type Wallet, loadWallet } from "./wallet.ts";
 
@@ -219,7 +219,9 @@ async function passphrase(flags: Record<string, string>, confirm: boolean): Prom
 }
 
 function refuseDevice() {
-  if (process.env.VAJRA_SIGNER === "device") throw new Error("the master key is on the hardware signer: there is nothing on this machine to back up");
+  if (process.env.VAJRA_SIGNER !== "device") return;
+  const seed = localNoteSeed() ? ` Your note seed is on this machine and this does not take it: copy ${keyPath("note-seed.key")} to paper or steel yourself.` : "";
+  throw new Error(`the master key is on the hardware signer, so a backup has nothing of it to take.${seed}`);
 }
 
 export async function backupCommand(flags: Record<string, string>) {
@@ -252,6 +254,7 @@ export async function backupCommand(flags: Record<string, string>) {
   renameSync(`${out}.tmp`, out);
   console.log(`backed up account ${wallet.account}\nroot ${proof.rootFromSeed}, matches the chain\n${proof.knownToBackup} leaves used, next leaf ${proof.nextLeaf}\nwritten ${out}`);
   console.log("This goes stale with your next master operation. Back up again after using the key.");
+  if (!contents.noteSeed) console.log("There is no note seed here yet, so this holds none. Back up again after your first vajra shield.");
 }
 
 export async function restoreCommand(flags: Record<string, string>) {
@@ -273,6 +276,8 @@ export async function restoreCommand(flags: Record<string, string>) {
   await withSignerLock(async () => {
     const signerPath = keyPath("signer.json");
     checkLocal(signer, signerPath);
+    // Before anything is written: a refusal here must not leave half a restore.
+    if (contents.noteSeed) checkNoteSeed(contents.noteSeed);
     mkdirSync(dirname(signerPath), { recursive: true });
     fileStore(signerPath).save(signer);
     if (contents.nextSigner) fileStore(keyPath("signer.next.json")).save(contents.nextSigner);
