@@ -94,7 +94,7 @@ interface Update {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Reads the queue from the chain. A failed read throws: an unknown queue must never look like an empty one. */
-async function readQueue(account: Address) {
+export async function readQueue(account: Address) {
   const view = await readAccount(account);
   const items = view.items.filter((item) => item.state === 1);
   const recoveries = new Set<bigint>();

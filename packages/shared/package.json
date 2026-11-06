@@ -1,0 +1,25 @@
+{
+  "name": "@vajra/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "What the extension, the phone app and the CLI have to agree on, with nothing that needs a filesystem",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@forshtat/hegota-support": "0.0.1",
+    "@vajra/core": "workspace:*",
+    "viem": "^2.57.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
+  }
+}

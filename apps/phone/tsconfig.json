@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "esnext", "moduleResolution": "bundler",
+    "lib": ["dom", "dom.iterable", "esnext", "webworker"],
+    "strict": true, "noUncheckedIndexedAccess": true, "skipLibCheck": true, "noEmit": true
+  },
+  "include": ["src"]
+}

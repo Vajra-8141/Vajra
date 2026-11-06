@@ -1,5 +1,6 @@
 /** Deploys the implementations and factories. Safe to run again after a devnet reset: `pnpm vajra deploy`. */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { type Address, type Hex, concat, keccak256, numberToHex, parseEther, size } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { DEVNET, LEGACY_GAS_PRICE, genesisHash, isLocalStack, publicClient, useDeployments, waitForSuccess, walletFor } from "@vajra/core";
@@ -13,7 +14,8 @@ const stateDir = isLocalStack ? ".vajra-local" : ".vajra";
 export const deploymentsPath = isLocalStack
   ? new URL("../../../.vajra-local/deployments.json", import.meta.url)
   : new URL("../../core/src/deployments/1337.json", import.meta.url);
-export const keyPath = (name: string) => new URL(`../../../${stateDir}/${name}`, import.meta.url).pathname;
+// VAJRA_STATE_DIR gives a second account on one machine a folder of its own: a restore to prove, or a move into a new account.
+export const keyPath = (name: string) => resolve(new URL("../../../", import.meta.url).pathname, process.env.VAJRA_STATE_DIR ?? stateDir, name);
 
 if (isLocalStack && existsSync(deploymentsPath)) useDeployments(JSON.parse(readFileSync(deploymentsPath, "utf8")));
 

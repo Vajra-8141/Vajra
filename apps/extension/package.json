@@ -1,0 +1,24 @@
+{
+  "name": "@vajra/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vajra/core": "workspace:*",
+    "@vajra/shared": "workspace:*",
+    "viem": "^2.57.7"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "@types/node": "^22.10.0",
+    "esbuild": "0.28.2",
+    "playwright-core": "1.55.0",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
+  }
+}

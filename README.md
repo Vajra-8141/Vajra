@@ -68,6 +68,13 @@ evidence, on the local mirror and nowhere else.
 | Master key on hardware | BUILT | a real ESP32 signed through the CLI (7 mined) and the dashboard (3 mined), with a person pressing BOOT. **Not safe from a computer it is plugged into**: see [`docs/HARDWARE.md`](docs/HARDWARE.md) |
 | Leaf registry on Arkiv | BUILT | `vajra arkiv`, on the live Arkiv testnet and devnet. The dashboard reads it and verifies each signature in the browser |
 | Phone alert, "Not me" and "Pay, it's me" | IN BUILD | `vajra watch`. Runs end to end on the mirror against a local stand-in for Telegram's servers. Also tried on Nov 6 with a real bot and phone on the mirror: two **Not me** taps cancelled, one **Pay, it's me** tap paid 0.5 ETH, using the software signer. **Not me** also passed on the public devnet with real MetaMask and a real phone. **Pay** has not been tried there, or with the board signing |
+| Browser extension | BUILT, LOCAL | `apps/extension/test/e2e.mjs`: loaded in Brave, a dapp connected over EIP-1193 and EIP-6963, and paid, on the mirror. Pays only: see below |
+| Phone app | BUILT, LOCAL | `apps/phone/test/e2e.mjs`: the PWA in Brave against the real service. Not tried on a physical phone |
+| Web Push, self-hosted VAPID | BUILT, LOCAL | `apps/phone/test/real-push.mjs`: a theft on the mirror, through Google's real push service, to a notification in a real service worker |
+| Address book and first-seen warnings | BUILT, LOCAL | in the extension, the phone and `packages/shared` |
+| Encrypted backup, and a restore that proves itself | BUILT, LOCAL | `vajra backup-e2e`: root match, stale leaves refused |
+| One-transaction move from an EOA | BUILT, LOCAL | `vajra move-e2e`, and from the extension's move page |
+| Passkey before **Pay, it's me** | BUILT, LOCAL | Client-side only: the phone and the local service check it, and **the contracts do not know about it** |
 | Nominee | NOT STARTED | |
 | Recovery by proof, Groth16 v1 | BUILT, LOCAL | `vajra recover`: 8 mined, 21 refused, 0 failures. **Not post-quantum**: see below |
 | Shielded pool, fixed denomination v1 | BUILT, LOCAL | `vajra shielded`: 12 mined, 24 refused, 0 failures. **Does not hide that the account paid the recipient**: see below |
@@ -122,6 +129,22 @@ The phone can ask, and only the master key can act. With the hardware signer, a 
 connections, so the bridge stays on loopback. Telegram sees what the alerts say, so this is off unless you set it up. The dashboard raises the same alarm, in the browser, from the same queue.
 
 **Limits:** a spend under the daily limit leaves at once, so the alert cannot stop it. An attack refused in validation never reaches the queue. The watcher has to be running.
+
+## Extension, phone app, backup and move
+
+These run on the local mirror. See [`JUDGES.md`](JUDGES.md) for the commands.
+
+**Extension** (`apps/extension`). A dapp connects to the VAJRA account, and the key behind it is the daily key, sealed with your password. The master key is never in it. It can pay ETH and ERC-20 transfers, because `spend` is all the daily key can do. Any other contract call is refused, and so is `personal_sign`: the account has no ERC-1271, so a daily-key signature would prove nothing. So a dapp that needs a login signature or a swap will not work with it.
+
+**Phone app** (`apps/phone`, served by `vajra phone`). Each queued item gets a decoded review: amount, payee, why it queued, what is odd about it, with **Not me** and **Pay, it's me**. Taps pass the same `decide` as Telegram, including the rule that Pay needs the hardware signer unless `--allow-software-pay`. The phone holds a pairing token and a passkey, and never the master key. Push messages are encrypted to the phone, so the push service sees ciphertext. Telegram stays as the backup, and can run beside it: a lock across processes stops the two from taking the same leaf.
+
+**Limits of the phone app.** The service listens on loopback, and a PWA needs a secure origin. A real Android phone should reach it with `adb reverse tcp:3210 tcp:3210`, which has not been tried. Brave needs "Use Google services for push messaging" turned on, and the first subscribe took a few minutes.
+
+**The passkey is a client-side check.** The phone asks for it and the local service verifies it. No contract changed, and a master signature made any other way does not need it.
+
+**Backup.** `vajra backup` encrypts the signer and its one-time key state with scrypt and AES-256-GCM. `vajra restore` recomputes the root from the seed, compares it with the chain, reads every leaf's nonce from the chain, and refuses a state that has forgotten a spent leaf. **What it cannot see:** a signature revealed and never mined, unless the leaf registry is on. After using a stale backup with `--advance-past-chain`, rotate.
+
+**Move.** `vajra move` sends one frame transaction from an EOA, which creates the account and moves the ETH and listed tokens. The frames are an atomic batch, so a failed transfer means no account and no money moved. The EOA stays on as the daily key. The refund of unused gas lands after the last frame, so a few millionths of an ETH stay behind. A stock wallet cannot sign a frame transaction, so this asks for the private key: from a file in the CLI, and in the extension's page, where it goes no further than the extension.
 
 ## Leaf registry on Arkiv
 
