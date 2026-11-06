@@ -1,19 +1,19 @@
 {
  "chainId": 1337,
- "genesis": "0x196a1589ac71e2f305b1fbc7bfd23e55367f9fd6eb9da97e2f572c2791e17bbc",
+ "genesis": "0x2ad3f67b059fbde111ad7af27cfb4955d997351579612237ca0318937a5bae7a",
  "w16": {
-  "implementation": "0x8095ce1a02b7b6cc913b706bb0bd7c21c29274fd",
-  "factory": "0x7f25b10a43e475620b52727506bf0aceb0076ca0",
+  "implementation": "0x10382588ad67ca476b80d63413e90aed8eb7c79f",
+  "factory": "0x55c624aad41e850ce57ce67ca8975acc056d66fd",
   "logW": 4,
   "len2": 3
  },
  "w256": {
-  "implementation": "0xb7d197697a0c967d08ab2d3787b77b7944321772",
-  "factory": "0x47700cefbceb52c47a7774377b0d18593c3e2547",
+  "implementation": "0x068c8cfaa26a7231e4a85de516628d0d4dd7c474",
+  "factory": "0x447a5c5f8be74984fef71113fe945215d9bce928",
   "logW": 8,
   "len2": 3
  },
- "paymaster": "0xfe02203607bec1ca841a7d7d14587790d5830b6b",
- "announcer": "0xefd71128f0f04dcf991e0b30249078162cac8154",
- "registry": "0x1b05f67c871e00fb52a40d2293d3d77133d4623f"
+ "paymaster": "0x87345490052dff33b97a08ce1288b02a7ebf2e6d",
+ "announcer": "0x28a10ab671250a4f1db8700b14a39a331f4155e9",
+ "registry": "0x14120833c5d6ab588bdd225617917d94bae7eca4"
 }

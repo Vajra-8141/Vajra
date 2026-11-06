@@ -9,20 +9,21 @@ curve for a quantum computer to break.
 If your seed phrase is stolen, a thief can take a day's limit and no more. Anything bigger waits in public, where you can
 cancel it. And when you press escape, a thief's pending transaction cannot stop you.
 
-> **Two known flaws in the deployed contract.** First, a thief holding only the daily key can spend every nonce key the master key will
-> ever need, which ends the master key: no veto, no freeze, no escape. Second, whoever paid a stealth account can take the money back
-> with no co-signature, by using a keyed nonce. We reproduced both on the local mirror against the deployed bytes (64 of 64 leaves
-> burned, 25 of 25 tokens taken), and ran neither on the public devnet. Each fix is one check. They are in this repo's source, where the
-> same attacks get 0 of 64 and 0 of 25, but **they are not on the public devnet yet**, so `contracts/src/VajraAccount.sol` is ahead of the
-> addresses in `1337.json`. Accounts already created there keep the flaws. See [`docs/FINDINGS.md`](docs/FINDINGS.md) sections 8 and 9.
+> **Two flaws we found in our own contract, now fixed on chain.** A thief holding only the daily key could spend every nonce key the master key
+> needs, which ended the master key. And whoever paid a stealth account could take the money back with no co-signature. Independent reviews found both,
+> and we reproduced both on the local mirror: 64 of 64 leaves burned, 25 of 25 tokens taken. Each fix is one check. The public devnet was reset on
+> 2026-11-06, and what is deployed there now has them. The bytes first deployed are kept, so `vajra nonce-burn` and `vajra stealth-theft` still show the attacks.
+> See [`docs/FINDINGS.md`](docs/FINDINGS.md) sections 8 and 9.
 
 Built on [EIP-8141](https://eips.ethereum.org/EIPS/eip-8141) frame transactions and the ERC-8421 alternative mempool.
 The core runs on the public devnet (chain 1337). Recovery by proof and the shielded pool run on a local mirror of it, because the
 deployed sidecar cannot admit them. **To run all of it yourself, see [`JUDGES.md`](JUDGES.md): one command.**
 
-First transaction signed by the real board, admitted by the alt mempool and mined:
-[`0x80e6…9920`](https://explorer.altmempool.wtf/tx/0x80e60964ed0188ff322f378934482e078303559226a286e542e661238e279920). The explorer keeps its
-history in memory, so the record that lasts is in [`docs/evidence/`](docs/evidence/).
+A transaction admitted by the alt mempool and mined, on the chain as it stands since the reset:
+[`0xc80c…fecb`](https://explorer.altmempool.wtf/tx/0xc80cb5dfdd9778f05c992bb1d90365204599bbd9ce830d44ddba8dae503bfecb). The explorer keeps its history in memory, so the record that lasts is in [`docs/evidence/`](docs/evidence/).
+
+**About the evidence.** The devnet was reset on 2026-11-06, which wiped every earlier transaction. `vajra e2e` and `vajra pin` have been rerun on the new chain, genesis `0x2ad3f67b…`, on the fixed contracts.
+The stealth, hardware, dashboard and Arkiv records in `docs/evidence/` were captured before the reset, so their transactions can no longer be looked up, and the stealth record predates the fix.
 
 ## Why this needs the alternative mempool
 
@@ -107,7 +108,7 @@ Say these before anyone asks. [`docs/ZK.md`](docs/ZK.md) has the rest.
   unlinkability, and an owner shielding their own balance gets almost none. That is the cost of a pool the rulebook can govern.
 - **Lost master key plus stolen paper means the thief wins.** The veto needs a master key.
 - **Nothing here is audited.** Two independent reviews found three critical bugs, each reproduced on a real client and fixed in the source.
-  Two of them are the deployed contract's flaws above, and those are not fixed on chain.
+  Two of them are the flaws at the top of this page.
 
 ## Leaf registry on Arkiv
 
@@ -150,13 +151,12 @@ cost the account anything, with the named refusal shown.
 | A wallet signature moved onto a different recipient | `SignatureNotBoundToTransaction` |
 | Daily key spends while frozen, or after an escape | `AccountFrozen` |
 | A one-time key signs twice, through a compromised signer | protocol nonce, then `LeafAlreadySpent` |
-| The stealth sender takes the money back, holding the full hash key, on the linear nonce | `CoSignerRequired`. **On a keyed nonce the deployed contract lets this through**: see the top of this page |
+| The stealth sender takes the money back, holding the full hash key, on either kind of nonce | `CoSignerRequired`. Fixed: the contract first deployed let a keyed nonce through |
+| Stolen daily key spends the master key's nonce keys | `DailyNonceKeyInvalid`. Fixed: the contract first deployed let this through |
 | An attacker with the ECDSA key but not the hash key | `BadMasterSignature` |
 
 A spend over the limit is not refused: it queues, in public, and the master key can cancel it. A hostile token cannot block
 an escape: malformed returns, return bombs and gas burners are all tested.
-
-Two attacks on that contract **succeed**: see the flaws at the top of this page.
 
 On the local mirror, by `vajra recover` and `vajra shielded`, each sent for real:
 
@@ -250,9 +250,7 @@ staked budget and precompiles.
 
 ## What this does not prove
 
-0. **On the deployed contract, a thief holding only the daily key can disable the master key, and a stealth payer can take the payment
-   back.** See the top of this page. Until it is redeployed, and for any account created before that, "a thief cannot stop your escape"
-   holds only against a pending transaction, and "the sender cannot spend" does not hold.
+0. **Two reviews found critical bugs after every test passed.** They are fixed, but nothing says they were the last. This has not been audited.
 1. **This is not production post-quantum cryptography.** The parameters are unreviewed and there is no formal proof. Plain
    keccak chains give multi-target attacks a discount of about 19 bits that WOTS+ or XMSS would remove. Production means
    LMS, XMSS or SPHINCS+, which are heavier.

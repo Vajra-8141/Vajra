@@ -1,95 +1,95 @@
 {
  "chainId": 1337,
- "at": "2026-11-05T19:10:36.979Z",
- "account": "0x102B9F54C0ca55A597f1722b48c395de75c85E2b",
- "implementation": "0x8095ce1a02b7b6cc913b706bb0bd7c21c29274fd",
+ "at": "2026-11-06T07:04:04.868Z",
+ "account": "0xe803Cdd42424358C4Bd66e15D56c8348E21A26Cd",
+ "implementation": "0x10382588ad67ca476b80d63413e90aed8eb7c79f",
  "transactions": [
   {
    "step": "daily spend inside the cooling allowance",
-   "hash": "0x325bbf35348ef51295eb9ea433c211f1269911aa165fe567c525cceaa47892c4",
-   "block": 405940,
-   "verifyGas": 30803,
-   "totalGas": 597398,
+   "hash": "0xc80cb5dfdd9778f05c992bb1d90365204599bbd9ce830d44ddba8dae503bfecb",
+   "block": 302,
+   "verifyGas": 33287,
+   "totalGas": 599882,
    "attempts": 1
   },
   {
    "step": "spend above the cooling allowance",
-   "hash": "0x4e4344befb069de9e28052f8d59a2c0905238ce3a1563168886e68dc3a7469ec",
-   "block": 405942,
-   "verifyGas": 30803,
-   "totalGas": 616363,
+   "hash": "0xe3ea0ca773e5b9fd522728857ed29239b1fedc0e9da51a59490ffac91ec1359f",
+   "block": 304,
+   "verifyGas": 33287,
+   "totalGas": 618835,
    "attempts": 1
   },
   {
    "step": "spend above the daily limit",
-   "hash": "0xb6e9d61ee3ccb6ff1edb3bd57a064682a06ce2ef463ce82c9571755060ea5c09",
-   "block": 405950,
-   "verifyGas": 30803,
-   "totalGas": 407949,
+   "hash": "0x48cb1c26308e6c5c31dc3124036cbb5f04f0609f088429a9ec2bd3f68f48a938",
+   "block": 311,
+   "verifyGas": 33287,
+   "totalGas": 424052,
    "attempts": 1
   },
   {
    "step": "master veto",
-   "hash": "0x2dc1e3937cebc5190a846c627191951784f06596b3def5a8c80b723dd2000620",
-   "block": 405952,
-   "verifyGas": 93549,
+   "hash": "0xe2ce22aeac9b8e19ebdc2ba70e7a04f3c49114983a6a86a190a04ec696f33810",
+   "block": 314,
+   "verifyGas": 90579,
    "totalGas": 169466,
    "attempts": 1
   },
   {
    "step": "daily spend signed with personal_sign",
-   "hash": "0xa7cec8958fd09b3d1274ccfdf34ba1141d8add109d1b799b5e831200202f4fa9",
-   "block": 405955,
-   "verifyGas": 42362,
-   "totalGas": 108578,
+   "hash": "0x7da547a85a26710503e3e20394a0a66d6945baa5b3151154da184b8faee5f835",
+   "block": 321,
+   "verifyGas": 45687,
+   "totalGas": 111927,
    "attempts": 1
   },
   {
    "step": "master rotates to a new tree",
-   "hash": "0x70d337f5dbc1509f269fa35e8557b5ddf2d835ea86c97fe363e159df4c56ff56",
-   "block": 405957,
-   "verifyGas": 89685,
+   "hash": "0x66a487999dda2d489135df9db704c8fe78e03f0bc21806513432490b5946eb96",
+   "block": 331,
+   "verifyGas": 92262,
    "totalGas": 169466,
-   "attempts": 1
+   "attempts": 2
   },
   {
    "step": "the new tree signs",
-   "hash": "0xa25bab05e76ecf40be5e4a07295eec18f64e759a7c8e00d6549420e695150146",
-   "block": 405960,
-   "verifyGas": 93195,
+   "hash": "0x77941be1f116fc7a49cf9868389040991016963383eeadd05dc9721e93c2791f",
+   "block": 333,
+   "verifyGas": 95772,
    "totalGas": 169466,
    "attempts": 1
   },
   {
    "step": "master freeze",
-   "hash": "0xef3161d500a2a9834d643b406c7df3ae15652481af4425e13092cd263ae1d310",
-   "block": 405962,
-   "verifyGas": 91185,
+   "hash": "0x8f0179118fc967d8a3a81703b0b960770bad1995d68ba8b85e5a2e81aa05ef1f",
+   "block": 334,
+   "verifyGas": 92913,
    "totalGas": 167418,
    "attempts": 1
   },
   {
    "step": "master unfreeze",
-   "hash": "0x4f031271af0ff2e10537b58e2585ea32ce03f44ed3d33d7b19fdd6b856b51f6a",
-   "block": 405965,
-   "verifyGas": 87846,
+   "hash": "0xdac4c7e74c76ea1844d11588de9639139f8e10f9d8f45e1c4eb5f1836216637e",
+   "block": 336,
+   "verifyGas": 89418,
    "totalGas": 167418,
    "attempts": 1
   },
   {
    "step": "queue a large spend",
-   "hash": "0x5e5cf300a17dc9bee1b3b29085256219e7261c44951d0a9c0ca6e1bebb3bfd17",
-   "block": 405968,
-   "verifyGas": 30803,
-   "totalGas": 407949,
+   "hash": "0x657e83d0089a38f2605ed4761f969b065aa5f513c0621368f4a191939cc0400a",
+   "block": 338,
+   "verifyGas": 33287,
+   "totalGas": 410433,
    "attempts": 1
   },
   {
    "step": "master escape",
-   "hash": "0x65c4fff1a71704275115bf2556553c407243a7b2393529ae33445c992272ad99",
-   "block": 405980,
-   "verifyGas": 95514,
-   "totalGas": 366207,
+   "hash": "0xe80060f14cd48aca244bac028d861511509451e59d2cb5bbd14bd6d1079f0190",
+   "block": 349,
+   "verifyGas": 89601,
+   "totalGas": 360174,
    "attempts": 1
   }
  ],
@@ -117,6 +117,10 @@
   {
    "attack": "daily key vetoes",
    "refusal": "EscapeKeyOutranks"
+  },
+  {
+   "attack": "daily key burns a master leaf's nonce key",
+   "refusal": "DailyNonceKeyInvalid"
   },
   {
    "attack": "daily key adds a second SENDER frame straight to the thief",

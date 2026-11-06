@@ -40,7 +40,7 @@ faucet has been dry. Failing that, the proof page and `docs/evidence/` are the f
 | 2:30 | The track author's request: a stealth payment over ML-KEM, spent with a hash signature, gas paid by a paymaster, no ETH anywhere. | `vajra stealth` |
 | 2:55 | **The upstream finding, and recovery.** "Everything so far ran on your public devnet. Here is what your deployed sidecar does with a proof." Show it refused at the 100,000 cap. "Here is our patch, which restores your own spec, and you okayed a local sidecar for judging." The same bytes mine, at 298,000 gas. The master key is gone, and a proof queues a new tree behind the same veto. | `vajra compare`, then the recover log |
 | 3:20 | **The rulebook survives inside the shielded world.** A valid unshield, refused because the account is frozen. Escape: the pool lands in the harbor. "Groth16 is not post-quantum, and the anonymity set is tiny, and we will tell you exactly what it does not hide." | `vajra shielded`, steps 6 and 7 |
-| 3:45 | Say what this does not prove, starting with the flaw in the deployed contract. Close. | README section |
+| 3:45 | Say what this does not prove, starting with the bugs review found after every test passed. Close. | README section |
 
 Timings are tighter than before, to fit the two new beats in four minutes. Stealth and the attacks gave up the most.
 
@@ -52,10 +52,8 @@ mirror in a real browser with a scripted wallet: connect, spend, queue, veto, fr
 
 ## Say these first, before anyone asks
 
-- **"On the deployed contract, a stealth payer can take the money back."** On a keyed nonce no co-signature was asked for. Same story: found in review, reproduced locally, fixed in the source. `docs/FINDINGS.md` section 9.
-- **"A thief with the daily key can disable the master key on the deployed contract."** They spend the master key's public nonce keys. We found it reviewing our own new code,
-  reproduced it locally, and fixed it in the source. `docs/FINDINGS.md` section 8. **Until `stack/redeploy-public.sh` has run and the demo account is new, do not say "the thief
-  cannot stop your escape" without "while a transaction is pending".** After that, say what was found and fixed, and that older accounts keep the flaw.
+- **"Reviews of our own code found two critical bugs in the contract we first deployed."** A thief with the daily key could disable the master key, and a stealth payer could take the money back. Both were reproduced on the mirror and are fixed in what is deployed now. `docs/FINDINGS.md` sections 8 and 9.
+- **"The devnet was reset on 6 November."** Earlier transactions are gone from the chain. `vajra e2e` and `pin` were rerun on the new one. Records of the rest are in `docs/evidence/`.
 - **"Groth16 is not post-quantum."** The recovery path is weaker against a quantum computer than the key it replaces. v2 is a STARK, and it is not built.
 - **"The pool hides which deposit paid, not that this account paid that recipient."** That is the price of a pool the rulebook can govern.
 - **"Recovery and the pool run locally."** The deployed sidecar refuses them, and the EF said a local sidecar is fine for judging.
@@ -77,7 +75,7 @@ signature and costs 3.7 times the gas. If the sidecar gets per-entity budgets, i
 choice on gas. `len2` and `logW` are constructor arguments, so it is a redeploy, not a rewrite.
 
 **The sender derives your stealth key, so can it not spend?** It knows the hash key, which is why that key alone is not enough.
-Spending also needs ERC-8441's stealth key, which the sender cannot compute. **On the deployed contract this holds only on the linear nonce:** see `FINDINGS.md` section 9. Once fixed, it is refused with `CoSignerRequired` on both. The remaining
+Spending also needs ERC-8441's stealth key, which the sender cannot compute. The first deployed contract only checked this on the linear nonce: see `FINDINGS.md` section 9. Now it is refused on both. The remaining
 case is a sender who also owns a quantum computer. See `STEALTH.md`.
 
 **Why not rotate your keys before Q-day?** Rotation is a transaction, and on the day it matters that transaction exposes your

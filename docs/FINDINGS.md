@@ -1,5 +1,7 @@
 # What the live devnet actually does
 
+> The public devnet was reset on 2026-11-06. Transaction hashes in sections 1 to 6 are from the chain before that, and can no longer be looked up. `vajra pin` has been rerun on the new chain.
+
 Everything here was observed on the public devnet (chain 1337) on 2026-11-05, or read in the source it runs:
 `forshtat/mempool-workshop-sidecar` at `2e22ff0`, `forshtat/ethrex` branch `eip8141-tracer` at `9aa3645`.
 
@@ -119,9 +121,10 @@ Everything here ran locally, on 2026-11-06: ethrex `9aa3645`, by its published i
 - **The node's mempool cap is a separate check from the sidecar's.** ethrex refuses a prefix over 100,000 at `eth_sendRawTransaction`, whatever the
   sidecar's budget, and a sidecar patch does not change that. The patched sidecar's own submission path goes around it.
 
-## 8. A thief with the daily key can end the master key
+## 8. A thief with the daily key could end the master key
 
-Found by an independent review of `VajraAccountV2`, then reproduced. **It is in the deployed contract.**
+Found by an independent review of `VajraAccountV2`, then reproduced. **Fixed on chain:** the devnet was reset on 2026-11-06, and the suite deployed since has this fix. Below, "deployed" means the
+contract first deployed, which no longer exists.
 
 `validateDaily` checks who signed and which functions the frames reach. It never looks at the transaction's nonce keys. Approving a transaction
 spends every nonce key it names, and the master key's keys are public: `keccak(root, leaf)`. So a thief signs ordinary daily no-ops on those keys,
@@ -141,10 +144,8 @@ daily transaction, but that is reasoning, not a measurement. Accounts on chain 1
 **The fix is one check,** now in `VajraAccount.sol` and `VajraAccountV2`: the daily key stays on the linear nonce, or `DailyNonceKeyInvalid`. Same attack: 0 of 64,
 and the escape is admitted (`docs/evidence/nonce-burn-fixed-contract-latest.json`, `nonce-burn-v2-latest.json`). `vajra e2e` now attempts it too.
 
-**It is not on the public devnet yet.** `stack/redeploy-public.sh` does that, and needs the deployer key. It redeploys the w=16 implementation and factory, and the paymaster,
-which sponsors the implementation by code hash. Measured on the mirror, the two deploys cost 0.015 ETH, nearly all of it the paymaster's funding. w=256 stays as it is.
-**An account is a clone of one implementation, so every account created before the redeploy keeps the flaw.** The bytes first deployed are kept in
-`packages/core/src/artifacts/VajraAccount.pre-fix.json`, so that `vajra nonce-burn` still reproduces it.
+**It is on the public devnet.** The reset took the old contracts with it, so `stack/redeploy-public.sh` deployed the whole suite with the fix, for about 0.04 ETH. `vajra e2e` on the new chain attempts this attack and gets
+`DailyNonceKeyInvalid`. The bytes first deployed are kept in `packages/core/src/artifacts/VajraAccount.pre-fix.json`, so that `vajra nonce-burn` still reproduces it, on the mirror.
 
 The same review found a bug of the same family in the first version of V2, also reproduced live, and fixed. A proof transaction has no signature, so anyone
 could copy a pending one and cut its SENDER frame's gas. The proof passes, the nonce is spent, the frame fails, and the transaction is mined. The
@@ -153,9 +154,9 @@ nullifier is untouched but its nonce key is gone, so a recovery or a note is dea
 **The lesson:** in EIP-8141, approving a transaction spends its nonce keys, and a mined transaction whose SENDER frame failed still spent them. An account
 has to decide which nonce keys each path may touch, and everything that consumes a nonce has to be pinned by whatever authorizes it.
 
-## 9. Whoever paid a stealth account can take the money back
+## 9. Whoever paid a stealth account could take the money back
 
-Found by a second independent review, then reproduced on the real client. **It is in the deployed contract.**
+Found by a second independent review, then reproduced on the real client. **Fixed in what is deployed since the reset.**
 
 A stealth account's hash key is derived from a secret the payer knows, which is why spending also needs a co-signature the payer cannot make. `validateMaster` asked for that
 co-signature only when the nonce key was 0. On a keyed nonce, the master key's ordinary path, it took the other branch and never looked. So the payer signs an ordinary master
@@ -168,15 +169,15 @@ after sending the account a little ETH to pay for itself. The token on the mirro
 in `vajra stealth`, on both paths.
 
 **The fix is one check:** an account with a co-signer refuses keyed nonces. Same attack: `CoSignerRequired`, 0 taken. It is in the source of both contracts, and goes out with the same redeploy as
-section 8. **A stealth account already created keeps the flaw,** and anything in one should be moved.
+section 8. `vajra stealth` has not yet been rerun on the new public chain: the fix is proven on the mirror.
 
 ### Also from that review
 
-Fixed in `VajraAccountV2` only, and **still open in `VajraAccount.sol`**:
+Both fixed, in `VajraAccount.sol` and `VajraAccountV2`, and deployed:
 
-- **The daily key can make the account pay for a thief's own transaction.** `validateDaily` never checks that the transaction's sender is the account, and with `Scope.PAYMENT` it acts as a paymaster.
+- **The daily key could make the account pay for a thief's own transaction.** `validateDaily` never checks that the transaction's sender is the account, and with `Scope.PAYMENT` it acts as a paymaster.
   Each is capped per transaction, and no nonce of the account's is touched. Traced in code, not reproduced live.
-- **Anyone can cancel a stock wallet's pending spend.** The wallet digest leaves out the body frame's mode, and the frame walk skips anything that is not SENDER, so a copy can turn the spend into a no-op under
+- **Anyone could cancel a stock wallet's pending spend.** The wallet digest leaves out the body frame's mode, and the frame walk skips anything that is not SENDER, so a copy can turn the spend into a no-op under
   the same signature. The nonce and fee are spent and nobody is paid. The owner can sign again. Shown with mocked frame opcodes, not reproduced live.
 
 **Open in both,** as design limits, and in the README: fee burn across many transactions, and a queue with no cap that survives a change of daily key.

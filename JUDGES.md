@@ -26,7 +26,7 @@ the sidecar `2e22ff0`. The differences, all of them:
 | USDC | the devnet's | a plain ERC-20 stand-in at the same address |
 | Account for proofs | not deployed | `VajraAccountV2` |
 
-Everything the README marks BUILT was recorded on the public devnet, in `docs/evidence/`. Recovery and the pool run only here, because
+Everything the README marks BUILT was recorded on the public devnet, in `docs/evidence/`, some of it before the reset of 2026-11-06. Recovery and the pool run only here, because
 the deployed sidecar cannot admit them. Running a flow here does not touch those records: its result goes to `.vajra-local/evidence/`.
 
 On running locally, the EF's words: "a local sidecar is fine for judging". On the gas budgets: "no science behind any of the gas limits".
