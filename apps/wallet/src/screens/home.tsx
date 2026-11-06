@@ -133,7 +133,7 @@ function InstallHint() {
       <div>
         <h2>Add VAJRA to your Home Screen</h2>
         {iphone ? (
-          <p className="t60 small">In Safari, tap Share, then Add to Home Screen. On iPhone, push alerts only work once it's there.</p>
+          <p className="t60 small">In Safari, tap Share, then Add to Home Screen. The app there starts empty, so open it and restore from your backup. iPhone push alerts only work there.</p>
         ) : (
           <p className="t60 small">{prompt ? "It opens like an app, and alerts reach you faster." : "Open your browser's menu, then tap Add to Home screen."}</p>
         )}

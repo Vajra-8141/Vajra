@@ -18,6 +18,8 @@ export const Brand = () => (
 );
 
 export function Welcome() {
+  // Safari and the home screen app keep separate storage, so a wallet made in Safari would not be in the app.
+  const iphoneInBrowser = /iPhone|iPad/.test(navigator.userAgent) && (navigator as unknown as { standalone?: boolean }).standalone !== true;
   return (
     <section className="welcome">
       <Brand />
@@ -30,6 +32,7 @@ export function Welcome() {
         <h1>A wallet a thief can't empty, even with your key.</h1>
         <p className="lead">Small payments go straight through. Big ones wait in public, and a second key can stop them.</p>
       </div>
+      {iphoneInBrowser && <p className="note-warn">On iPhone, first tap Share, then Add to Home Screen, and open VAJRA from there. A wallet made in Safari stays in Safari, and alerts only work in the app.</p>}
       <div className="stack">
         <a className="btn primary" href="#/create">
           Create a wallet

@@ -602,6 +602,14 @@ export function WithSnap({ children }: { children: (s: Snapshot) => ReactNode })
 }
 
 export function download(name: string, text: string) {
+  // An app on an iPhone home screen can't save a download, so the share sheet does it: Save to Files.
+  if (/iPhone|iPad/.test(navigator.userAgent)) {
+    const file = new File([text], name, { type: "text/plain" });
+    if (navigator.canShare?.({ files: [file] })) {
+      void navigator.share({ files: [file] }).catch(() => {});
+      return;
+    }
+  }
   const url = URL.createObjectURL(new Blob([text], { type: "application/octet-stream" }));
   const a = document.createElement("a");
   a.href = url;
