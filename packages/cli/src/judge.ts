@@ -47,10 +47,11 @@ This is the local mirror, not the public devnet. It has its own chain id, and no
     vajra shield                   one note in, on the demo account
     vajra unshield 0xSomeAddress   one note out, with no key
     vajra e2e                      the rulebook and every attack                about 2.5 min
-    vajra pin                      the blocked escape, both mempools            about 1 min
-    vajra stealth                  stealth payment and paymaster                about 1 min
+    vajra pin                      the blocked escape, both mempools            about 15s
+    vajra stealth                  stealth payment and paymaster                about 20s
     vajra measure                  the gas table                                about 2 min
     vajra budget                   a staked limit over 100,000, admitted
+    vajra nonce-burn               the flaw in the deployed contract, then `nonce-burn v2` for the fix
 
 JUDGES.md maps every capability to its command.
 `);

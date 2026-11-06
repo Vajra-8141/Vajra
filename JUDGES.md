@@ -7,7 +7,8 @@ Needs Docker, Node 22.18 or newer, pnpm, make, and git.
     git clone https://github.com/Vajra-8141/Vajra.git && cd Vajra
     make judge
 
-It ends by printing `GREEN` and a demo account.
+It ends by printing `GREEN` and a demo account. Measured from a fresh clone, with cold image builds and an empty pnpm store: 155 seconds on one 16-core
+machine, not counting the download of three base images (ethrex, bun, node).
 
     alias vajra='VAJRA_STACK=local node packages/cli/src/main.ts'
 
@@ -37,8 +38,8 @@ Times are from one machine, on a warm mirror.
 | Capability | Command | Takes | Expect |
 |---|---|---|---|
 | Rulebook, and every attack on it | `vajra e2e` | 2.5 min | 11 mined, 21 refused, 0 failures |
-| The blocked escape, on both mempools | `vajra pin` | 1 min | canonical refuses, alt mines |
-| Stealth payment and paymaster | `vajra stealth` | 1 min | 0 failures |
+| The blocked escape, on both mempools | `vajra pin` | 15 s | canonical refuses, alt mines |
+| Stealth payment and paymaster | `vajra stealth` | 20 s | 0 failures |
 | Recovery by proof, and every attack | `vajra recover` | 70 s | 8 mined, 21 refused, 0 failures |
 | Recovery, step by step, on the demo account | `vajra recover-setup`, `recover-prove --secret <file>`, `recover --proof <file>` | 1 min | the new tree signs |
 | The shielded pool, and every attack | `vajra shielded` | 80 s | 12 mined, 24 refused, 0 failures |
