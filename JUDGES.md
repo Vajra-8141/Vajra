@@ -50,7 +50,7 @@ Times are from one machine, on a warm mirror.
 | The dashboard, on the mirror | `make dashboard`, then http://localhost:3000 | 30 s | a banner saying it is local. Use a wallet holding `.vajra-local/daily.key` |
 | Releasing a queued payment early, and the race that must not pay twice | `vajra pay-e2e` | 40 s | 0 failures |
 | The phone alert, with a local stand-in for Telegram's servers | `vajra watch-e2e` | 1 min | a stranger refused, Pay refused on software, then cancel and pay both land |
-| The phone alert, for real | a bot from @BotFather, `TELEGRAM_BOT_TOKEN` in `.env`, then `vajra watch` | | **Not yet tried with a real bot** |
+| The phone alert, for real | a bot from @BotFather, `TELEGRAM_BOT_TOKEN` in `.env`, then `vajra watch` | | Tried on Nov 6 with a real bot and a real phone, on the mirror: two **Not me** taps cancelled, one **Pay, it's me** tap paid 0.5 ETH. Pay used the software signer (`--allow-software-pay`) |
 | Gas table | `vajra measure`, `vajra measure-zk` | 2 min each | close to `docs/GAS.md` |
 | A staked VERIFY limit over 100,000 | `vajra budget` | 5 s | 400,000 admitted. The 900,000 line says "fee too low": same nonce, not the cap |
 | Hardware logic | `make -C firmware test emulator`, then the three lines below | 1 min | 143 checks, then 7 mined |

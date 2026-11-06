@@ -67,7 +67,7 @@ evidence, on the local mirror and nowhere else.
 | Dashboard, exposure scanner | BUILT | every flow driven in a real browser over the Nym mixnet, with a scripted wallet |
 | Master key on hardware | BUILT | a real ESP32 signed through the CLI (7 mined) and the dashboard (3 mined), with a person pressing BOOT. **Not safe from a computer it is plugged into**: see [`docs/HARDWARE.md`](docs/HARDWARE.md) |
 | Leaf registry on Arkiv | BUILT | `vajra arkiv`, on the live Arkiv testnet and devnet. The dashboard reads it and verifies each signature in the browser |
-| Phone alert, "Not me" and "Pay, it's me" | IN BUILD | `vajra watch`. Runs end to end on the mirror against a local stand-in for Telegram's servers. **Not yet tried with a real bot or phone** |
+| Phone alert, "Not me" and "Pay, it's me" | IN BUILD | `vajra watch`. Runs end to end on the mirror against a local stand-in for Telegram's servers. Also tried on Nov 6 with a real bot and phone on the mirror: two **Not me** taps cancelled, one **Pay, it's me** tap paid 0.5 ETH, using the software signer. Not yet tried on the public devnet or with the board signing |
 | Nominee | NOT STARTED | |
 | Recovery by proof, Groth16 v1 | BUILT, LOCAL | `vajra recover`: 8 mined, 21 refused, 0 failures. **Not post-quantum**: see below |
 | Shielded pool, fixed denomination v1 | BUILT, LOCAL | `vajra shielded`: 12 mined, 24 refused, 0 failures. **Does not hide that the account paid the recipient**: see below |
