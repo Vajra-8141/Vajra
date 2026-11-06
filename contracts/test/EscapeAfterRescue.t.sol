@@ -21,6 +21,25 @@ contract Fighter {
     }
 }
 
+/// Holds a balance, and notes what the harbor held at the moment it was swept.
+contract Witness {
+    address immutable harbor;
+    uint256 public harborHeld;
+
+    constructor(address harbor_) {
+        harbor = harbor_;
+    }
+
+    function balanceOf(address) external pure returns (uint256) {
+        return 1;
+    }
+
+    function transfer(address, uint256) external returns (bool) {
+        harborHeld = harbor.balance;
+        return true;
+    }
+}
+
 /// A harbor that notes what the frame had left when the value reached it.
 contract Meter {
     uint256 public seen;
@@ -143,9 +162,21 @@ contract EscapeAfterRescueTest is Test {
         account.executeQueued(1);
     }
 
-    /// `rescueCall` signs 700,000 and 600,000 a token. Gas cannot be raised after signing, so tokens fighting as hard as they can must still leave the
-    /// harbor's CALL its headroom. Forge prices this more harshly than the fork does, which errs the right way.
-    function test_tokensThatFightLeaveTheHarborEnoughGas() public {
+    /// The harbor is paid before any token is touched, so no token can spend what the harbor and the pool closing need. On the mirror, a token
+    /// that really spends the frame's state gas is `vajra nominee-e2e` step 14: forge has no state gas.
+    function test_theHarborIsPaidBeforeAnyTokenIsCalled() public {
+        Witness token = new Witness(address(meter));
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(token);
+        vm.prank(address(account));
+        account.escape(payable(address(meter)), HARBOR_SALT, tokens);
+        assertEq(token.harborHeld(), 5 ether, "the ETH was there when the token was called");
+        assertTrue(account.poolClosed(), "and the pool had closed");
+    }
+
+    /// `rescueCall` signs 700,000 and 600,000 a token. Gas cannot be raised after signing, so a frame with tokens fighting as hard as they can must
+    /// still finish, with the harbor paid. Forge prices this more harshly than the fork does, which errs the right way.
+    function test_tokensThatFightCannotStopTheEscapeFinishing() public {
         uint256[5] memory counts = [uint256(1), 2, 5, 13, 30];
         for (uint256 i; i < counts.length; ++i) {
             uint256 snapshot = vm.snapshot();
@@ -155,7 +186,9 @@ contract EscapeAfterRescueTest is Test {
             }
             vm.prank(address(account));
             account.escape{gas: 700_000 + 600_000 * counts[i]}(payable(address(meter)), HARBOR_SALT, tokens);
-            assertGt((meter.seen() * 64) / 63, FRESH_CALL_HEADROOM, "the harbor's CALL has its headroom");
+            assertGt((meter.seen() * 64) / 63, FRESH_CALL_HEADROOM, "the harbor's CALL had its headroom");
+            assertEq(address(meter).balance, 5 ether, "the harbor holds it");
+            assertTrue(account.frozen(), "and the frame ran to the end");
             vm.revertTo(snapshot);
         }
     }

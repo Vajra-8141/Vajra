@@ -65,7 +65,7 @@ import {
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 import { proveRecovery, randomFieldElement, recoveryCommitment, stopProver } from "./proving.ts";
-import { check, evidence, master, mined, newAccount, newSigner, refused, refusals, reverts, tally } from "./zk-run.ts";
+import { check, evidence, master, mined, newAccount, newSigner, preFixV2Factory, refused, refusals, reverts, tally } from "./zk-run.ts";
 
 if (!isLocalStack) throw new Error("this runs on the local mirror only, with VAJRA_STACK=local");
 
@@ -77,14 +77,14 @@ const erc20 = parseAbi(["function transfer(address,uint256) returns (bool)", "fu
 const work = mkdtempSync(join(tmpdir(), "vajra-nominee-"));
 
 /** An owner, as `vajra exit-setup` and `vajra nominee-setup` leave one: an account, an exit with its reserve, and a rescue in a file. */
-async function ownerOf(name: string, o: { fund?: bigint; tokens?: Address[]; reserve?: bigint; margin?: number; exitSeed?: Uint8Array } = {}) {
+async function ownerOf(name: string, o: { fund?: bigint; tokens?: Address[]; reserve?: bigint; margin?: number; exitSeed?: Uint8Array; factory?: Address } = {}) {
   const signer = newSigner();
   const exitTree = o.exitSeed ? new MasterSigner(WOTS_W16, memoryStore(), () => o.exitSeed!) : newSigner();
   const dailyKey = generatePrivateKey();
   const daily = privateKeyToAccount(dailyKey).address;
   const harbor = fresh();
   const harborSalt = keccak256(toHex(name));
-  const account = await newAccount(deployer, signer, daily, harbor, harborSalt, o.fund ?? parseEther("2"));
+  const account = await newAccount(deployer, signer, daily, harbor, harborSalt, o.fund ?? parseEther("2"), o.factory);
   const { epochSalt } = await accountState(account);
   const exit = await createExit(deployer, v2.exitFactory!, account, exitTree.root, epochSalt, o.reserve ?? parseEther("0.05"));
   await mined(`${name}: the master key names the exit`, master(signer, account, epochSalt, [opsV2.setExit(exit)]));
@@ -539,6 +539,31 @@ check(cli("thief", "0.6").ok && cli("freeze").ok, "a theft waits, and the owner 
 const thaw = cli("unfreeze");
 check(thaw.ok && /still waiting/.test(thaw.said), "`vajra unfreeze` warns that a freeze never ended it");
 
+console.log("\n14. A token that spends the frame's state gas, swept before the harbor is paid and after");
+/**
+ * Says it holds a balance, and writes five new slots on `transfer`, so it succeeds and keeps what it spent: 489,600 of a frame's 700,000 state gas,
+ * which leaves too little for a fresh harbor and the pool closing. Eleven bytes of init code, then 43 of runtime, told apart by calldata size.
+ */
+const STATE_SPENDING_TOKEN = "0x602b80600b6000396000f336602414602057600160015560016002556001600355600160045560016005555b600160005260206000f3";
+const placeToken = async () => {
+  const hash = await walletFor(deployer).sendTransaction({ data: STATE_SPENDING_TOKEN as Hex, gas: 1_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" });
+  return (await waitForSuccess(hash, "placing the token")).contractAddress!;
+};
+const swept = async (who: Owner) => {
+  const landing = await submit(who.tx, { log: (line) => console.log(`    ${line}`) });
+  const harborHolds = await publicClient.getBalance({ address: who.harbor });
+  const frame = landing.receipt.frameReceipts[1]!;
+  evidence.push({ step: `A token that spends the frame's state gas: ${who.name}`, hash: landing.hash, block: Number(BigInt(landing.receipt.blockNumber)), verifyGas: Number(BigInt(landing.receipt.frameReceipts[0]!.gasUsed)), totalGas: Number(BigInt(landing.receipt.gasUsed)), attempts: landing.attempts });
+  return { landing, harborHolds, ok: framesSucceeded(landing.receipt), stateGas: Number(BigInt(frame.stateGasUsed)) };
+};
+const firstOrder = await ownerOf("tokens swept first, as on the public devnet", { factory: await preFixV2Factory(deployer, "VajraAccountV2.pre-section-26"), tokens: [await placeToken()] });
+const firstResult = await swept(firstOrder);
+check(!firstResult.ok && firstResult.harborHolds === 0n, `before: the frame halted, the harbor holds nothing, and the rescue's one-time key is spent. State gas used: ${firstResult.stateGas}`);
+const lastOrder = await ownerOf("tokens swept last", { tokens: [await placeToken()] });
+const lastResult = await swept(lastOrder);
+check(lastResult.ok && lastResult.harborHolds > parseEther("1.9"), `after: the same token, and the harbor holds ${formatEther(lastResult.harborHolds)} ETH. State gas used: ${lastResult.stateGas}`);
+check(((await checkRescue(lastOrder.rescue)).state) === "sent", "and the tool says it landed");
+
 const result = {
   ranAt: new Date().toISOString(),
   stack: "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
@@ -551,6 +576,7 @@ const result = {
   secondsLeftWhenTheRescueLanded: secondsLeft,
   thiefTransactionsSentMeanwhile: pins,
   thiefPendingInTheNodesPool: { lookedTimes: pendingSeen.length, seenTimes: pendingSeen.filter(Boolean).length, inTheLastFive: pendingSeen.slice(-5).filter(Boolean).length },
+  stateSpendingToken: { sweptFirst: { framesSucceeded: firstResult.ok, harborHolds: formatEther(firstResult.harborHolds), stateGas: firstResult.stateGas }, sweptLast: { framesSucceeded: lastResult.ok, harborHolds: formatEther(lastResult.harborHolds), stateGas: lastResult.stateGas } },
   account: first.account,
   exit: first.exit,
   failures: tally.failures,

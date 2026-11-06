@@ -61,9 +61,9 @@ export const defaultMargin = (queueDelay: number) => Math.min(Math.floor(queueDe
  * `escape`, with gas for a token that fights: a sweep gives one up to `SWEEP_GAS` for its balance and again for its transfer. Gas is signed
  * here and cannot be raised later, and a frame that runs out still spends the nonce key, so this errs high. Unused gas comes back.
  *
- * `SWEEP_GAS` bounds execution and not state gas, which is one pool for the frame, and a transfer that succeeds keeps what it spent. A token
- * sweeps before the harbor is paid, so three new slots a token are allowed for. A configured token that takes more can still halt the frame:
- * see docs/FINDINGS.md section 23.
+ * `SWEEP_GAS` bounds execution and not state gas, which is one pool for the frame, and a transfer that succeeds keeps what it spent. The V2 in
+ * this repo pays the harbor first, so a token can only fail its own transfer. The V2 on the public devnet sweeps tokens first, where a token
+ * can halt the frame, and three new slots a token are allowed for: see docs/FINDINGS.md section 23.
  */
 export function rescueCall(harbor: Address, harborSalt: Hex, tokens: number, extra: Address[] = []): Call {
   const call = ops.escape(harbor, harborSalt, extra);

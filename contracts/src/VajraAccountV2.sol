@@ -832,6 +832,10 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// Reveals the sealed harbor and sends everything there. Leaves the account frozen, because the daily key that
     /// made this necessary is still valid.
     ///
+    /// ETH goes first and the tokens after it. `SWEEP_GAS` bounds what a token can burn and not the state gas it can spend, which is one
+    /// pool for the frame, and a transfer that succeeds keeps what it spent. Swept first, a token could leave too little for a fresh harbor
+    /// and the pool closing, halt the frame, and cost the ETH and a rescue's one-time key. Swept last, all it can do is fail its own transfer.
+    ///
     /// A token that refuses to transfer must not be able to block the exit, so failures are reported and skipped.
     ///
     /// @param harbor The harbor address the commitment seals.
@@ -843,13 +847,6 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         s.frozen = true;
         emit FrozenSet(true);
 
-        address[] storage configured = s.assets;
-        for (uint256 i; i < configured.length; ++i) {
-            if (configured[i] != address(0)) _sweep(configured[i], harbor);
-        }
-        for (uint256 i; i < extraAssets.length; ++i) {
-            _sweep(extraAssets[i], harbor);
-        }
         (bool sent,) = harbor.call{value: address(this).balance}("");
         if (!sent) emit SweepFailed(address(0));
         // V2: `balance` included the pool, so the notes have been paid to the harbor. A note must not be able to claim anything
@@ -858,6 +855,14 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
             emit PoolDrained(harbor, s.poolHeld);
             s.poolHeld = 0;
             s.poolClosed = true;
+        }
+
+        address[] storage configured = s.assets;
+        for (uint256 i; i < configured.length; ++i) {
+            if (configured[i] != address(0)) _sweep(configured[i], harbor);
+        }
+        for (uint256 i; i < extraAssets.length; ++i) {
+            _sweep(extraAssets[i], harbor);
         }
         emit Escaped(harbor);
     }
