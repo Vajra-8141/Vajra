@@ -37,9 +37,18 @@ export interface Deployments {
   paymaster: Address;
   announcer: Address;
   registry: Address;
+  /** The local mirror only: everything that needs the patched sidecar. */
+  v2?: { implementation: Address; factory: Address; recoveryVerifier: Address };
 }
 
-export const deployments = (): Deployments => deployed as unknown as Deployments;
+let active = deployed as unknown as Deployments;
+
+export const deployments = (): Deployments => active;
+
+/** The local mirror's addresses come from a file its deploy wrote, which a browser bundle cannot import. */
+export const useDeployments = (loaded: Deployments) => {
+  active = loaded;
+};
 
 export interface AccountConfig {
   dailyKey: Address;

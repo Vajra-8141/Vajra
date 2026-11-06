@@ -2,14 +2,23 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { type Address, type Hex, concat, keccak256, numberToHex, parseEther, size } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { DEVNET, LEGACY_GAS_PRICE, genesisHash, publicClient, waitForSuccess, walletFor } from "@vajra/core";
+import { DEVNET, LEGACY_GAS_PRICE, genesisHash, isLocalStack, publicClient, useDeployments, waitForSuccess, walletFor } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
 
 const load = (name: string) =>
   JSON.parse(readFileSync(new URL(`../../core/src/artifacts/${name}.json`, import.meta.url), "utf8")) as { abi: never; bytecode: Hex };
 
-export const deploymentsPath = new URL("../../core/src/deployments/1337.json", import.meta.url);
-export const keyPath = (name: string) => new URL(`../../../.vajra/${name}`, import.meta.url).pathname;
+// The mirror keeps its keys and addresses apart, so that nothing run against it can touch the public devnet's.
+const stateDir = isLocalStack ? ".vajra-local" : ".vajra";
+export const deploymentsPath = isLocalStack
+  ? new URL("../../../.vajra-local/deployments.json", import.meta.url)
+  : new URL("../../core/src/deployments/1337.json", import.meta.url);
+export const keyPath = (name: string) => new URL(`../../../${stateDir}/${name}`, import.meta.url).pathname;
+
+if (isLocalStack && existsSync(deploymentsPath)) useDeployments(JSON.parse(readFileSync(deploymentsPath, "utf8")));
+
+/** The most a proof transaction may cost an account, since nothing signs its fee. Well above what one needs at 2 gwei. */
+const MAX_PROOF_TX_COST = parseEther("0.02");
 
 /** Each implementation costs ~20M gas. `only` redeploys one part and keeps the addresses of the rest. */
 export async function deploy(only?: string) {
@@ -56,7 +65,14 @@ export async function deploy(only?: string) {
     out.announcer ??= await createStock("ERC5564Announcer");
     out.registry ??= await createStock("ERC6538Registry");
   }
+  if (isLocalStack && want("v2")) {
+    const recoveryVerifier = await create("RecoveryVerifier", []);
+    const implementation = await create("VajraAccountV2", [4, 3, DEVNET.stakingRegistry, recoveryVerifier, MAX_PROOF_TX_COST]);
+    const factory = await create("VajraFactory", [implementation]);
+    out.v2 = { implementation, factory, recoveryVerifier };
+  }
   writeFileSync(deploymentsPath, JSON.stringify(out, null, 1) + "\n");
+  useDeployments(out as never);
   console.log("written", deploymentsPath.pathname);
   return out;
 }

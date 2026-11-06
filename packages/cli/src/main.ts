@@ -123,6 +123,7 @@ switch (command) {
   case "measure":
   case "pin":
   case "budget":
+  case "recover":
     await import(`./${command}.ts`);
     break;
   default:

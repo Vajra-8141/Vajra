@@ -68,9 +68,15 @@ importers:
       '@vajra/core':
         specifier: workspace:*
         version: link:../core
+      circomlibjs:
+        specifier: 0.1.7
+        version: 0.1.7
       serialport:
         specifier: 13.0.0
         version: 13.0.0
+      snarkjs:
+        specifier: 0.7.5
+        version: 0.7.5
       viem:
         specifier: ^2.57.7
         version: 2.57.16(typescript@5.9.3)

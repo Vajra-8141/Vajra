@@ -1,0 +1,148 @@
+{
+ "ranAt": "2026-11-06T03:52:35.278Z",
+ "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch",
+ "chainId": 13370,
+ "genesis": "0xe0124d52b9589c6be80c1592bed0853185c47167ba1dc0ac0d25f60725df9468",
+ "verifier": "0x0bbae1e5766c24010a08080299fa91eaa973185a",
+ "implementation": "0xe2b9debd5859418cbee5213d84c8ff6d551ce5aa",
+ "account": "0xcD47A4eCDf4265F1811c8C02ebDbB2C077B9B10e",
+ "proverMs": 329,
+ "verifyGas": 293678,
+ "failures": 1,
+ "mined": [
+  {
+   "step": "set recovery",
+   "hash": "0x510eac54d78a1fd3565abd624afc291abd4ca10b31b91218df7b1c46f336b504",
+   "block": 26,
+   "verifyGas": 90612,
+   "totalGas": 367354,
+   "attempts": 1
+  },
+  {
+   "step": "queue recovery",
+   "hash": "0x82b29ff2c53474999a066515ffe97d9038b864c08fc454794ff9891576b93700",
+   "block": 28,
+   "verifyGas": 293678,
+   "totalGas": 872461,
+   "attempts": 1
+  },
+  {
+   "step": "install root",
+   "hash": "0x66205d2a052785e7479608fa98195fb2ea8bd304ecde809ca67e6301c3d95ee3",
+   "block": 40,
+   "verifyGas": 0,
+   "totalGas": 53572,
+   "attempts": 1
+  },
+  {
+   "step": "freeze, signed by the NEW tree",
+   "hash": "0x13f6e491fdb9be2f9a22f33dc511a0cde6a0ed081d9fdaabbef1c8b1662e8e57",
+   "block": 42,
+   "verifyGas": 90711,
+   "totalGas": 167418,
+   "attempts": 1
+  },
+  {
+   "step": "unfreeze, signed by the NEW tree",
+   "hash": "0xd93446eec4732ddbe8216f56fb54fdc22ebc7e0716c42198ae6dadd1fd5b5871",
+   "block": 43,
+   "verifyGas": 86508,
+   "totalGas": 167418,
+   "attempts": 1
+  },
+  {
+   "step": "set recovery on the second account",
+   "hash": "0xcb2c6c92eaa572885c0fce3387ad28b8dfaf038f91fecb33f63a81a947840c04",
+   "block": 47,
+   "verifyGas": 88716,
+   "totalGas": 367354,
+   "attempts": 1
+  },
+  {
+   "step": "thief queues a root, with a stolen paper",
+   "hash": "0xcc9c37396eedfb74810248b4e722e6078296734a3f5ab5e5d3558b48fc26ef48",
+   "block": 48,
+   "verifyGas": 293678,
+   "totalGas": 872449,
+   "attempts": 1
+  },
+  {
+   "step": "owner vetoes it",
+   "hash": "0x0f4800c431486dc9996b17d4962b75a0e78161032a14785e4dc2df8c5d098d0b",
+   "block": 50,
+   "verifyGas": 89253,
+   "totalGas": 169466,
+   "attempts": 1
+  }
+ ],
+ "refusals": [
+  {
+   "attack": "A proof, before any commitment is set",
+   "refusal": "RecoveryNotSet"
+  },
+  {
+   "attack": "Daily key changes the commitment",
+   "refusal": "EscapeKeyOutranks"
+  },
+  {
+   "attack": "Daily key queues a root with no proof",
+   "refusal": "EscapeKeyOutranks"
+  },
+  {
+   "attack": "A corrupted proof",
+   "refusal": "RecoveryProofInvalid"
+  },
+  {
+   "attack": "A proof from the wrong secret",
+   "refusal": "RecoveryProofInvalid"
+  },
+  {
+   "attack": "A seen proof, moved onto the attacker's root",
+   "refusal": "RecoveryProofInvalid"
+  },
+  {
+   "attack": "A proof made for another account",
+   "refusal": "RecoveryProofInvalid"
+  },
+  {
+   "attack": "A proof made for another chain",
+   "refusal": "RecoveryProofInvalid"
+  },
+  {
+   "attack": "A proof from another epoch",
+   "refusal": "RecoveryProofInvalid"
+  },
+  {
+   "attack": "A seen proof, with a frame added that pays the attacker",
+   "refusal": "ProofTxShapeInvalid"
+  },
+  {
+   "attack": "A seen proof, resent with a huge fee to burn the balance",
+   "refusal": "ProofTxCostExceeded"
+  },
+  {
+   "attack": "A seen proof, on a nonce key of the attacker's choosing",
+   "refusal": "ProofTxShapeInvalid"
+  },
+  {
+   "attack": "The same proof, replayed on the next nonce",
+   "refusal": "NullifierSpent"
+  },
+  {
+   "attack": "Installing before the delay",
+   "refusal": "QueuedPendingTimelock"
+  },
+  {
+   "attack": "A signature from the lost tree",
+   "refusal": "NonceKeyNotBoundToLeaf"
+  },
+  {
+   "attack": "Installing a vetoed root",
+   "refusal": "RecoveryVetoed"
+  },
+  {
+   "attack": "The thief tries again with the same paper",
+   "refusal": "prefix gas budget exceeded: 500000 > 100000 (MAX_VERIFY_GAS)"
+  }
+ ]
+}

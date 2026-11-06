@@ -1,7 +1,7 @@
 /** The public EIP-8141 devnet, and a JSON-RPC client that keeps a node's error text intact. */
 import type { Address, Hex } from "viem";
 
-export const DEVNET = {
+const PUBLIC = {
   chainId: 1337,
   /** ethrex directly: standard `eth_*`, `ethrex_simulateFrameTransaction`. */
   execution: "https://altmempool.forshtat.com",
@@ -12,7 +12,26 @@ export const DEVNET = {
   explorer: "https://explorer.altmempool.wtf",
   stakingRegistry: "0xd51c04d7a0b01124e84de152f4e56d9eecb22d2f" as Address,
   usdc: "0xEFe0D421fD473564c9C9b0cDCeB194cF476D6AF5" as Address,
-} as const;
+};
+
+/**
+ * The mirror `stack/up.sh` boots: the same two upstream commits, with the sidecar patched. It has its own chain id, so that
+ * nothing recorded against it can be read as a public devnet result.
+ */
+const LOCAL: typeof PUBLIC = {
+  chainId: 13370,
+  execution: "http://127.0.0.1:18545",
+  mempool: "http://127.0.0.1:14337/rpc/",
+  gateway: "http://127.0.0.1:14337/rpc/",
+  explorer: "http://127.0.0.1:14337/explorer",
+  stakingRegistry: PUBLIC.stakingRegistry,
+  usdc: PUBLIC.usdc,
+};
+
+/** True when this process runs against the mirror. A browser has no `process`, and always gets the public devnet. */
+export const isLocalStack = typeof process !== "undefined" && process.env?.VAJRA_STACK === "local";
+
+export const DEVNET = isLocalStack ? LOCAL : PUBLIC;
 
 export class RpcError extends Error {
   readonly method: string;
