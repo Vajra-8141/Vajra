@@ -1,9 +1,9 @@
 {
- "ranAt": "2026-11-06T12:59:18.936Z",
+ "ranAt": "2026-11-06T14:13:53.085Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
  "chainId": 13370,
  "contract": "VajraAccountV2",
- "account": "0xc51D8283A1222D356aaF9a6100355214C751007F",
+ "account": "0xCeC8C5FEAA45979769d0B3c3781d0Ad9a7BCF487",
  "copies": {
   "proofs": 6,
   "pendingAtOnce": 1,
@@ -15,7 +15,7 @@
  "refusingRecipient": {
   "mined": 1,
   "refusal": "prefix gas budget exceeded: 500000 > 100000 (MAX_VERIFY_GAS)",
-  "accountBalanceFell": "2685999000000000",
+  "accountBalanceFell": "2686314000000000",
   "noteStillGood": false
  },
  "usedTicket": {
@@ -23,6 +23,6 @@
   "refusals": [
    "RecoveryGateInvalid"
   ],
-  "msPerTry": 5
+  "msPerTry": 4
  }
 }

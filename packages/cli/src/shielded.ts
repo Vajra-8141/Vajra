@@ -111,7 +111,10 @@ const tx = (over: Partial<Parameters<typeof unshieldTx>[0]> = {}) =>
 
 const bent = [...proofA.proof] as unknown as bigint[];
 bent[2] = bent[2]! + 1n;
-await refused("A real proof, with no work done", tx({ work: proofWork(account, proofA.proof, unshieldNonceKey(proofA.nullifierHash)) + 1n }), "ProofWorkMissing");
+const solved = proofWork({ account, proof: proofA.proof, nonceKey: unshieldNonceKey(proofA.nullifierHash), root: proofA.root, nullifierHash: proofA.nullifierHash, recipient });
+await refused("A real proof, with no work done", tx({ work: solved + 1n }), "ProofWorkMissing");
+await refused("Work solved for one recipient, spent on another, to buy a pairing", tx({ work: solved, recipient: fresh() }), "ProofWorkMissing");
+await refused("Work solved for one root, spent on another", tx({ work: solved, root: proofA.root + 1n }), "ProofWorkMissing");
 await refused("A corrupted proof", tx({ proof: bent as unknown as FlatProof }), "ShieldProofInvalid");
 await refused("A seen proof, moved to the attacker's address", tx({ recipient: fresh() }), "ShieldProofInvalid");
 const other = await proveUnshield({ note: a, leaves, leaf: 0, recipient, denomination: DENOM, account: fresh(), chainId });

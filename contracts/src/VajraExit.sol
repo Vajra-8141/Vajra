@@ -136,9 +136,12 @@ contract VajraExit is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// checks everything it would check of a recovery of its own, including the shape of this transaction, and the exit pays.
     ///
     /// Unlike `validateExit` this needs a stake: the pairing is over the unstaked budget, and it reads the account's storage.
-    function validateRecovery(uint256[8] calldata proof, bytes32 ticket) external {
+    ///
+    /// The ticket here is the preimage of the account's ticket, and only the paper can make it. A recovery sent from the account
+    /// shows its ticket, so without this a stranger could resend that proof from here and the reserve would pay.
+    function validateRecovery(uint256[8] calldata proof, bytes32 exitTicket) external {
         if (address(uint160(txparam(TxParam.SENDER))) != address(this)) revert NotAuthorized();
-        IVajraRecovery(account).checkRecovery(proof, ticket);
+        IVajraRecovery(account).checkRecovery(proof, keccak256(abi.encode(exitTicket)));
         approve(Scope.EXECUTION_AND_PAYMENT);
     }
 

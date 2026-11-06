@@ -1,10 +1,10 @@
 {
  "chainId": 13370,
  "mirror": true,
- "at": "2026-11-06T12:41:18.953Z",
+ "at": "2026-11-06T14:07:17.471Z",
  "paymasters": {
-  "quota": "0x0947d8b9188ec94f32604701b9934cbcc5cd7dd4",
-  "usdc": "0xb256f1af154924097123ff8162ea3de738343f81",
+  "quota": "0xa124c0c38dc4d009c5d1060e966aae922dfee411",
+  "usdc": "0xfc258a72dd1bc0de91cfd2627e533e58cc91848c",
   "feeCap": "3000000000",
   "usdcPerEth": "3000000000"
  },
@@ -13,79 +13,77 @@
   "label": "Fixed by the paymaster's owner. Not a market price."
  },
  "canonicalRefusals": {
-  "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender": 22,
-  "Invalid params: Frame transaction validation-prefix simulation failed: validation prefix frame reverted": 3,
+  "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS": 45,
+  "Invalid params: Frame transaction validation-prefix simulation failed: validation prefix frame reverted": 4,
   "Invalid params: Frame transaction validation prefix does not match any recognized shape": 1,
-  "Invalid params: Nonce for account too low": 1,
-  "Invalid params: Invalid frame transaction signature": 1,
-  "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS": 19
+  "Invalid params: Invalid frame transaction signature": 1
  },
- "predictionsChecked": 63,
+ "predictionsChecked": 66,
  "transactions": [
   {
    "step": "sponsored daily spend",
-   "hash": "0x9c1c523af21e65e2303a528cd4317d4d73bc44e56809e94be9ed0f8cc04afa95",
-   "block": 79,
-   "gasUsed": 519401,
-   "charged": "602405 gas of quota",
+   "hash": "0x5041811b579a258265fda12e38e14f74ee8624936709200fb543ea3a426e575d",
+   "block": 495,
+   "gasUsed": 526109,
+   "charged": "609113 gas of quota",
    "frames": [
-    32978,
+    41390,
     37762,
     17649,
-    371801,
+    370109,
     39140
    ]
   },
   {
    "step": "first spend under the quota",
-   "hash": "0x47d9b021a2109af6d9350a737ac7ae8c78945d45847ecd80ee1e59e39e61063e",
-   "block": 86,
-   "gasUsed": 519389,
-   "charged": "602393 gas of quota",
+   "hash": "0x626d1292e7b81dd40e5e40d706e71a7c5e69a26442a24de66ae5a0784d52801a",
+   "block": 505,
+   "gasUsed": 526121,
+   "charged": "609125 gas of quota",
    "frames": [
-    32978,
+    41390,
     37762,
     17649,
-    371801,
+    370109,
     39140
    ]
   },
   {
    "step": "second spend under the quota",
-   "hash": "0x6c6a46a33db74e0d3a3e0d2887f479a3184305ca262fbc7a1babf4deeecce9c4",
-   "block": 88,
-   "gasUsed": 421300,
-   "charged": "504304 gas of quota",
+   "hash": "0x351c26f1e1624d73d9e9d5b6367677acbbaa0c1fc423359e88c5e2af2dff0f48",
+   "block": 506,
+   "gasUsed": 428020,
+   "charged": "511024 gas of quota",
    "frames": [
-    32978,
+    41390,
     37593,
     17649,
-    273881,
+    272189,
     39140
    ]
   },
   {
    "step": "8 KB of ignored data, so that the calldata floor sets the cost",
-   "hash": "0xfda743ac8da533a362e2fc567bba2c839b720561cc7827e62b81c16b3d36e634",
-   "block": 112,
+   "hash": "0xb66a1f4ebfccf76b02750e89136a34755ad2e034a4033ea538cac8596c752e40",
+   "block": 539,
    "gasUsed": 840087,
    "charged": "996327 gas of quota",
    "frames": [
-    32978,
+    41390,
     37762,
     17649,
-    371801,
+    370109,
     39086
    ]
   },
   {
    "step": "a body that burns its whole limit and fails",
-   "hash": "0xe0ea97cfa05f18f67cd4494576f7ee4dc36bedb1ba7e6f649f6a1efada5c897b",
-   "block": 114,
-   "gasUsed": 155276,
-   "charged": "225059 gas of quota",
+   "hash": "0x02c3ac4a5b397938fdccb02dc3fcc61eb3f6fb6d7b157dd6acbb9fb1f474fdd9",
+   "block": 540,
+   "gasUsed": 163676,
+   "charged": "245047 gas of quota",
    "frames": [
-    32978,
+    41390,
     37593,
     17649,
     7911,
@@ -94,82 +92,82 @@
   },
   {
    "step": "a spend, to replay",
-   "hash": "0xb1d60dc99fbc08b4c4ac2b272b4e137717d361a92003ffba9d5b01a4c0241f72",
-   "block": 127,
-   "gasUsed": 421312,
-   "charged": "504316 gas of quota",
+   "hash": "0xa7c13b57f7b2419b5de0fbaf8f614fa9b7bd663232c964638a1374e0336e78a8",
+   "block": 562,
+   "gasUsed": 439651,
+   "charged": "522655 gas of quota",
    "frames": [
-    32978,
+    41390,
     37593,
     17649,
-    273881,
+    283808,
     39140
    ]
   },
   {
    "step": "a spend that takes most of the day's quota",
-   "hash": "0xb4dcb8be887f62752917bdf0213244695a14cbc5654864d76b6a93bfe34f50f1",
-   "block": 162,
-   "gasUsed": 519389,
-   "charged": "602393 gas of quota",
+   "hash": "0xe078a318aa7497ea5b1a054ed3d53e80d2a13ce04bc41f0ad8e8b823f8e60742",
+   "block": 599,
+   "gasUsed": 526109,
+   "charged": "609113 gas of quota",
    "frames": [
-    32978,
+    41390,
     37762,
     17649,
-    371801,
+    370109,
     39140
    ]
   },
   {
    "step": "the quota is back",
-   "hash": "0x88200a640150c40fb0c31e90a5f6a7691467af752b7614592ecca57a4da4be6c",
-   "block": 183,
-   "gasUsed": 421469,
-   "charged": "504473 gas of quota",
+   "hash": "0x57fe538e0f80196adbe9640d8ab7770d2946f74bb9b4a36eb5cc95518800250a",
+   "block": 620,
+   "gasUsed": 428201,
+   "charged": "511205 gas of quota",
    "frames": [
-    32978,
+    41390,
     37762,
     17649,
-    273881,
+    272189,
     39140
    ]
   },
   {
    "step": "a spend with gas paid in USDC",
-   "hash": "0xa6c79a898b318db02b89d633d440ac4c73a066cc894bbe8a2e7d57fe80a789c7",
-   "block": 194,
-   "gasUsed": 637475,
-   "charged": "2151613 USDC units",
+   "hash": "0x4f72220906d057526aebd7da3c3ddab0c6962fdef029db33779a3a83b1a810b7",
+   "block": 631,
+   "gasUsed": 546275,
+   "charged": "1878013 USDC units",
    "frames": [
-    32978,
-    166699,
+    41390,
+    68779,
     16211,
-    356901,
+    355209,
     44463
    ]
   },
   {
    "step": "a spend, to replay",
-   "hash": "0x9b6ddbeb5f715a349789c3dcbb8541891fe4cdfe489e2b09c4f20b32cc15ee35",
-   "block": 205,
-   "gasUsed": 441647,
-   "charged": "1564129 USDC units",
+   "hash": "0xd819971df6a75cdf6ddeba0356b3c1349d08a0604229478b2e4a58986c87b2bd",
+   "block": 647,
+   "gasUsed": 448343,
+   "charged": "1584217 USDC units",
    "frames": [
-    32978,
+    41390,
     68779,
     16211,
-    258981,
+    257289,
     44463
    ]
   },
   {
    "step": "the body revokes the approval",
-   "hash": "0x6fa33ba8f8bba2f11f6a58707e1aa35ba4727765e406b25b7db85a40b9f4b384",
-   "block": 218,
-   "gasUsed": 265311,
-   "charged": "1500049 USDC units",
+   "hash": "0x6c4d030b0917b9a736a7a034e0d1e1de39b808923d6dbffc98e97566ca24939c",
+   "block": 660,
+   "gasUsed": 266263,
+   "charged": "1502905 USDC units",
    "frames": [
-    71512,
+    72512,
     68779,
     36211,
     2383,
@@ -178,12 +176,12 @@
   },
   {
    "step": "the body sends the account's USDC away",
-   "hash": "0x3612aa011af6ed6586a6a07af1838a1fc214c036e20b7bfa463e2b3b1e881867",
-   "block": 229,
-   "gasUsed": 393435,
-   "charged": "1849573 USDC units",
+   "hash": "0xa7378fe312fa45101dd6eab2316cecde77493ef79ed754f8962bb74a157e380f",
+   "block": 671,
+   "gasUsed": 388378,
+   "charged": "1834402 USDC units",
    "frames": [
-    77653,
+    72512,
     68779,
     36211,
     112798,
@@ -192,12 +190,12 @@
   },
   {
    "step": "a body that burns its limit and fails",
-   "hash": "0x82c89124e302e5d8238e4adc1c6322348f1dd673525fa85768bdb1efe132dbce",
-   "block": 232,
-   "gasUsed": 190565,
-   "charged": "810883 USDC units",
+   "hash": "0x2f38f67470567c2d5367e7b36d549431df808928adcdf073d7f8ecaef64bbf58",
+   "block": 673,
+   "gasUsed": 198989,
+   "charged": "836155 USDC units",
    "frames": [
-    32978,
+    41390,
     68779,
     16211,
     7911,
@@ -206,46 +204,30 @@
   },
   {
    "step": "8 KB of ignored data, so that the calldata floor sets the cost",
-   "hash": "0x1ab50d1265a434aa7976f2ea98ba7828f73fe0a4add69b4ccda2fcc1cf0358cf",
-   "block": 235,
+   "hash": "0x8f55f46d1ac579c236abee8fb1a1f62c96df0a150c90854ad865e62ab4d4a0bc",
+   "block": 675,
    "gasUsed": 744215,
-   "charged": "3484057 USDC units",
+   "charged": "3504217 USDC units",
    "frames": [
-    32978,
+    41390,
     68779,
     16211,
-    258981,
+    257289,
     44463
    ]
   },
   {
    "step": "collect empties the account, and settle refills it",
-   "hash": "0x5d62999b67b74d03999bf32187f192d325b172051a3665308efafffa4e822503",
-   "block": 249,
-   "gasUsed": 313691,
-   "charged": "1180261 USDC units",
+   "hash": "0x287ae2de98109743d22b1f16d69ac807029f858375d0936f42ccc2d2799d3a47",
+   "block": 690,
+   "gasUsed": 320387,
+   "charged": "1200349 USDC units",
    "frames": [
-    32978,
+    41390,
     68779,
     16211,
-    131061,
+    129369,
     44463
-   ]
-  },
-  {
-   "step": "a stolen daily key adds two more collect frames",
-   "hash": "0x7271b6334cb4d4766afb9b2e0c745973b96fe0b674febe6db84173e3767b71dd",
-   "block": 275,
-   "gasUsed": 563661,
-   "charged": "1913896 USDC units",
-   "frames": [
-    34731,
-    68779,
-    16211,
-    5451,
-    5451,
-    356901,
-    54496
    ]
   }
  ],
@@ -253,12 +235,12 @@
   {
    "attack": "the third spend of the day",
    "refusal": "OverQuota",
-   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   },
   {
    "attack": "one transaction whose limits are over the whole quota",
    "refusal": "OverQuota",
-   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   },
   {
    "attack": "two transactions at once on one remaining quota",
@@ -277,7 +259,7 @@
   {
    "attack": "the settle frame given too little gas to run",
    "refusal": "SettleFrameStarved",
-   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   },
   {
    "attack": "no charge frame at all",
@@ -287,17 +269,17 @@
   {
    "attack": "no settle frame",
    "refusal": "SettleFrameMissing",
-   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   },
   {
    "attack": "settle moved before the body, which would refund the body's whole limit",
-   "refusal": "SettleFrameMissing",
-   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+   "refusal": "FrameNotAllowed",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   },
   {
    "attack": "settle pointed at the wrong frame",
    "refusal": "SettleFrameMissing",
-   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   },
   {
    "attack": "the charge frame sent to some other contract",
@@ -305,29 +287,49 @@
    "canonical": "Invalid params: Frame transaction validation prefix does not match any recognized shape"
   },
   {
+   "attack": "a sponsored daily transaction on an account whose master key named no paymaster",
+   "refusal": "FrameNotAllowed",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
+  },
+  {
+   "attack": "a paymaster the master key did not name, on an account that named another",
+   "refusal": "FrameNotAllowed",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
+  },
+  {
+   "attack": "the daily key names a paymaster itself",
+   "refusal": "EscapeKeyOutranks",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
+  },
+  {
+   "attack": "a DEFAULT frame in the body, even to a named paymaster",
+   "refusal": "FrameNotAllowed",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
+  },
+  {
    "attack": "a fee above the paymaster's cap",
    "refusal": "FeeTooHigh",
-   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   },
   {
    "attack": "a tip paid to a colluding block producer",
-   "refusal": "FeeTooHigh",
-   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+   "refusal": "DailyTxCostExceeded",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   },
   {
    "attack": "an account nobody enrolled",
    "refusal": "NotEnrolled",
-   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   },
   {
    "attack": "an account the owner removed",
    "refusal": "NotEnrolled",
-   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   },
   {
    "attack": "the mined spend, replayed byte for byte",
-   "refusal": "Invalid Transaction: Nonce mismatch: expected 3, got 2",
-   "canonical": "Invalid params: Nonce for account too low"
+   "refusal": "prefix gas budget exceeded: 119800 > 100000 (MAX_VERIFY_GAS)",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   },
   {
    "attack": "a stranger signs for an enrolled account",
@@ -361,22 +363,22 @@
   {
    "attack": "the same contract with no ETH",
    "refusal": "validation frame 2: reverted",
-   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   },
   {
    "attack": "the same contract with no stake",
    "refusal": "unstaked payer accessed payer slot 0x0000000000000000000000000000000000000000000000000000000000000001",
-   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   },
   {
    "attack": "the next spend, the same day",
    "refusal": "OverQuota",
-   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   },
   {
    "attack": "a new day that nobody has announced: still the old day's total",
    "refusal": "OverQuota",
-   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: StorageReadNonSender"
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   },
   {
    "attack": "no approval",
@@ -406,7 +408,7 @@
   {
    "attack": "no repay frame",
    "refusal": "ChargeFrameMissing",
-   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
+   "canonical": "Invalid params: Frame transaction validation-prefix simulation failed: validation prefix frame reverted"
   },
   {
    "attack": "no refund frame",
@@ -430,7 +432,7 @@
   },
   {
    "attack": "the mined spend, replayed byte for byte",
-   "refusal": "prefix gas budget exceeded: 262800 > 100000 (MAX_VERIFY_GAS)",
+   "refusal": "prefix gas budget exceeded: 257800 > 100000 (MAX_VERIFY_GAS)",
    "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   },
   {
@@ -462,8 +464,9 @@
    "refusal": "PayFrameMissing, then NothingToSettle: mined, nothing moved"
   },
   {
-   "attack": "a stolen daily key adds collect frames to burn the approval",
-   "refusal": "PayFrameMissing in each: mined, charged once"
+   "attack": "a stolen daily key adds two more collect frames",
+   "refusal": "FrameNotAllowed",
+   "canonical": "Invalid params: Frame transaction prefix gas budget (frames + sig cost) exceeds MAX_VERIFY_GAS"
   }
  ]
 }

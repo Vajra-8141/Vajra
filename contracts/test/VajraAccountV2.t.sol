@@ -243,6 +243,10 @@ contract VajraAccountV2Test is Test {
         account.setRecovery(commitment, DELAY, bytes32(0));
     }
 
+    function workHash(bytes32 key, uint256 work) private view returns (uint256) {
+        return uint256(keccak256(abi.encode(address(account), unshieldProof, key, poolRoot, nullifierHash, uint256(uint160(recipient)), work)));
+    }
+
     function test_unshield_needsItsWork() public {
         shieldBoth();
         address poseidon = address(account.POSEIDON());
@@ -255,9 +259,9 @@ contract VajraAccountV2Test is Test {
         unshieldFrame();
         bytes32 key = keccak256(abi.encodePacked(keccak256("vajra.unshield.v1"), nullifierHash));
         uint256 work;
-        while (uint256(keccak256(abi.encode(address(account), unshieldProof, key, work))) >> 248 != 0) work++;
+        while (workHash(key, work) >> 248 != 0) work++;
         uint256 wrong = work + 1;
-        while (uint256(keccak256(abi.encode(address(account), unshieldProof, key, wrong))) >> 248 == 0) wrong++;
+        while (workHash(key, wrong) >> 248 == 0) wrong++;
         uint256 before = gasleft();
         vm.expectRevert(VajraAccountV2.ProofWorkMissing.selector);
         account.validateUnshield(unshieldProof, wrong);
@@ -1182,12 +1186,14 @@ contract VajraAccountV2Test is Test {
     // ------------------------------------------------------- what a wallet signs: EIP-712 ----
 
     bytes32 constant SPEND_TYPE = keccak256(
-        "DailySpend(address asset,address recipient,uint256 amount,uint256 nonce,uint256 maxFeePerGas,uint256 maxPriorityFeePerGas,uint256 executionGas,uint256 stateGas)"
+        "DailySpend(address asset,address recipient,uint256 amount,uint256 nonce,uint256 maxFeePerGas,uint256 maxPriorityFeePerGas,uint256 executionGas,uint256 stateGas,uint256 verifyGas,uint256 maxCost)"
     );
     bytes32 constant EXECUTE_TYPE =
-        keccak256("DailyExecute(uint256 id,uint256 nonce,uint256 maxFeePerGas,uint256 maxPriorityFeePerGas,uint256 executionGas,uint256 stateGas)");
+        keccak256("DailyExecute(uint256 id,uint256 nonce,uint256 maxFeePerGas,uint256 maxPriorityFeePerGas,uint256 executionGas,uint256 stateGas,uint256 verifyGas,uint256 maxCost)");
     uint256 constant TX_MAX_FEE = 4;
     uint256 constant TX_MAX_PRIORITY = 3;
+    uint256 constant VERIFY_GAS = 60_000;
+    uint256 constant SIGNED_COST = 0.001 ether;
 
     function domainSeparator() private view returns (bytes32) {
         return keccak256(
@@ -1202,7 +1208,7 @@ contract VajraAccountV2Test is Test {
     }
 
     function typedDigest(address asset, address to, uint256 amount) private view returns (bytes32) {
-        bytes32 structHash = keccak256(abi.encode(SPEND_TYPE, asset, to, amount, uint256(5), uint256(9), uint256(3), uint256(500_000), uint256(700_000)));
+        bytes32 structHash = keccak256(abi.encode(SPEND_TYPE, asset, to, amount, uint256(5), uint256(9), uint256(3), uint256(500_000), uint256(700_000), VERIFY_GAS, SIGNED_COST));
         return keccak256(abi.encodePacked("\x19\x01", domainSeparator(), structHash));
     }
 
@@ -1214,6 +1220,7 @@ contract VajraAccountV2Test is Test {
         setTx(NONCE, 5);
         setTx(TX_MAX_FEE, 9);
         setTx(TX_MAX_PRIORITY, 3);
+        vm.mockCall(helper(FRAME_PARAM), abi.encode(uint256(0), EXECUTION_GAS_LIMIT), abi.encode(VERIFY_GAS));
         setFrame(MODE, 2);
         setFrame(RESOLVED_TARGET, uint256(uint160(address(account))));
         setFrame(VALUE, 0);
@@ -1233,7 +1240,7 @@ contract VajraAccountV2Test is Test {
     }
 
     function test_typed_executeIsApproved() public {
-        bytes32 structHash = keccak256(abi.encode(EXECUTE_TYPE, uint256(7), uint256(5), uint256(9), uint256(3), uint256(400_000), uint256(300_000)));
+        bytes32 structHash = keccak256(abi.encode(EXECUTE_TYPE, uint256(7), uint256(5), uint256(9), uint256(3), uint256(400_000), uint256(300_000), VERIFY_GAS, SIGNED_COST));
         walletFrame(keccak256(abi.encodePacked("\x19\x01", domainSeparator(), structHash)));
         setFrame(DATA_LENGTH, 36);
         setFrame(EXECUTION_GAS_LIMIT, 400_000);

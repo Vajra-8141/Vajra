@@ -35,7 +35,7 @@ leaf as its sequence would save it, at the cost of being unable to skip a leaf t
 |---|---|
 | Daily key, signed by the client (protocol ECDSA) | 30,759 |
 | Daily key, signed by a stock wallet with personal_sign | 42,318 |
-| Daily key on V2, signed by a stock wallet as typed data, on the mirror | 48,104 |
+| Daily key on V2, signed by a stock wallet as typed data, on the mirror | 49,923 |
 | The exit's VERIFY frame, on the mirror, with the digest under 430 hashes | about 97,000 |
 
 ## The third w=256 checksum chain

@@ -18,8 +18,11 @@ import {
   deployments,
   harborCommitment,
   isLocalStack,
+  maxGas,
   ops,
+  profile,
   publicClient,
+  simulateFrames,
   sleep,
   takesTypedData,
   walletMessage,
@@ -103,7 +106,24 @@ await refused("Signed for another chain", await elsewhere({ chainId: 1 }), "Sign
 await refused("The old blind personal_sign, on a V2 account", withWalletSignature(honest, await wallet.signMessage({ message: { raw: walletMessage(honest) } })), "SignatureNotBoundToTransaction");
 await refused("Typed data signed by another key", withTypedSignature(honest, await stranger.signTypedData(shown as never)), "Invalid frame transaction signature");
 
+console.log("\n3b. What the signature does not hash directly: frame 0, and the entries");
+const verify = good.frames[0]!;
+const withVerify = (over: object): FrameTx => ({ ...good, frames: [{ ...verify, ...over }, body] });
+const zeros = (bytes: number) => toHex(new Uint8Array(bytes));
+const junk = { scheme: profile.sigSchemes.ARBITRARY!, signer: "0x", msg: "0x", signature: "0x01" } as const;
+await refused("Frame 0 padded by one byte", withVerify({ data: concat([verify.data, zeros(1)]) }), "SignatureNotBoundToTransaction");
+await refused("Frame 0 padded towards the cost cap", withVerify({ data: concat([verify.data, zeros(40_000)]) }), "SignatureNotBoundToTransaction");
+await refused("Frame 0's limit raised towards the cost cap", withVerify({ limits: { ...verify.limits, execution: verify.limits.execution + 20_000n } }), "SignatureNotBoundToTransaction");
+await refused("Frame 0's state limit raised", withVerify({ limits: { ...verify.limits, state: 100_000n } }), "SignatureNotBoundToTransaction");
+await refused("A signature entry added", { ...good, signatures: [...good.signatures, junk] }, "SignatureNotBoundToTransaction");
+// MAX_COST holds still here: the padding is paid for out of frame 0's limit, so only signing that limit stops it.
+const traded = withVerify({ data: concat([verify.data, zeros(2_500)]), limits: { ...verify.limits, execution: verify.limits.execution - 10_000n } });
+check(maxGas(traded) === maxGas(good), "the next copy has the same maximum gas as the honest transaction");
+await refused("Frame 0 padded, paid for by cutting its limit, so that the cost holds still", traded, "SignatureNotBoundToTransaction");
+
 console.log("\n4. The real thing");
+const simulated = await simulateFrames(good);
+check(BigInt(simulated.maxCost) === (shown.message as { maxCost: bigint }).maxCost, `the node's maximum cost is the one the wallet signed: ${simulated.maxCost}`);
 await mined("a spend, signed as typed data", good);
 check((await publicClient.getBalance({ address: recipient })) === parseEther("0.1"), "the recipient holds what the wallet showed");
 
@@ -116,6 +136,40 @@ const execute = dailyTx({ account, dailyKey: wallet.address, nonce: await nonce(
 console.log(`  ${dailyTypedData(execute).primaryType}: id ${(dailyTypedData(execute).message as { id: bigint }).id}`);
 await mined("executing it, signed as typed data", await typedSign(execute));
 check((await publicClient.getBalance({ address: thief })) === parseEther("0.6"), "the matured item paid out");
+
+console.log("\n5. A spend of nearly the whole balance, which a copy at a higher cost used to kill");
+{
+  const payee = fresh();
+  const tight = await createAccount(
+    deployer,
+    v2!.factory,
+    {
+      dailyKey: wallet.address,
+      wotsRoot: signer.root,
+      epochSalt: genesis,
+      harborCommitment: harborCommitment(harbor, keccak256(toHex("harbor"))),
+      queueDelay: 6n,
+      coolingPeriod: 0n,
+      maxDailyTxCost: parseEther("0.01"),
+      assets: [ETH],
+      dailyLimits: [parseEther("1")],
+      coolingAllowances: [parseEther("1")],
+      stake: 0n,
+      unstakeDelay: 0,
+    },
+    parseEther("0.1"),
+  );
+  const unsignedSpend = (amount: bigint) => dailyTx({ account: tight, dailyKey: wallet.address, nonce: 1n, calls: [ops.spend(ETH, payee, amount)] });
+  // The amount is data too, so its own bytes are in the cost: one byte is 24 gwei here. 100 gwei over covers that.
+  const costOf = (value: bigint) => (dailyTypedData(unsignedSpend(value)).message as { maxCost: bigint }).maxCost;
+  const amount = parseEther("0.1") - costOf(parseEther("0.09")) - 100_000_000_000n;
+  check(amount + costOf(amount) <= parseEther("0.1"), `the balance covers the spend and the signed cost, with ${parseEther("0.1") - amount - costOf(amount)} wei over`);
+  const spendAll = await typedSign(unsignedSpend(amount));
+  const front = spendAll.frames[0]!;
+  await refused("The stranger's copy, padded so that the cost leaves too little for the spend", { ...spendAll, frames: [{ ...front, data: concat([front.data, zeros(20_000)]) }, spendAll.frames[1]!] }, "SignatureNotBoundToTransaction");
+  await mined("the honest spend, with the balance leaving room for the signed cost and no more", spendAll);
+  check((await publicClient.getBalance({ address: payee })) === amount, "the payee got all of it");
+}
 
 writeFileSync(
   new URL("../../../docs/evidence/clear-sign-latest.json", import.meta.url),

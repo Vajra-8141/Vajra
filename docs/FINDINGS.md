@@ -204,13 +204,13 @@ Two staked paymasters, in `contracts/src/paymasters/`: a daily gas quota for enr
 
 **ethrex's prefix simulator shapes where the checks go.** It keeps no frame results, so `FRAMEPARAM STATUS` halts there, with no data, and a passing transaction reports a failed frame. And it stops at the first failed frame, so `pay` never runs after a failed `charge`. So `charge` names its own refusals and `pay` reads the status last. On chain the status read still decides. A transaction with too little gas to reach those checks is refused by the node's own out-of-gas text, with no name of ours.
 
-**The canonical mempool refuses all of it, every time.** With the prefix under 100,000 the reason is `StorageReadNonSender`, so it is the read and not the size. A master transaction's prefix is over the cap, and the USDC shape always is, so those get the budget refusal first.
+**The canonical mempool refuses all of it, every time.** On V1, with the prefix under 100,000, the reason is `StorageReadNonSender`, so it is the read and not the size. On V2 `validateDaily` takes 41,390 gas on the sponsored shape, so the quota prefix is over 100,000 and the budget refusal comes first. A master transaction's prefix is over the cap, and the USDC shape always is, so those get the budget refusal first.
 
 **A keyed nonce costs the approving frame 20,000.** A pay frame that fits a linear nonce runs out of gas on a keyed one, and the simulator shows it as a bare revert.
 
 ### What the account cannot do
 
-We left `VajraAccount` alone, so these stand:
+We left `VajraAccount` alone, so these stand on V1. V2 closes the third: see section 19.
 
 - **The daily key cannot approve a token.** `validateDaily` only allows `spend` and `executeQueued` on the account. So the master key signs the approval. An account with no ETH can have the quota paymaster pay for that.
 - **A stock wallet cannot use a paymaster.** The wallet digest is pinned to `[VERIFY, SENDER]`, so a sponsored transaction needs the daily key in a process that can sign the signature hash.
@@ -314,7 +314,7 @@ Everything that can stop an escape from the account is attached to the account's
 
 Every way we could think of to reach it is in `vajra exit-e2e`. The daily key cannot name an exit, replace its tree, or send from its address. A signature from another tree, or for the account's digest, dies. The exit key cannot unfreeze, spend, replace a key, move the harbor, send value, or call anything else.
 
-A recovery through the exit runs the account's own check, shape and all, through `checkRecovery`. The exit key cannot reach `queueRecovery`: `validateExit` refuses the selector, so that route takes a real proof.
+A recovery through the exit runs the account's own check, shape and all, through `checkRecovery`. The exit key cannot reach `queueRecovery`: `validateExit` refuses the selector, so that route takes a real proof, and a ticket of its own: see section 18.
 
 ## 13. A note could be in many places at once, and could burn the owner's money
 
@@ -349,7 +349,7 @@ Not an exploit: a hole in what the daily key's owner can check. `personal_sign` 
 
 The account rebuilds the digest from the frames, as before. It hashes the arguments as the raw words in the frame and pins the exact length, so a copy with dirty high bits in an address word no longer matches what was signed. Decoded, that copy would have passed VERIFY and reverted in the SENDER frame, spending the nonce and fee.
 
-`vajra clear-sign`: a typed spend and a typed execute mined, and every attack refused: a signature moved onto another recipient or amount, another fee, cut gas, dirty high bits, trailing bytes, a no-op frame, another account, another chain, another key, and the old blind `personal_sign`, which V2 no longer takes.
+`vajra clear-sign`: a typed spend and a typed execute mined, and every attack refused (section 16 adds to this list): a signature moved onto another recipient or amount, another fee, cut gas, dirty high bits, trailing bytes, a no-op frame, another account, another chain, another key, and the old blind `personal_sign`, which V2 no longer takes.
 
 V1 keeps `personal_sign`, because that is what it rebuilds, so the old path stays in `packages/core` for V1 accounts. A client tells them apart by asking for `eip712Domain()`. A node that lies about that gets a signature the account refuses. The direct form with an empty `msg`, which the CLI uses, is unchanged.
 
@@ -359,4 +359,60 @@ V1 keeps `personal_sign`, because that is what it rebuilds, so the old path stay
 
 - `validateMaster` on V2 passes the 99,900 limit at about 625 hashes, measured, and sooner on the rotation leaf, and the CLI allowed 660. An unlucky digest would have been signed, revealing a leaf, and refused. `vajra recover` hit this on a rotation. The limit is now 520 where V2 is used.
 - **Open:** the signature blob sits outside the signature hash and is charged by the byte, so anyone can pad a copy of a master or exit transaction, once per signature, and burn up to what the transaction size limit allows from its payer. Traced in the client's code, not run. A length check in VERIFY is the fix, and we tried it: the extra helper call costs about 4,000 gas, which broke the rotation leaf and left the exit no digests worth drawing, so it is out. The exit's reserve should cover this.
-- `validateDaily` skipped every frame that was not SENDER. V2 now refuses all but VERIFY and SENDER, in case a mode we have not read runs as the sender. No attack is known.
+- `validateDaily` skipped every frame that was not SENDER. V2 now refuses all but VERIFY and SENDER, in case a mode we have not read runs as the sender. No attack is known. Section 19 lets two DEFAULT frames back in, on conditions.
+
+## 16. A stranger could raise the cost of a wallet's spend until it failed
+
+Found by a third independent review, shown with mocked frame opcodes. **Real, and it undid what section 15 claimed**: that a copy could no longer spend the nonce and fee and pay nobody.
+
+A wallet signs a digest rebuilt from the body frame and the fees. Frame 0 and the signature entries were in no field. So a stranger could copy a wallet-signed spend, pad frame 0's data or add an entry, and the digest stayed the same. Each byte raises the transaction's maximum cost, up to `maxDailyTxCost`. APPROVE takes that whole cost from the balance and refunds it only at the end, so a spend of nearly the whole balance reverted in the SENDER frame, with the nonce and fee gone. The direct form with an empty `msg` was never exposed: a new entry changes the signature hash.
+
+**What ethrex does.** In `crates/common/types/transaction.rs`, `total_gas_limit` is `max(mandatory + data + execution + state, mandatory + 64 per byte + state)`, and MAX_COST is that times `max_fee_per_gas`, plus the blob cost. So padding does move it: at least 4 gas a byte, and an extra entry at least 100 plus its bytes. A blob or a recent-root reference moves it too. Reading it turned up two things the proposed fix did not have:
+
+- **MAX_COST cannot simply be signed.** Data costs 4 gas for a zero byte and 16 for any other, and `msg` and the signature are data. So the cost depends on the digest, and the digest on the cost. The signature's first byte is `v`, which is zero half the time, so an exact commitment would have failed about half of all signatures. The wallet signs the cost as if those 97 bytes hold no zero. Once it has signed, `withTypedSignature` adds 3 zero bytes to frame 0 for each zero byte found, 12 gas each, and the cost lands exactly on what was signed. `validateDaily` ignores them.
+- **Some changes leave MAX_COST where it was.** Padding paid for by cutting frame 0's limit keeps the sum the same, and turns unused VERIFY gas into gas burned. So frame 0's limit is signed too, as `verifyGas`.
+
+**The fix:** `DailySpend` and `DailyExecute` gain `verifyGas` and `maxCost`, and `_typedDigest` reads both from the transaction. With the fee and all the limits signed, the intrinsic cost is fixed, so no copy can add to it. V2 has only this digest: it has no `personal_sign` path to change, and refuses that form, as section 15 says. V1 is unchanged, and keeps this hole.
+
+`vajra clear-sign` sends each of these and gets `SignatureNotBoundToTransaction`: frame 0 padded by one byte, padded towards the cap, its limit raised, its state limit raised, an entry added, and padding traded against the limit with the cost held still. It also checks the node's own maximum cost against what the wallet signed, and mines a spend that leaves the balance room for the signed cost and no more, after refusing the padded copy of it.
+
+**What is left.** A copy can still swap the 3-byte fillers for something of the same cost, or flip `validateDaily`'s scope word. Neither changes what is paid, and a wrong scope never gets a payer. The wallet now shows two more numbers. MetaMask has not been run against this change.
+
+## 17. One solved proof of work bought many pairings
+
+Found by the same review, shown with the real verifier. **Real, and small.** The hash for `validateUnshield`'s `work` held the proof and the nonce key, and the nonce key holds only the nullifier. So one solved number passed for every known root and every recipient, and each of those reached the pairing, on a proof that could not verify.
+
+**The fix:** the hash now holds the root, the nullifier and the recipient as well. `proofWork` in `packages/core/src/zk.ts` matches. `vajra shielded` spends a solved number on another recipient and another root, and gets `ProofWorkMissing`.
+
+**What is left.** About one variant in 2^`PROOF_WORK_BITS` passes by chance, and a GPU is faster than this toll assumes, as the contract says. The fee is not in the hash, so a pending junk proof can be replaced at a higher fee and run its pairing again, up to the proof cost cap. See section 13.
+
+## 18. A stranger could make the exit's reserve pay for a recovery
+
+Found by the same review. **Real, and small.** A recovery sent from the account is public, proof and ticket. Nonce keys are per sender, so a stranger could resend the same two from the exit, and the reserve paid up to 0.005 ETH, with no key and no secret. Only once, because the nullifier is then spent, but that is twice what one escape needs.
+
+The proof binds the account, not the sender, and changing the circuit means a new setup. What separates the paper from a stranger is the ticket, so **the exit takes a different one**. A paper now makes two tickets, and the account's is the hash of the exit's:
+
+    exitTicket     = keccak("vajra-recovery-ticket" ‖ secret)
+    recoveryTicket = keccak(exitTicket)
+    gate           = keccak(recoveryTicket)
+
+`VajraExit.validateRecovery` hashes what it is given and passes that to `checkRecovery`. So a ticket seen on the account is no use at the exit, which needs its preimage. Nothing else changed: no new storage, no new argument to `setRecovery`, and the same gate on the account. The owner of a banned account still has the exit, because the paper makes both. `vajra exit-e2e` resends a seen ticket from the exit and gets `RecoveryGateInvalid`, and `vajra rep-burn fixed` is what recovers from the exit with the account banned.
+
+**What is left.** It goes one way only. A recovery from the exit shows `exitTicket`, and anyone can hash that and resend the proof from the account, which then pays up to 0.005 ETH. And nothing signs a proof's fee, so a stranger can raise the owner's own exit recovery to the 0.005 ETH cap. A reserve meant to fund a recovery and then an escape should hold about 0.0075 ETH. A gate set before this change has no exit ticket: the mirror starts empty and no V2 is on the public devnet, so none exists.
+
+## 19. V2 could not take a sponsored daily transaction
+
+Found by the same review. A failure to work, not an attack. V2's walk refused the DEFAULT frames in `[only_verify, charge, pay, SENDER..., settle]`, so `vajra paymaster-e2e` ran on V1, where the walk skips them.
+
+**Skipping them is not safe, which is why V2 stopped.** A DEFAULT frame runs as the entry point with no value, so it has no authority over the account. But a paymaster reads the sender from it, and takes what that sender approved. So on V1 a stolen daily key can spend the approved USDC on gas, outside the rulebook, as "What the account cannot do" says. Simply allowing DEFAULT frames would have given V2's daily key a power it did not have.
+
+**The fix does what that section said the real fix was,** plus one rule:
+
+- A DEFAULT frame passes only at frame 1 or the last frame, only with the daily frame first and at scope EXECUTION, and only to a paymaster the master key named with `setSponsor`. The daily key cannot reach `setSponsor`.
+- The cost cap now holds at every scope, so what a paymaster takes for gas is held to `maxDailyTxCost`.
+
+An account that names nobody refuses every DEFAULT frame, as before, so a daily signature on it approves nothing new. A wallet signature is still pinned to `[VERIFY, SENDER]`. `vajra paymaster-e2e` now runs on V2. It tries an account that named nobody, an unnamed paymaster, the daily key naming one itself, and a DEFAULT frame in the body. Extra collect frames now die in VERIFY, where on V1 they mine and fail.
+
+**What is left.** Naming a paymaster is a real grant. A stolen daily key can then spend what the account approved to it on gas, up to `maxDailyTxCost` a transaction, with no limit on how many, and use up the day's quota. The tip part can reach a colluding block producer, up to the paymaster's `feeCap`. So keep the approval small, and name only what the daily key should use. V1 keeps its gap: `VajraAccount` is unchanged. And only the two frames' positions and target are held: what they do is up to the named paymaster.
+
+**None of sections 16 to 19 is on the public devnet.** They have had no second independent review, and nothing here has been audited.

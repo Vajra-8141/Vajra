@@ -77,10 +77,10 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     bytes32 private constant DOMAIN_NAME_HASH = keccak256("VAJRA");
     bytes32 private constant DOMAIN_VERSION_HASH = keccak256("2");
     bytes32 private constant SPEND_TYPEHASH = keccak256(
-        "DailySpend(address asset,address recipient,uint256 amount,uint256 nonce,uint256 maxFeePerGas,uint256 maxPriorityFeePerGas,uint256 executionGas,uint256 stateGas)"
+        "DailySpend(address asset,address recipient,uint256 amount,uint256 nonce,uint256 maxFeePerGas,uint256 maxPriorityFeePerGas,uint256 executionGas,uint256 stateGas,uint256 verifyGas,uint256 maxCost)"
     );
     bytes32 private constant EXECUTE_TYPEHASH = keccak256(
-        "DailyExecute(uint256 id,uint256 nonce,uint256 maxFeePerGas,uint256 maxPriorityFeePerGas,uint256 executionGas,uint256 stateGas)"
+        "DailyExecute(uint256 id,uint256 nonce,uint256 maxFeePerGas,uint256 maxPriorityFeePerGas,uint256 executionGas,uint256 stateGas,uint256 verifyGas,uint256 maxCost)"
     );
     /// Gas a single token gets during a sweep, enough for a proxied USDC transfer with room to spare.
     uint256 private constant SWEEP_GAS = 300_000;
@@ -220,6 +220,8 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         mapping(bytes32 value => bool) recoveryUsed;
         /// The second route's sender: see `VajraExit`.
         address exit;
+        /// Paymasters the master key named. Only these may take the frames around a sponsored daily transaction.
+        mapping(address paymaster => bool) sponsors;
     }
 
     // ------------------------------------------------------------------------------------- events and errors ------
@@ -248,6 +250,7 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     event Unshielded(uint256 indexed nullifierHash, address indexed recipient);
     event PoolDrained(address indexed harbor, uint256 amount);
     event ExitChanged(address exit);
+    event SponsorSet(address indexed paymaster, bool allowed);
     event UnshieldUnpaid(uint256 indexed nullifierHash, address indexed recipient);
 
     // The refusal registry, spec §3.
@@ -369,25 +372,35 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         // key's are public: keccak(root, leaf). Left open, a thief spends all 64 of them and the master key can never sign again.
         if (txparam(TxParam.NONCE_KEY_COUNT) != 1 || txparam(TxParam.NONCE_KEY_0) != 0) revert DailyNonceKeyInvalid();
 
-        // Fees are paid before the rulebook runs, so they are the one way value can leave without passing it. The scope
-        // is the signer's to choose, and payment can be approved in a frame of its own, so this has to hold whenever
-        // payment is included in it, not only for the combined scope.
+        // Fees are paid before the rulebook runs, so they are the one way value can leave without passing it.
+        //
+        // V2: at every scope. A sponsored transaction can still cost the account, in the token a paymaster takes for gas.
+        uint256 cost = txparam(TxParam.MAX_COST);
+        if (cost > s.maxDailyTxCost) revert DailyTxCostExceeded(cost);
+        // V2: fees are paid from the same balance the pool sits in. Without this a thief could burn the notes as gas. Only
+        // a staked sender may read its balance in validation, so an account with a pool has to be staked. The scope is the
+        // signer's to choose, and payment can be approved in a frame of its own, so this holds whenever payment is included.
         if (scope != Scope.EXECUTION) {
-            uint256 cost = txparam(TxParam.MAX_COST);
-            if (cost > s.maxDailyTxCost) revert DailyTxCostExceeded(cost);
-            // V2: fees are paid from the same balance the pool sits in. Without this a thief could burn the notes as gas. Only
-            // a staked sender may read its balance in validation, so an account with a pool has to be staked.
             uint256 held = s.poolHeld;
             if (held != 0 && address(this).balance < held + cost) revert ValueNotConserved();
         }
 
+        uint256 current = txparam(TxParam.CURRENT_FRAME_INDEX);
         uint256 frames = txparam(TxParam.FRAME_COUNT);
-        for (uint256 i = txparam(TxParam.CURRENT_FRAME_INDEX) + 1; i < frames; ++i) {
+        for (uint256 i = current + 1; i < frames; ++i) {
             uint256 mode = frameparam(i, FrameParam.MODE);
             if (mode == uint256(FrameMode.VERIFY)) continue;
-            // V2: refused, not skipped. Only VERIFY frames are known to be harmless here, and a daily key has no use for any other.
+            address target = address(uint160(frameparam(i, FrameParam.RESOLVED_TARGET)));
+            // V2: `[daily, charge, pay, SENDER..., settle]`, and no other place for a DEFAULT frame. One runs as the entry point with no
+            // value, so it has no authority here, but a paymaster reads the sender from it and can take what the account approved.
+            // So only a paymaster the master key named, and an account that names none refuses them all.
+            if (mode == uint256(FrameMode.DEFAULT)) {
+                if (scope != Scope.EXECUTION || current != 0 || (i != 1 && i != frames - 1) || !s.sponsors[target]) revert FrameNotAllowed(i);
+                continue;
+            }
+            // V2: refused, not skipped. No other mode is known to be harmless here, and a daily key has no use for one.
             if (mode != uint256(FrameMode.SENDER)) revert FrameNotAllowed(i);
-            if (address(uint160(frameparam(i, FrameParam.RESOLVED_TARGET))) != address(this)) revert FrameNotAllowed(i);
+            if (target != address(this)) revert FrameNotAllowed(i);
             if (frameparam(i, FrameParam.VALUE) != 0) revert FrameNotAllowed(i);
             bytes4 selector = bytes4(framedataload(0, i));
             if (selector != this.spend.selector && selector != this.executeQueued.selector) {
@@ -421,6 +434,12 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// The arguments are hashed as the raw words in the frame, not as decoded values. A copy with dirty high bits in an address
     /// word would pass a decoded check here and revert in the SENDER frame, spending the nonce and fee and paying nobody. As raw
     /// words it no longer matches what was signed. The exact length holds for the same reason: trailing bytes are in no field.
+    ///
+    /// `verifyGas` and `maxCost` are what the rest of the transaction comes to. APPROVE takes the maximum cost and gives the rest back
+    /// only at the end, so a copy that raises it can make a spend that fits fail in the SENDER frame. Every byte of frame 0, of a
+    /// signature entry, of a recent-root reference and every blob is in `maxCost`. The fee and the other limits are signed, so with
+    /// frame 0's limit signed as well, no copy can trade one against another. The cost of `msg` and of the signature depends on their
+    /// zero bytes, which cannot be known before signing, so `maxCost` assumes none, and `withTypedSignature` makes up the difference.
     function _typedDigest() private view returns (bytes32) {
         // The frame walk skips anything that is not SENDER, so a copy could otherwise turn the body into a no-op under the same signature.
         if (
@@ -443,7 +462,9 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
                     txparam(TxParam.MAX_FEE),
                     txparam(TxParam.MAX_PRIORITY_FEE_PER_GAS),
                     frameparam(1, FrameParam.EXECUTION_GAS_LIMIT),
-                    frameparam(1, FrameParam.STATE_GAS_LIMIT)
+                    frameparam(1, FrameParam.STATE_GAS_LIMIT),
+                    frameparam(0, FrameParam.EXECUTION_GAS_LIMIT),
+                    txparam(TxParam.MAX_COST)
                 )
             );
         } else if (selector == this.executeQueued.selector && length == 36) {
@@ -455,7 +476,9 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
                     txparam(TxParam.MAX_FEE),
                     txparam(TxParam.MAX_PRIORITY_FEE_PER_GAS),
                     frameparam(1, FrameParam.EXECUTION_GAS_LIMIT),
-                    frameparam(1, FrameParam.STATE_GAS_LIMIT)
+                    frameparam(1, FrameParam.STATE_GAS_LIMIT),
+                    frameparam(0, FrameParam.EXECUTION_GAS_LIMIT),
+                    txparam(TxParam.MAX_COST)
                 )
             );
         } else {
@@ -586,7 +609,8 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         // many valid transactions pending at once. Now a note has one slot, and one mined attempt. See `unshield`.
         bytes32 nonceKey = keccak256(abi.encodePacked(UNSHIELD_TAG, nullifierHash));
         _requireProofShape(this.unshield.selector, 100, nonceKey, UNSHIELD_EXECUTION_GAS, UNSHIELD_STATE_GAS);
-        if (uint256(keccak256(abi.encode(address(this), proof, nonceKey, work))) >> (256 - PROOF_WORK_BITS) != 0) {
+        // Everything the pairing is asked about is in here, so that one solved `work` buys one pairing and not one per root or recipient.
+        if (uint256(keccak256(abi.encode(address(this), proof, nonceKey, root, nullifierHash, recipient, work))) >> (256 - PROOF_WORK_BITS) != 0) {
             revert ProofWorkMissing();
         }
         if (!_isKnownRoot(s, root)) revert RootUnknown(root);
@@ -956,6 +980,13 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         emit ExitChanged(exit_);
     }
 
+    /// V2: names a paymaster a daily transaction may use. Only the master key can reach this. Whatever the account approved to that
+    /// paymaster, the daily key can then spend on gas, up to `maxDailyTxCost` a transaction.
+    function setSponsor(address paymaster, bool allowed) external onlySelf {
+        _layout().sponsors[paymaster] = allowed;
+        emit SponsorSet(paymaster, allowed);
+    }
+
     function setRule(address asset, uint128 dailyLimit, uint128 coolingAllowance) external onlySelf {
         _setRule(asset, dailyLimit, coolingAllowance);
     }
@@ -1084,6 +1115,10 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
 
     function exit() external view returns (address) {
         return _layout().exit;
+    }
+
+    function sponsors(address paymaster) external view returns (bool) {
+        return _layout().sponsors[paymaster];
     }
 
     /// ERC-5267. A client also reads this to learn that the account takes typed data: a V1 account has no such function.

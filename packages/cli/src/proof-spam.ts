@@ -24,6 +24,7 @@ import {
   framesSucceeded,
   isLocalStack,
   opsV2,
+  preFixProofWork,
   preFixUnshieldNonceKey,
   publicClient,
   recoveryGate,
@@ -79,7 +80,9 @@ async function outsiderNote(): Promise<{ note: Note; leaf: number }> {
 async function proofTo(note: Note, leaf: number, recipient: Address, fees?: { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint }): Promise<FrameTx> {
   const leaves = await poolLeaves(account);
   const proved = await proveUnshield({ note, leaves, leaf, recipient, denomination: DENOM, account, chainId });
-  return unshieldTx({ account, root: proved.root, nullifierHash: proved.nullifierHash, recipient, proof: proved.proof, nonceKey: keyFor(proved.nullifierHash, recipient), fees });
+  const nonceKey = keyFor(proved.nullifierHash, recipient);
+  const work = fixed ? undefined : preFixProofWork(account, proved.proof, nonceKey);
+  return unshieldTx({ account, root: proved.root, nullifierHash: proved.nullifierHash, recipient, proof: proved.proof, nonceKey, work, fees });
 }
 
 await submit(master(signer, account, epochSalt, [opsV2.shield(await noteCommitment(newNote()), DENOM)]));

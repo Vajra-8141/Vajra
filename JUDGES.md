@@ -51,11 +51,11 @@ Times are from one machine, on a warm mirror.
 | An escape the mempool will not hold, and the way round it | `vajra escape-solvency`, then `vajra escape-solvency fixed` | 40 s each | `cannot cover`, then `Cancelled`. The second is a race, so it can come out the other way. Then the exit carries the tokens out |
 | The second route, and every attack on it | `vajra exit-e2e` | 45 s | 10 mined, 24 refused, 0 failures, with an escape mined through the canonical mempool past a pending thief transaction |
 | One note in many places, a note burning fees, a public ticket | `vajra proof-spam`, then `vajra proof-spam fixed` | 1 min each | 6 of 6 admitted, the note alive after 3 burns, a pairing run. Then 1 of 6, the note spent, `RecoveryGateInvalid` |
-| A wallet signing typed data, and every attack on it | `vajra clear-sign` | 25 s | 3 mined, 11 refused, 0 failures, with a scripted wallet |
+| A wallet signing typed data, and every attack on it | `vajra clear-sign` | 25 s | 4 mined, 18 refused, 0 failures, with a scripted wallet |
 | A second way out, on your own account | `vajra exit-setup`, then `vajra exit` | 20 s each | the harbor holds the balance |
 | A stealth payer taking the money back, and the fix | `vajra stealth-theft`, then `vajra stealth-theft fixed` | 1 min | 25 of 25 taken, then `CoSignerRequired` and 0 taken |
 | The dashboard, on the mirror | `make dashboard`, then http://localhost:3000 | 30 s | the theft as six steps, with no wallet to set up. See below |
-| Quota and USDC paymasters, and every attack | `vajra paymaster-e2e` | 6 min | 16 mined, 46 refused, canonical refused 47 of 47, 63 predictions checked, 0 failures |
+| Quota and USDC paymasters, and every attack | `vajra paymaster-e2e` | 6 min | 15 mined, 50 refused, canonical refused 51 of 51, 66 predictions checked, on V2, 0 failures |
 | Why a transaction went the way it did | `vajra explain 0xHash` | 1 s | state, frames, both verdicts, the sidecar's rules. Unknown stays unknown |
 | The SDK, every action | `node packages/sdk/examples/mirror.ts`, with `VAJRA_STACK=local` | 30 s | a spend, a queue, a veto |
 | A precompile in validation, on both sidecars | `make unpatched`, then `vajra precompile-check` | 1 min | refused as deployed, admitted as patched |

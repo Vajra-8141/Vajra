@@ -7,6 +7,7 @@
 import * as lib from "@forshtat/hegota-support/tx";
 import { type Address, type Hex, decodeErrorResult, encodeFunctionData, hexToBytes, numberToHex, parseAbi } from "viem";
 import { publicClient } from "./chain.ts";
+import VajraAccountV2 from "./artifacts/VajraAccountV2.json" with { type: "json" };
 import { DEVNET } from "./devnet.ts";
 import { type Call, type Fees, type FrameTx, DEFAULT_FEES, accountAbi, dailyTx, leafNonceKey, masterDigest, masterTx, profile, sigHash, signDailyTx, withMasterSignature } from "./frame.ts";
 import type { MasterSigner } from "./signer.ts";
@@ -98,10 +99,12 @@ export async function signSponsoredDaily(a: {
   sponsor: Sponsor;
   fees?: Fees;
   limits?: SponsorLimits;
+  /** V2's frame walk costs more than V1's, which is what the default is sized for. */
+  verifyGas?: bigint;
   edit?: (tx: FrameTx) => FrameTx;
 }): Promise<FrameTx> {
   const nonce = BigInt(await publicClient.getTransactionCount({ address: a.account }));
-  const verifyGas = SPONSOR_LIMITS[a.sponsor.kind].verify;
+  const verifyGas = a.verifyGas ?? SPONSOR_LIMITS[a.sponsor.kind].verify;
   const tx = sponsored(dailyTx({ account: a.account, dailyKey: a.dailyKey, nonce, calls: a.calls, verifyGas, fees: a.fees ?? DEFAULT_FEES }), a.sponsor, a.limits);
   return signDailyTx(a.edit ? a.edit(tx) : tx, a.key);
 }
@@ -143,7 +146,7 @@ export async function readPrice(paymaster: Address) {
   return { usdcPerEth, label };
 }
 
-const REFUSAL_ABIS = [quotaPaymasterAbi, usdcPaymasterAbi, accountAbi];
+const REFUSAL_ABIS = [quotaPaymasterAbi, usdcPaymasterAbi, accountAbi, VajraAccountV2.abi];
 
 /** A revert's own name, from whichever of our contracts it came from, or null if it is none of theirs. */
 export function decodeRefusal(data: Hex): string | null {

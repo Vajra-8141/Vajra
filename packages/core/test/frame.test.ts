@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { hashTypedData, keccak256, toHex } from "viem";
 import { DEVNET, rpc, rpcBatch, setRpcFetch, withTimeout } from "../src/devnet.ts";
-import { type Call, MAX_VERIFY_GAS, STEALTH_LIMITS, dailyTx, dailyTypedData, leafNonceKey, masterTx, refusalName, sendAlt, sigHash, stealthTx, walletMessage, withMasterSignature, withTypedSignature } from "../src/frame.ts";
+import { type Call, MAX_VERIFY_GAS, STEALTH_LIMITS, dailyTx, dailyTypedData, leafNonceKey, masterTx, maxGas, refusalName, sendAlt, sigHash, stealthTx, walletMessage, withMasterSignature, withTypedSignature } from "../src/frame.ts";
 import { ETH, ops } from "../src/account.ts";
 
 const account = "0x1111111111111111111111111111111111111111" as const;
@@ -98,6 +98,54 @@ describe("dailyTypedData", () => {
     const tx = dailyTx({ account, dailyKey: other, nonce: 4n, calls: [ops.spend(ETH, to, 5n)] });
     const signature = `0x${"11".repeat(32)}${"22".repeat(32)}1b` as const;
     expect(withTypedSignature(tx, signature).signatures[0]!.msg).toBe(hashTypedData(dailyTypedData(tx) as never));
+  });
+
+  it("signs the VERIFY limit and the maximum cost", () => {
+    const tx = dailyTx({ account, dailyKey: other, nonce: 4n, calls: [ops.spend(ETH, to, 5n)] });
+    const { message } = dailyTypedData(tx);
+    expect(message.verifyGas).toBe(tx.frames[0]!.limits.execution);
+    expect(message.maxCost % tx.fees.maxFeePerGas).toBe(0n);
+  });
+
+  it("lands on the signed cost exactly, whatever zero bytes the signature holds", () => {
+    const tx = dailyTx({ account, dailyKey: other, nonce: 4n, calls: [ops.spend(ETH, to, 5n)] });
+    const { maxCost } = dailyTypedData(tx).message;
+    for (const r of ["11".repeat(32), `00${"11".repeat(31)}`, `${"00".repeat(5)}${"11".repeat(27)}`]) {
+      for (const v of ["1b", "1c"]) {
+        const signed = withTypedSignature(tx, `0x${r}${"22".repeat(32)}${v}`);
+        expect(maxGas(signed) * tx.fees.maxFeePerGas).toBe(maxCost);
+        expect(dailyTypedData(signed).message.maxCost).toBe(maxCost);
+      }
+    }
+  });
+
+  it("gives the same message for a transaction already padded", () => {
+    const tx = dailyTx({ account, dailyKey: other, nonce: 4n, calls: [ops.spend(ETH, to, 5n)] });
+    const signed = withTypedSignature(tx, `0x${"00".repeat(4)}${"11".repeat(28)}${"22".repeat(32)}1b`);
+    expect(signed.frames[0]!.data.length).toBeGreaterThan(tx.frames[0]!.data.length);
+    expect(hashTypedData(dailyTypedData(signed) as never)).toBe(signed.signatures[0]!.msg);
+  });
+});
+
+describe("maxGas", () => {
+  const verify = dailyTx({ account, dailyKey: other, nonce: 0n, calls: [{ data: "0x", execution: 100n, state: 7n }] });
+
+  it("adds what ethrex adds", () => {
+    // 12,000 + 2 frames + a secp256k1 entry. Data: `validateDaily(3)`'s 36 bytes, the signer, and rlp([0]), rlp(0) = c1 80 80.
+    const data = 4n * 16n + 31n * 4n + 16n + 20n * 16n + 3n * 16n;
+    expect(maxGas(verify)).toBe(12_000n + 950n + 2_800n + data + 60_000n + 100n + 7n);
+  });
+
+  it("charges 12 less for a zero byte than for any other", () => {
+    const pad = (byte: string) => ({ ...verify, frames: [{ ...verify.frames[0]!, data: `${verify.frames[0]!.data}${byte}` as const }, verify.frames[1]!] });
+    expect(maxGas(pad("ff")) - maxGas(pad("00"))).toBe(12n);
+  });
+
+  it("takes the calldata floor when that is more", () => {
+    const body = { data: `0x${"00".repeat(5_000)}` as const, execution: 0n, state: 7n };
+    const tx = dailyTx({ account, dailyKey: other, nonce: 0n, calls: [body], verifyGas: 0n });
+    const bytes = 36n + 5_000n + 20n + 3n;
+    expect(maxGas(tx)).toBe(12_000n + 950n + 2_800n + bytes * 64n + 7n);
   });
 });
 

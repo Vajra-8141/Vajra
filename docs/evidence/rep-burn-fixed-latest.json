@@ -1,17 +1,17 @@
 {
- "ranAt": "2026-11-06T13:00:28.693Z",
+ "ranAt": "2026-11-06T14:11:50.848Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
  "chainId": 13370,
- "account": "0x8CdAB01ABD0b4C87b5d1BA2D242EBb7ED2C873Ec",
- "exit": "0x3B5B2BBc538640dfD6E9be939dc40d95cc08fc07",
- "admitted": 549,
- "refused": 1,
- "seconds": 8.531,
- "minedByThief": 4,
- "feesPaidByAccount": "6312479",
+ "account": "0x8712716127A6c8C04Ffe324Cc70Cfac75C2D7B87",
+ "exit": "0x5809a334b160BefD4538e44bF02f94B47bDdD6d3",
+ "admitted": 550,
+ "refused": 0,
+ "seconds": 11.147,
+ "minedByThief": 2,
+ "feesPaidByAccount": "4880562",
  "reputation": {
-  "address": "0x8CdAB01ABD0b4C87b5d1BA2D242EBb7ED2C873Ec",
-  "opsSeen": 552,
+  "address": "0x8712716127A6c8C04Ffe324Cc70Cfac75C2D7B87",
+  "opsSeen": 553,
   "opsIncluded": 3,
   "status": "banned",
   "isWhitelisted": false,
@@ -22,18 +22,18 @@
   "isStaked": true
  },
  "outcomes": {
-  "vetoDirect": "REFUSED payer 0x8CdAB01ABD0b4C87b5d1BA2D242EBb7ED2C873Ec is banned",
-  "recovery": "REFUSED entity 0x8CdAB01ABD0b4C87b5d1BA2D242EBb7ED2C873Ec declares 500000 validation gas, which exceeds MAX_VERIFY_GAS_PER_ENTITY 100000",
-  "separatePayer": "REFUSED sender 0x8CdAB01ABD0b4C87b5d1BA2D242EBb7ED2C873Ec is banned",
-  "pin": "ADMITTED 0xabf04a0985f378939f74f094a4c82b641b9ae5be05fce3bd4edfeebea53cf890",
+  "vetoDirect": "REFUSED payer 0x8712716127A6c8C04Ffe324Cc70Cfac75C2D7B87 is banned",
+  "recovery": "REFUSED entity 0x8712716127A6c8C04Ffe324Cc70Cfac75C2D7B87 declares 500000 validation gas, which exceeds MAX_VERIFY_GAS_PER_ENTITY 100000",
+  "separatePayer": "REFUSED sender 0x8712716127A6c8C04Ffe324Cc70Cfac75C2D7B87 is banned",
+  "pin": "ADMITTED 0x6107af31f863e7076a535204fef680ccaa567f0b1ee5d3281d09cc48a95cd79d",
   "escapeCanonical": "REFUSED Invalid params: A frame transaction in the other nonce-key domain is already pending for this sender",
-  "escapeAlt": "REFUSED payer 0x8CdAB01ABD0b4C87b5d1BA2D242EBb7ED2C873Ec is banned",
-  "exitVeto": "ADMITTED 0x694f1a60126950d1b2207847a553efede6dcc29559d642b704c3da16eb615b67",
-  "exitRecovery": "ADMITTED 0xa7372ff8c65b93e4ee2e05821092c1751dd5baaec422dd82a6fbfc28ca02ac15",
-  "exitEscape": "ADMITTED 0xba98784e3c2b2fc2dfcf9ca22388144d06c29a1c5f4a97fa3832e06d8559e5d9"
+  "escapeAlt": "REFUSED payer 0x8712716127A6c8C04Ffe324Cc70Cfac75C2D7B87 is banned",
+  "exitVeto": "ADMITTED 0xf01135b04e58a7d37e95a48e2cd3cb9c84e1a405e91acb53b91dee8db07939fc",
+  "exitRecovery": "ADMITTED 0x7004e83a8c8f33976ea14fae1a9b48a9bc3e9a819cfc52d29933b6d0c55c8a57",
+  "exitEscape": "ADMITTED 0x81b037ff8c5251166e0a9b36c65b7bec8fcbc1462666e01c62c054fd0a5aa4d7"
  },
  "exitResult": {
-  "harbor": "1986621891984040765",
+  "harbor": "1986634379985560098",
   "frozen": true
  }
 }
