@@ -11,7 +11,7 @@ describe("proof transactions", () => {
   it("is exactly [VERIFY, SENDER], because that is all the account approves", () => {
     for (const tx of [
       recoveryTx({ account, newRoot: root, nullifier: 9n, proof, ticket: root }),
-      unshieldTx({ account, root: 5n, nullifierHash: 9n, recipient, proof }),
+      unshieldTx({ account, root: 5n, nullifierHash: 9n, recipient, proof, work: 0n }),
     ]) {
       expect(tx.frames).toHaveLength(2);
       expect(tx.signatures).toHaveLength(0);
@@ -36,13 +36,13 @@ describe("proof transactions", () => {
   });
 
   it("sends the SENDER frame exactly the gas the contract pins", () => {
-    const frames = [recoveryTx({ account, newRoot: root, nullifier: 9n, proof, ticket: root }), unshieldTx({ account, root: 5n, nullifierHash: 9n, recipient, proof })].map((tx) => tx.frames[1]!);
+    const frames = [recoveryTx({ account, newRoot: root, nullifier: 9n, proof, ticket: root }), unshieldTx({ account, root: 5n, nullifierHash: 9n, recipient, proof, work: 0n })].map((tx) => tx.frames[1]!);
     expect(frames[0]!.limits).toMatchObject(PROOF_FRAME_GAS.recovery);
     expect(frames[1]!.limits).toMatchObject(PROOF_FRAME_GAS.unshield);
   });
 
   it("is the same bytes every time, so a retry reveals nothing and cannot race itself", () => {
-    const build = () => unshieldTx({ account, root: 5n, nullifierHash: 9n, recipient, proof });
+    const build = () => unshieldTx({ account, root: 5n, nullifierHash: 9n, recipient, proof, work: 0n });
     expect(encodeTx(build())).toBe(encodeTx(build()));
     expect(txHash(build())).toBe(txHash(build()));
   });
