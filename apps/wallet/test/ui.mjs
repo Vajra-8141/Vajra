@@ -275,8 +275,8 @@ async function full(size, name, ua) {
   await page.getByLabel("Amount").fill("0.001");
   await shot("42-send-private");
   await page.getByRole("button", { name: /^Send$/ }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Back to Home" }).waitFor({ timeout: 6000 });
-  await sheetTap(page, "Back to Home");
+  await page.getByRole("dialog").getByRole("button", { name: "Check it yourself" }).waitFor({ timeout: 6000 });
+  await sheetTap(page, "Check it yourself");
   await page.evaluate(() => (location.hash = "/pool"));
   await page.getByRole("heading", { name: "Private pool" }).waitFor();
   await shot("43-pool-empty");
@@ -287,8 +287,8 @@ async function full(size, name, ua) {
   await page.getByLabel("Pay it out to").fill(to);
   await shot("44-pool-note");
   await page.getByRole("button", { name: "Pay out", exact: true }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Done" }).waitFor({ timeout: 6000 });
-  await sheetTap(page, "Done");
+  await page.getByRole("dialog").getByRole("button", { name: "Check it yourself" }).waitFor({ timeout: 6000 });
+  await sheetTap(page, "Check it yourself");
   await pause(page, 300);
 
   // Activity, offline, unknown

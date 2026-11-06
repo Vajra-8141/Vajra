@@ -291,10 +291,11 @@ export function Pool() {
                             className="btn primary"
                             disabled={!isAddr(to)}
                             onClick={() =>
-                              void run({ title: "Paying out", run: (x) => engine.unshield(n.id, to as Address, x), result: (d) => ({ title: "Paid out", body: <>{eth(n.payout)} ETH went to <span className="mono">{short(to)}</span>. A proof showed a note paid, without showing which.</>, done: d }) }).then((d) => {
+                              void run({ title: "Paying out", run: (x) => engine.unshield(n.id, to as Address, x), result: (d) => ({ title: "Paid out", body: <>{eth(n.payout)} ETH went to <span className="mono">{short(to)}</span>. A proof showed a note paid, without showing which.</>, done: d, action: "Check it yourself" }) }).then((d) => {
                                 if (d) {
                                   setSpending(null);
                                   setTo("");
+                                  go(`/verify?tx=${d.hash}`);
                                 }
                               })
                             }
