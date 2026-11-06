@@ -166,9 +166,21 @@ export interface AccountView {
   items: QueuedView[];
 }
 
+/** The newest items, whatever their state, for a page to show. */
 const QUEUE_WINDOW = 12n;
+const QUEUE_PAGE = 100;
+const WAITING = 1;
+/** For each account, below which id nothing is waiting any more. An item that was executed or vetoed stays that way. */
+const settledBelow = new Map<Address, bigint>();
 
-/** Everything a page shows about an account, in at most two requests, the second only when items are queued. */
+/**
+ * Everything a page shows about an account: the newest items, and every older one still waiting. Usually two requests, and the second
+ * only when items are queued.
+ *
+ * Older ones matter. A thief can queue a dozen more behind a theft, in one transaction, and a reader of the newest items alone would
+ * never alert on the theft: see docs/FINDINGS.md section 22.
+ */
+// ponytail: reads every item that might still be waiting on each poll. An index of Queued logs would be cheaper if a thief queues thousands.
 export async function readAccount(address: Address): Promise<AccountView> {
   const call = (functionName: string, args: unknown[] = []) => ({
     method: "eth_call",
@@ -185,8 +197,17 @@ export async function readAccount(address: Address): Promise<AccountView> {
   ]);
   const next = decode<bigint>("nextItem", nextItem);
   const start = next > QUEUE_WINDOW ? next - QUEUE_WINDOW : 0n;
-  const ids = Array.from({ length: Number(next - start) }, (_, i) => start + BigInt(i));
-  const items = await rpcBatch<Hex>(DEVNET.execution, ids.map((id) => call("queuedItem", [id])));
+  const settled = settledBelow.get(address) ?? 0n;
+  const from = settled < start ? settled : start;
+  const ids = Array.from({ length: Number(next - from) }, (_, i) => from + BigInt(i));
+  const read: QueuedView[] = [];
+  for (let at = 0; at < ids.length; at += QUEUE_PAGE) {
+    const page = ids.slice(at, at + QUEUE_PAGE);
+    const answers = await rpcBatch<Hex>(DEVNET.execution, page.map((id) => call("queuedItem", [id])));
+    answers.forEach((data, i) => read.push({ id: page[i]!, ...decode<Omit<QueuedView, "id">>("queuedItem", data) }));
+  }
+  const waiting = read.findIndex((item) => item.id >= start || item.state === WAITING);
+  if (waiting > 0) settledBelow.set(address, read[waiting]!.id);
   const [, limit, allowance, spent] = decode<readonly [boolean, bigint, bigint, bigint]>("rule", rule);
   return {
     dailyKey: decode<Address>("dailyKey", dailyKey),
@@ -195,7 +216,7 @@ export async function readAccount(address: Address): Promise<AccountView> {
     limit,
     allowance,
     spent,
-    items: items.map((data, i) => ({ id: ids[i]!, ...decode<Omit<QueuedView, "id">>("queuedItem", data) })),
+    items: read.filter((item) => item.id >= start || item.state === WAITING),
   };
 }
 
