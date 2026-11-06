@@ -17,7 +17,6 @@ import {
   accountV2Abi,
   dailyTx,
   deployments,
-  isLocalStack,
   leafNonceKey,
   ops,
   opsV2,
@@ -38,9 +37,10 @@ import { keyPath } from "./deploy.ts";
 import { check, evidence, master, mined, newAccount, newSigner, refusals, refused, reverts, tally } from "./zk-run.ts";
 import { proveRecovery, randomFieldElement, recoveryCommitment, stopProver } from "./proving.ts";
 
-if (!isLocalStack) throw new Error("recovery needs the patched sidecar: run this with VAJRA_STACK=local, after `vajra judge`");
 
 const DELAY = 20n;
+/** The public faucet is thin, and what these accounts hold at the end is not coming back. */
+const FUND = parseEther(DEVNET.chainId === 1337 ? "0.05" : "1");
 
 const read = <T>(address: Address, functionName: string, args: unknown[] = []) =>
   publicClient.readContract({ address, abi: accountV2Abi as never, functionName, args } as never) as Promise<T>;
@@ -56,7 +56,7 @@ const daily = privateKeyToAccount(dailyKey).address;
 
 console.log("\n1. A fresh account, with no recovery set");
 let oldTree: MasterSigner | null = newSigner();
-const account = await newAccount(deployer, oldTree, daily, harbor, salt);
+const account = await newAccount(deployer, oldTree, daily, harbor, salt, FUND);
 const { epochSalt, wotsRoot: firstRoot } = await accountState(account);
 console.log(`  account ${account}, ${formatEther(await publicClient.getBalance({ address: account }))} ETH`);
 
@@ -146,7 +146,7 @@ await mined("unfreeze, signed by the NEW tree", master(newTree, account, epochSa
 
 console.log("\n9. A stolen paper, with the owner still holding the master key");
 const owner = newSigner();
-const account2 = await newAccount(deployer, owner, daily, harbor, keccak256(toHex("second")));
+const account2 = await newAccount(deployer, owner, daily, harbor, keccak256(toHex("second")), FUND);
 const paper = randomFieldElement();
 await mined("set recovery on the second account", master(owner, account2, epochSalt, [opsV2.setRecovery(await recoveryCommitment(paper), DELAY, recoveryGate(recoveryTicket(paper)))]));
 const thiefRoot = keccak256(toHex("thief tree"));

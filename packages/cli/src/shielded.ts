@@ -34,7 +34,7 @@ import { type Note, newNote, noteCommitment, proveUnshield, stopProver } from ".
 import { denomination, noteFee, poolLeaves, readPool } from "./shield.ts";
 import { check, evidence, master, mined, newAccount, newSigner, refusals, refused, reverts, tally } from "./zk-run.ts";
 
-if (!isLocalStack) throw new Error("the pool needs the patched sidecar: run this with VAJRA_STACK=local, after `vajra judge`");
+if (!isLocalStack) throw new Error("this run makes 30 deposits, which the public faucet cannot pay for: run it with VAJRA_STACK=local, after `vajra judge`");
 
 const started = Date.now();
 const deployer = loadOrCreateKey(keyPath("deployer.key"));

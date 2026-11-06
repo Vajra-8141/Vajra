@@ -23,7 +23,7 @@ const MAX_PROOF_TX_COST = parseEther("0.005");
 /** The one size of note on the mirror. */
 /** Mirror runs attacks by the dozen, so it asks for less. A real user grinds once, for a few seconds. */
 const WORK_BITS = isLocalStack ? 10 : 18;
-const DENOMINATION = parseEther("0.1");
+const DENOMINATION = parseEther(isLocalStack ? "0.1" : "0.01");
 
 /** Each implementation costs ~20M gas. `only` redeploys one part and keeps the addresses of the rest. */
 export async function deploy(only?: string) {
@@ -70,7 +70,7 @@ export async function deploy(only?: string) {
     out.announcer ??= await createStock("ERC5564Announcer");
     out.registry ??= await createStock("ERC6538Registry");
   }
-  if (isLocalStack && want("v2")) {
+  if (want("v2")) {
     const recoveryVerifier = await create("RecoveryVerifier", []);
     const shieldVerifier = await create("ShieldVerifier", []);
     const poseidon = await create("PoseidonT3", []);

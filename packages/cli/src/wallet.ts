@@ -110,7 +110,7 @@ export async function createWallet(o: CreateOptions): Promise<Wallet> {
   const root = device ? (await device.info()).root : masterSigner().root;
   const harborSalt = bytesToHex(randomBytes(32));
   const { w16, v2, genesis } = deployments();
-  // On the mirror an account is a V2 one, staked, because a pairing check needs the staked budget. The public devnet has no V2.
+  // An account is a V2 one where V2 is deployed, staked, because the pairing check is the expensive part of validation.
   const factory = v2?.factory ?? w16.factory;
   const funder = loadOrCreateKey(keyPath("deployer.key"));
   const config = {

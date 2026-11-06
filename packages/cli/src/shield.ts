@@ -4,7 +4,7 @@
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { type Address, formatEther, parseAbiItem } from "viem";
-import { DEVNET, type FrameTx, RpcError, accountV2Abi, deployments, framesSucceeded, isLocalStack, opsV2, publicClient, refusalNameV2, submit, unshieldTx } from "@vajra/core";
+import { DEVNET, type FrameTx, RpcError, accountV2Abi, deployments, framesSucceeded, opsV2, publicClient, refusalNameV2, submit, unshieldTx } from "@vajra/core";
 import { keyPath } from "./deploy.ts";
 import { type Note, newNote, noteCommitment, proveUnshield } from "./proving.ts";
 import { requireWallet, runCalls } from "./wallet.ts";
@@ -22,10 +22,6 @@ interface SavedNote {
 
 const loadNotes = (): SavedNote[] => (existsSync(notesPath) ? (JSON.parse(readFileSync(notesPath, "utf8")) as SavedNote[]) : []);
 const saveNotes = (notes: SavedNote[]) => writeFileSync(notesPath, JSON.stringify(notes, null, 1) + "\n", { mode: 0o600 });
-
-const needsMirror = () => {
-  if (!isLocalStack) throw new Error("the pool needs the patched sidecar, which the public devnet does not run: use VAJRA_STACK=local");
-};
 
 export const denomination = () => BigInt(deployments().v2!.denomination);
 /** What a note gives up on the way out, to pay for its own transaction. */
@@ -49,7 +45,6 @@ export const readPool = <T>(account: Address, functionName: string, args: unknow
 
 /** One note, paid for by the account, with the master key. The note is saved before it is paid for. */
 export async function shieldCommand() {
-  needsMirror();
   const { account } = requireWallet();
   const note = newNote();
   const commitment = await noteCommitment(note);
@@ -66,7 +61,6 @@ export async function shieldCommand() {
 
 /** Spends the oldest unspent note. No key signs this. */
 export async function unshieldCommand(recipient: Address) {
-  needsMirror();
   const { account } = requireWallet();
   const notes = loadNotes();
   const saved = notes.find((n) => n.account === account && !n.spent && n.leaf >= 0);

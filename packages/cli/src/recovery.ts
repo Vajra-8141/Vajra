@@ -16,7 +16,6 @@ import {
   accountState,
   accountV2Abi,
   framesSucceeded,
-  isLocalStack,
   opsV2,
   publicClient,
   recoveryTx,
@@ -32,10 +31,6 @@ import { keyPath } from "./deploy.ts";
 import { FIELD, proveRecovery, randomFieldElement, recoveryCommitment } from "./proving.ts";
 import { masterSigner, requireWallet, runCalls } from "./wallet.ts";
 
-const needsMirror = () => {
-  if (!isLocalStack) throw new Error("recovery needs the patched sidecar, which the public devnet does not run: use VAJRA_STACK=local");
-};
-
 const nextTreePath = keyPath("signer.recovered.json");
 const proofPath = keyPath("recovery.proof.json");
 
@@ -44,7 +39,6 @@ const read = <T>(address: Address, functionName: string, args: unknown[] = []) =
 
 /** Creates a secret, and commits to it with the master key. The secret is written once, and is yours to move offline. */
 export async function recoverSetup(o: { delay: bigint; out?: string }) {
-  needsMirror();
   const file = o.out ?? keyPath("recovery.secret");
   if (existsSync(file)) throw new Error(`${file} already exists, and overwriting it could lose the only copy`);
   const secret = randomFieldElement();
@@ -57,7 +51,6 @@ export async function recoverSetup(o: { delay: bigint; out?: string }) {
 
 /** Needs the secret and nothing else. Makes a new key tree, and proves the account should move to it. */
 export async function recoverProve(o: { secretFile?: string; out?: string; account?: Address }) {
-  needsMirror();
   if (!o.secretFile) throw new Error("--secret <file> is required");
   const secret = BigInt(readFileSync(o.secretFile, "utf8").trim());
   if (secret <= 0n || secret >= FIELD) throw new Error("that is not a recovery secret");
@@ -78,7 +71,6 @@ export async function recoverProve(o: { secretFile?: string; out?: string; accou
  * means the proof already landed, so it picks up from the queue.
  */
 export async function recover(o: { proofFile: string }) {
-  needsMirror();
   const saved = JSON.parse(readFileSync(o.proofFile, "utf8")) as { account: Address; newRoot: Hex; nullifier: string; proof: string[]; ticket: Hex };
   const account = saved.account;
   const nullifier = BigInt(saved.nullifier);

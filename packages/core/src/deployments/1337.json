@@ -15,5 +15,15 @@
  },
  "paymaster": "0x87345490052dff33b97a08ce1288b02a7ebf2e6d",
  "announcer": "0x28a10ab671250a4f1db8700b14a39a331f4155e9",
- "registry": "0x14120833c5d6ab588bdd225617917d94bae7eca4"
+ "registry": "0x14120833c5d6ab588bdd225617917d94bae7eca4",
+ "v2": {
+  "implementation": "0x69709511ee50d82e7f441ebe889775475ecc58c3",
+  "factory": "0x53896509f1e27318ca268596dacedb83f85c524b",
+  "recoveryVerifier": "0x30f47625a79f15a183c2770028342707c0be6f7e",
+  "shieldVerifier": "0x3f078ca858c2c498e567483201fcf1f7b9b3fff2",
+  "poseidon": "0xc91304a52fadf8d148400aee295f58830d33ad67",
+  "denomination": "10000000000000000",
+  "noteFee": "5000000000000000",
+  "workBits": 18
+ }
 }
