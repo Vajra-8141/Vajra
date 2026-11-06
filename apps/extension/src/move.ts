@@ -7,7 +7,8 @@
 import { type Address, type Hex, formatEther, getAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { predictAccount } from "@vajra/core/account";
-import { framesSucceeded, signDailyTx, simulate, submit } from "@vajra/core/frame";
+import { simulate } from "@vajra/core/admission";
+import { framesSucceeded, signDailyTx, submit } from "@vajra/core/frame";
 import { type MoveOptions, type MovePlan, moveConfig, planMove, readHoldings } from "@vajra/shared/move";
 import { ask, field, h } from "./ui.ts";
 
