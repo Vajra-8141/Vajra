@@ -2,15 +2,17 @@ import { type Hex, decodeFunctionData, encodeFunctionResult, zeroAddress } from 
 import { afterEach, describe, expect, it } from "vitest";
 import { accountAbi, readAccount, setRpcFetch } from "../src/index.ts";
 
+const NONE = 0;
 const WAITING = 1;
 const EXECUTED = 2;
 const VETOED = 3;
 
-/** A node answering for one account, whose queue holds these states. Records which items it was asked for. */
-function nodeWith(states: number[]) {
+/** A node answering for one account, whose queue holds these states. Records which items it was asked for. `head` is the chain it is on. */
+function nodeWith(states: number[], chain: { head: Hex } = { head: `0x${"aa".repeat(32)}` }) {
   const asked: bigint[] = [];
   const answer = (call: { method: string; params: { data: Hex }[] }) => {
     if (call.method === "eth_getBalance") return "0x1";
+    if (call.method === "eth_getBlockByNumber") return { number: "0x10", hash: chain.head };
     const { functionName, args } = decodeFunctionData({ abi: accountAbi, data: call.params[0]!.data }) as { functionName: string; args?: readonly unknown[] };
     const encode = (result: unknown) => encodeFunctionResult({ abi: accountAbi, functionName, result } as never);
     switch (functionName) {
@@ -82,6 +84,30 @@ describe("readAccount", () => {
     asked.length = 0;
     await readAccount(account);
     expect(asked[0]).toBe(8n);
+  });
+
+  // A replica behind the head says `None` for an item it has not seen. That is not settled, and moving past it would hide the item for good.
+  it("does not move its mark past an item the node has not seen", async () => {
+    const account = anAccount();
+    const asked = nodeWith([...Array(5).fill(EXECUTED), NONE, ...Array(30).fill(EXECUTED)]);
+    await readAccount(account);
+    asked.length = 0;
+    await readAccount(account);
+    expect(asked[0]).toBe(5n);
+  });
+
+  // A long-lived tab or watcher outlives a mirror reset, and the same account can come back at the same address with the same genesis.
+  it("drops its mark when the chain it was read from is gone", async () => {
+    const account = anAccount();
+    const chain = { head: `0x${"aa".repeat(32)}` as Hex };
+    nodeWith(Array(40).fill(EXECUTED), chain);
+    await readAccount(account);
+    const states = [WAITING, ...Array(39).fill(EXECUTED)];
+    chain.head = `0x${"bb".repeat(32)}`;
+    const asked = nodeWith(states, chain);
+    const { items } = await readAccount(account);
+    expect(asked[0]).toBe(0n);
+    expect(items.some((item) => item.id === 0n && item.state === WAITING)).toBe(true);
   });
 
   it("reads a queue of two pages, and throws rather than call a failed read an empty queue", async () => {

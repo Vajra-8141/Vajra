@@ -14,6 +14,7 @@ import {
   DEVNET,
   ETH,
   MasterSigner,
+  readAccount,
   ROTATION_LEAF,
   accountAbi,
   accountV2Abi,
@@ -349,3 +350,13 @@ export async function walletStatus(): Promise<WalletStatus> {
 export const dailyKeyPath = keyPath("daily.key");
 export const localDailyKey = () => loadOrCreateKey(dailyKeyPath);
 export const localDailyAddress = () => privateKeyToAccount(localDailyKey()).address;
+
+/**
+ * A freeze or an escape stops a queued payment from leaving, and does not end it. So once the account is unfrozen, anything still waiting
+ * that has matured can be run by anyone, against whatever is paid in next. See docs/FINDINGS.md section 23.
+ */
+export async function warnOfWaiting() {
+  const waiting = (await readAccount(requireWallet().account)).items.filter((item) => item.state === 1);
+  if (waiting.length === 0) return;
+  console.log(`\n${waiting.length} still waiting, and the freeze was what held them back. Anything matured can now be run by anyone, against whatever you pay in next. Cancel them first: vajra veto ${waiting[0]!.id}`);
+}

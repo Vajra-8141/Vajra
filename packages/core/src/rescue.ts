@@ -6,15 +6,16 @@
  * pre-signed one is waiting on. See docs/FINDINGS.md section 23.
  *
  * Whoever holds it can send it, and holds no key. All they can do is send the owner's money to the owner's harbor, and they learn where
- * that is. So a nominee needs no trust with the money, and every field here is read from the signed bytes, because a file can lie.
+ * that is. So a nominee needs no trust with the money. Every field here is read from the transaction's own bytes, because a file can lie,
+ * and only the node can say those bytes are really signed: `checkRescue` asks it, and until then a loaded file proves nothing.
  *
  * Runs in a browser and in Node.
  */
 import * as lib from "@forshtat/hegota-support/tx";
-import { type Address, type Hex, decodeErrorResult, decodeFunctionData, encodeFunctionData, getAddress, hexToBytes } from "viem";
+import { type Address, type Hex, decodeErrorResult, decodeFunctionData, encodeFunctionData, getAddress, hexToBytes, parseAbiItem, zeroAddress } from "viem";
 import { type QueuedView, harborCommitment, ops, readAccount, signExitTx } from "./account.ts";
 import { publicClient } from "./chain.ts";
-import { DEVNET, RpcError, genesisHash, sleep } from "./devnet.ts";
+import { DEVNET, RpcError, genesisHash, rpcBatch, sleep } from "./devnet.ts";
 import { type Call, type Fees, type FrameTx, accountAbi, encodeTx, exitAbi, framesSucceeded, leafNonceKey, maxGas, profile, receiptOf, sendCanonical, simulateFrames, submit, txHash } from "./frame.ts";
 import type { MasterSigner } from "./signer.ts";
 import { accountV2Abi } from "./zk.ts";
@@ -59,10 +60,14 @@ export const defaultMargin = (queueDelay: number) => Math.min(Math.floor(queueDe
 /**
  * `escape`, with gas for a token that fights: a sweep gives one up to `SWEEP_GAS` for its balance and again for its transfer. Gas is signed
  * here and cannot be raised later, and a frame that runs out still spends the nonce key, so this errs high. Unused gas comes back.
+ *
+ * `SWEEP_GAS` bounds execution and not state gas, which is one pool for the frame, and a transfer that succeeds keeps what it spent. A token
+ * sweeps before the harbor is paid, so three new slots a token are allowed for. A configured token that takes more can still halt the frame:
+ * see docs/FINDINGS.md section 23.
  */
 export function rescueCall(harbor: Address, harborSalt: Hex, tokens: number, extra: Address[] = []): Call {
   const call = ops.escape(harbor, harborSalt, extra);
-  return { ...call, execution: call.execution + 600_000n * BigInt(tokens), state: call.state + 100_000n * BigInt(tokens) };
+  return { ...call, execution: call.execution + 600_000n * BigInt(tokens), state: call.state + 300_000n * BigInt(tokens) };
 }
 
 /** Signs it, which reveals a leaf of the exit tree to whoever gets the bytes. `tokens` counts every token the sweep will touch, configured or extra. */
@@ -86,7 +91,7 @@ export function parseRescue(text: string): Rescue {
     throw new RescueInvalid("this is not JSON");
   }
   if (file?.kind !== RESCUE_KIND) throw new RescueInvalid(`this file says it is ${String(file?.kind)}`);
-  if (!Number.isSafeInteger(file.marginSeconds) || file.marginSeconds < 0) throw new RescueInvalid("its margin is not a number of seconds");
+  if (!Number.isSafeInteger(file.marginSeconds) || file.marginSeconds <= 0) throw new RescueInvalid("its margin is not a number of seconds");
   if (!/^0x[0-9a-fA-F]{64}$/.test(String(file.genesis))) throw new RescueInvalid("it names no chain");
   let tx: FrameTx;
   try {
@@ -126,9 +131,14 @@ export function parseRescue(text: string): Rescue {
 
 export type RescueCheck =
   | { state: "ready"; reserve: bigint; maxCost: bigint; verifyGas: number; totalGas: number }
-  | { state: "sent"; hash: Hex | null; block: number | null; succeeded: boolean | null }
-  | { state: "broken"; reason: string }
+  /** `copy` when what landed is not these bytes: a padded copy does the same job, under another hash. */
+  | { state: "sent"; hash: Hex; block: number; succeeded: boolean; copy: boolean }
+  /** `burns` when sending it would mine, fail and spend the nonce key for nothing. Anything else dies at the door, so it costs nothing to try. */
+  | { state: "broken"; reason: string; burns: boolean }
   | { state: "unknown"; reason: string };
+
+/** The one thing that holds a rescue back. Everything else is worth a try: nothing else can stop this now. */
+export const wouldBurn = (check: RescueCheck | null) => check?.state === "broken" && check.burns;
 
 /** The node's refusal, in the exit's own words when it has them. */
 function refusal(message: string): string {
@@ -141,12 +151,25 @@ function refusal(message: string): string {
   }
 }
 
+/** Errors that are about the request or the node, and say nothing about this transaction. */
+const saysNothing = (code: number) => code >= 0 || code === -32700 || (code >= -32603 && code <= -32600);
+
+const ESCAPED = parseAbiItem("event Escaped(address indexed harbor)");
+
+/** The node checks a nonce key and not what spent it, so a spent key proves nothing. Only the money having moved does. */
+async function escapeLanded(r: Rescue) {
+  const logs = await publicClient.getLogs({ address: r.account, event: ESCAPED, args: { harbor: r.harbor }, fromBlock: 0n, toBlock: "latest" });
+  const last = logs.at(-1);
+  return last ? { hash: last.transactionHash, block: Number(last.blockNumber) } : null;
+}
+
 /** Would this work if sent now? It asks the node and sends nothing. A node that cannot be reached is unknown, and never ready. */
 export async function checkRescue(r: Rescue): Promise<RescueCheck> {
   try {
-    if ((await genesisHash()) !== r.genesis) return { state: "broken", reason: "This was signed on a chain that has since been reset." };
+    // `genesis` is not signed, so a wrong one says something about the file, and proves nothing about the transaction.
+    if ((await genesisHash()) !== r.genesis) return { state: "broken", burns: false, reason: "This was signed on a chain that has since been reset." };
     const receipt = await receiptOf(r.hash);
-    if (receipt) return { state: "sent", hash: r.hash, block: Number(BigInt(receipt.blockNumber)), succeeded: framesSucceeded(receipt) };
+    if (receipt) return { state: "sent", hash: r.hash, block: Number(BigInt(receipt.blockNumber)), succeeded: framesSucceeded(receipt), copy: false };
 
     const read = <T>(functionName: string) => publicClient.readContract({ address: r.account, abi: accountV2Abi as never, functionName } as never) as Promise<T>;
     const [named, commitment, reserve, root] = await Promise.all([
@@ -155,10 +178,10 @@ export async function checkRescue(r: Rescue): Promise<RescueCheck> {
       publicClient.getBalance({ address: r.exit }),
       publicClient.readContract({ address: r.exit, abi: exitAbi, functionName: "root" }) as Promise<Hex>,
     ]);
-    if (getAddress(named) !== r.exit) return { state: "broken", reason: "The account no longer names this exit." };
-    if (harborCommitment(r.harbor, r.harborSalt) !== commitment) return { state: "broken", reason: "The owner changed the harbor after this was signed, so it would fail and move nothing." };
+    if (getAddress(named) !== r.exit) return { state: "broken", burns: true, reason: "The account no longer names this exit." };
+    if (harborCommitment(r.harbor, r.harborSalt) !== commitment) return { state: "broken", burns: true, reason: "The owner changed the harbor after this was signed, so it would fail and move nothing." };
     const leaf = hexToBytes(r.tx.signatures[0]!.signature)[0]!;
-    if (leafNonceKey(root, leaf) !== r.tx.nonceKeys[0]) return { state: "broken", reason: "The exit's key tree was replaced after this was signed, so this rescue no longer works. Ask the owner for a new one." };
+    if (leafNonceKey(root, leaf) !== r.tx.nonceKeys[0]) return { state: "broken", burns: false, reason: "The exit's key tree was replaced after this was signed, so this rescue no longer works. Ask the owner for a new one." };
 
     let sim: Awaited<ReturnType<typeof simulateFrames>> | null = null;
     let failure: string | null = null;
@@ -166,14 +189,21 @@ export async function checkRescue(r: Rescue): Promise<RescueCheck> {
       sim = await simulateFrames(r.tx);
       if (!sim.frames?.[0]?.succeeded) failure = String(sim.executionError ?? "its VERIFY frame fails");
     } catch (error) {
-      if (!(error instanceof RpcError) || error.code >= 0) throw error;
+      if (!(error instanceof RpcError)) throw error;
+      if (saysNothing(error.code) && !/nonce mismatch/i.test(error.message)) throw error;
       failure = error.message;
     }
-    // Someone sent a copy with the same signature and different padding: its hash is not ours, but the nonce key is spent.
-    if (failure && /nonce mismatch/i.test(failure)) return { state: "sent", hash: null, block: null, succeeded: null };
-    if (failure || !sim?.frames) return { state: "broken", reason: `It would be refused: ${failure}` };
-    if (!sim.frames.every((frame) => frame.succeeded)) return { state: "broken", reason: `Its SENDER frame would fail, and spend the nonce key: ${sim.executionError ?? "no reason given"}. Ask the owner for a new one.` };
-    if (reserve < r.maxCost) return { state: "broken", reason: `The exit holds ${reserve} wei, and this can cost up to ${r.maxCost}. Anyone can top up ${r.exit}.` };
+    if (failure && /nonce mismatch/i.test(failure)) {
+      // A copy with the same signature and different padding has another hash and did the job. Another transaction on the same leaf, which a
+      // restored signer could sign, spent the same key and moved nothing, and only the chain can tell them apart.
+      const landed = await escapeLanded(r);
+      if (landed) return { state: "sent", ...landed, succeeded: true, copy: true };
+      return { state: "broken", burns: false, reason: "Its one-time key was spent by another transaction, and nothing reached the harbor. Ask the owner for a new one." };
+    }
+    if (failure) return { state: "broken", burns: false, reason: `It would be refused: ${failure}` };
+    if (!sim?.frames) return { state: "unknown", reason: "the node gave no verdict on it" };
+    if (!sim.frames.every((frame) => frame.succeeded)) return { state: "broken", burns: true, reason: `Its SENDER frame would fail, and spend the nonce key: ${sim.executionError ?? "no reason given"}. Ask the owner for a new one.` };
+    if (reserve < r.maxCost) return { state: "broken", burns: false, reason: `The exit holds ${reserve} wei, and this can cost up to ${r.maxCost}. Anyone can top up ${r.exit}.` };
     return { state: "ready", reserve, maxCost: r.maxCost, verifyGas: Number(BigInt(sim.frames[0]!.gasUsed)), totalGas: Number(BigInt(sim.gasUsed ?? "0x0")) };
   } catch (error) {
     return { state: "unknown", reason: (error as Error).message };
@@ -189,6 +219,29 @@ export interface RescueDue {
   /** Seconds until the rescue should go, or null if nothing is waiting. */
   sendIn: number | null;
   due: boolean;
+  /** The margin really used. The file's is not signed, so one that makes no sense is replaced. */
+  margin: number;
+  /** How old the newest block is, if that is too old to trust a quiet queue. Zero on a healthy chain. */
+  staleBy: number;
+}
+
+const QUEUE_PAGE = 100;
+/** Blocks are seconds apart. Past this, the node has stopped, or fallen behind, and a queue it shows as quiet may not be. */
+const STALE_SECONDS = 120;
+
+/** On a frozen account only a recovery can leave. A recovery has no recipient, so only those are asked about, in pages: a flood outlives a freeze. */
+async function recoveriesAmong(account: Address, items: QueuedView[]): Promise<QueuedView[]> {
+  const suspects = items.filter((item) => item.recipient === zeroAddress);
+  const found: QueuedView[] = [];
+  for (let at = 0; at < suspects.length; at += QUEUE_PAGE) {
+    const page = suspects.slice(at, at + QUEUE_PAGE);
+    const calls = page.map((item) => ({ method: "eth_call", params: [{ to: account, data: encodeFunctionData({ abi: accountV2Abi as never, functionName: "isRecovery", args: [item.id] } as never) }, "latest"] }));
+    const answers = await rpcBatch<Hex>(DEVNET.execution, calls);
+    answers.forEach((answer, i) => {
+      if (BigInt(answer) !== 0n) found.push(page[i]!);
+    });
+  }
+  return found;
 }
 
 /**
@@ -199,37 +252,70 @@ export interface RescueDue {
  * cannot be read: an unknown queue must never look like an empty one.
  */
 export async function rescueDue(r: Rescue, margin: number = r.marginSeconds): Promise<RescueDue> {
-  const [view, block] = await Promise.all([readAccount(r.account), publicClient.getBlock()]);
+  const [view, block, delay] = await Promise.all([
+    readAccount(r.account),
+    publicClient.getBlock(),
+    publicClient.readContract({ address: r.account, abi: accountV2Abi as never, functionName: "queueDelay" } as never) as Promise<bigint>,
+  ]);
   const now = Number(block.timestamp);
+  // Not signed, so it can be anything. Nothing at all fires when the thief can already collect, and as long as the delay fires before the owner can answer.
+  const queueDelay = Number(delay);
+  const usable = Number.isSafeInteger(margin) && margin > 0 && margin < queueDelay ? margin : defaultMargin(queueDelay);
   let waiting = view.items.filter((item) => item.state === 1);
-  if (view.frozen) {
-    const recovery = await Promise.all(waiting.map((item) => publicClient.readContract({ address: r.account, abi: accountV2Abi as never, functionName: "isRecovery", args: [item.id] } as never) as Promise<boolean>));
-    waiting = waiting.filter((_, i) => recovery[i]);
+  if (view.frozen) waiting = await recoveriesAmong(r.account, waiting);
+  // Not a spread: past about 125,000 items that throws, and a thief can queue that many.
+  let soonest: number | null = null;
+  for (const item of waiting) {
+    const at = Number(item.executeAfter);
+    if (soonest === null || at < soonest) soonest = at;
   }
-  const soonest = waiting.length ? Math.min(...waiting.map((item) => Number(item.executeAfter))) : null;
-  const sendIn = soonest === null ? null : soonest - margin - now;
-  return { now, frozen: view.frozen, waiting, soonest, sendIn, due: sendIn !== null && sendIn <= 0 };
+  const sendIn = soonest === null ? null : soonest - usable - now;
+  const age = Math.floor(Date.now() / 1000) - now;
+  return { now, frozen: view.frozen, waiting, soonest, sendIn, due: sendIn !== null && sendIn <= 0, margin: usable, staleBy: age > STALE_SECONDS ? age : 0 };
 }
+
+/** When the last good read says to go, on this machine's clock. Worked out from the chain's own time, so a wrong date here does not move it. */
+export const sendAtFrom = (due: RescueDue, at: number = Date.now()) => (due.sendIn === null ? null : at + due.sendIn * 1000);
+
+/**
+ * Whether to send now. A read that failed is not an answer: if the last good read said when to go and that time has passed, it goes. A
+ * rescue nobody needed costs the owner a frozen account, and a theft costs everything.
+ */
+export function timeToSend(a: { check: RescueCheck | null; due: RescueDue | null; lastSendAt: number | null }, at: number = Date.now()): boolean {
+  if (wouldBurn(a.check)) return false;
+  if (a.due) return a.due.due;
+  return a.lastSendAt !== null && at >= a.lastSendAt;
+}
+
+/** How long the alt mempool gets before the canonical one is asked as well. Ten slots: it can take four relays to drop a transaction. */
+const ALT_PATIENCE_MS = 20_000;
 
 /**
  * Sends the same bytes through whichever mempool takes them. The alt mempool first, then the canonical one, which also takes an exit's
  * transaction with a thief's pending: the sender is not the account. There is nothing to re-sign, and nothing else to try.
+ *
+ * Down, refusing, or holding it and not relaying it all mean the same here. If the alt mempool still has it, both hold the same bytes, and
+ * one landing is the other landing.
  */
 export async function sendRescue(r: Rescue, o: { log?: (line: string) => void; timeoutMs?: number } = {}) {
   const log = o.log ?? (() => {});
+  const timeoutMs = o.timeoutMs ?? 120_000;
+  const deadline = Date.now() + timeoutMs;
   try {
-    const { hash, receipt } = await submit(r.tx, { log, timeoutMs: o.timeoutMs ?? 120_000 });
+    const { hash, receipt } = await submit(r.tx, { log, timeoutMs: Math.min(ALT_PATIENCE_MS, timeoutMs / 2) });
     return { hash, receipt, route: "alt" as const };
   } catch (error) {
-    if (!(error instanceof RpcError)) throw error;
-    log(`the alt mempool refused it: ${refusal(error.message)}. Trying the canonical mempool`);
+    log(`the alt mempool did not carry it: ${refusal((error as Error).message)}. Trying the canonical mempool`);
   }
-  await sendCanonical(r.tx);
-  const deadline = Date.now() + (o.timeoutMs ?? 120_000);
-  while (Date.now() < deadline) {
+  try {
+    await sendCanonical(r.tx);
+  } catch (error) {
+    if (!/already known/i.test((error as Error).message)) throw error;
+  }
+  do {
     const receipt = await receiptOf(r.hash);
     if (receipt) return { hash: r.hash, receipt, route: "canonical" as const };
     await sleep(1000);
-  }
+  } while (Date.now() < deadline);
   throw new Error(`${r.hash} was admitted and not mined in time`);
 }

@@ -1,93 +1,93 @@
 {
- "ranAt": "2026-11-06T19:11:11.587Z",
+ "ranAt": "2026-11-06T20:12:46.901Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
  "chainId": 13370,
- "account": "0x766cB08B4EFfA9ea9f6da5bC7ff4d9372c702d4F",
- "exit": "0xf807c1aC1c3BE70759CD30424a5CD65B6A665207",
+ "account": "0xD4413A1F21857B45c3421c67a1c5120181A1F801",
+ "exit": "0x5A71fAc5aa556EfCc69b3452D4Aad84C3bE895F0",
  "canonicalEscape": {
-  "hash": "0x602047a3f9d1eaa2c17292547450f8964c2be78ef3822aeb667efa5d1a47ee4b",
-  "verifyGas": 97684,
-  "totalGas": 490633
+  "hash": "0xd64567b8b1dfcb8b5d3ab7034e6be44da9e9904c1b4f44ee472d03c6db82afe3",
+  "verifyGas": 97486,
+  "totalGas": 490363
  },
  "failures": 0,
  "mined": [
   {
    "step": "name the exit, master key",
-   "hash": "0x3abca30e3e20ae6e951c89dbbdf71aa39c02a628ac16ebc67f7bb1880a1664c6",
-   "block": 50,
-   "verifyGas": 92527,
+   "hash": "0x818ba1f05f32a58b14b09ddc508d4a9537be27b31872b7cac1a4b4d4699535cb",
+   "block": 510,
+   "verifyGas": 89782,
    "totalGas": 267386,
    "attempts": 1
   },
   {
    "step": "the thief queues 0.6 ETH",
-   "hash": "0x524588349d843831bebe88ca69bec85db27004d71e1c003ef16aa215f7a415db",
-   "block": 54,
+   "hash": "0x03511919e70bcc6b4c41487c89474db171cdf19d755833cecfdc30b269ce92a6",
+   "block": 513,
    "verifyGas": 36230,
    "totalGas": 620110,
    "attempts": 1
   },
   {
    "step": "veto, from the exit",
-   "hash": "0xbcf422dbc94ab9d1d21d9c6399042cf1951a557a8c0722dc940af6faf2e0b966",
-   "block": 57,
-   "verifyGas": 97758,
-   "totalGas": 173262,
+   "hash": "0xbf5979aa445b8f5f8fede3dabfc78d4dedcfeaeed9053ebdd9d9d006f5f4095d",
+   "block": 516,
+   "verifyGas": 95862,
+   "totalGas": 171378,
    "attempts": 1
   },
   {
    "step": "freeze, from the exit, signed before it was named",
-   "hash": "0x5b0ed17ba38d4db3da1c45d0f37ff70e1b083f41ea3a836211c31a96ef1abdba",
-   "block": 60,
-   "verifyGas": 97853,
-   "totalGas": 171118,
+   "hash": "0x09bba6cfacbd4a834e643331552ef755c60aef43379ea25489699375267ee67a",
+   "block": 519,
+   "verifyGas": 97004,
+   "totalGas": 170281,
    "attempts": 1
   },
   {
    "step": "unfreeze, master key",
-   "hash": "0xeb38672fa7eb2670e41e313de731cc6a1832f8db79956b6df6472bf67b6512b0",
-   "block": 63,
-   "verifyGas": 90715,
+   "hash": "0xd20bdb1a97465c615d48bbf7a186f55c3e5dffed6ac16921632b9ba4f04c5f52",
+   "block": 522,
+   "verifyGas": 93106,
    "totalGas": 167418,
    "attempts": 1
   },
   {
    "step": "set recovery, master key",
-   "hash": "0x775a809d1404829c983419fd31936346429dff4b517ee5befd35ab57f17413f1",
-   "block": 66,
+   "hash": "0x1f5642b22969fcbc00349b6d0b0bdd0b4060811e650a84674b3f4f88bf3e36c1",
+   "block": 525,
    "verifyGas": 92059,
-   "totalGas": 481679,
+   "totalGas": 481751,
    "attempts": 1
   },
   {
    "step": "recovery, from the exit",
-   "hash": "0x2f36484e8a2e864dcb8d81647a828c952fbc232952025c1af643d37985cbbf93",
-   "block": 70,
+   "hash": "0x36acf1c1d1bba6671ea5931c88db04b984b27626a30469ff576c11ccec6ac2d6",
+   "block": 529,
    "verifyGas": 314475,
-   "totalGas": 1015585,
+   "totalGas": 1015561,
    "attempts": 1
   },
   {
    "step": "veto it, master key",
-   "hash": "0x06f3e1dc943b19851878181edd4660da25b085c7439047661c6181041678b820",
-   "block": 73,
-   "verifyGas": 89851,
+   "hash": "0x3cb913581a1c61df5c6e1268034ee353148864020ef4f49a66af6b2990b2be31",
+   "block": 532,
+   "verifyGas": 88450,
    "totalGas": 169466,
    "attempts": 1
   },
   {
    "step": "new exit tree, master key",
-   "hash": "0x7b2fda0ebbdd37ad3be43fe90b000fe1987aa5277ad5d2350f95b4d9d0731e97",
-   "block": 75,
-   "verifyGas": 92710,
+   "hash": "0xac07b404c438bf6cd070a968c51399c2d3b9fd371438e754cc23e23bb120c922",
+   "block": 535,
+   "verifyGas": 91861,
    "totalGas": 169466,
    "attempts": 1
   },
   {
    "step": "take some of the reserve back, master key",
-   "hash": "0x5729218c3e799f5f9585fe4265c1dace6dee293af1126a3e5ebc117e8dcc4515",
-   "block": 77,
-   "verifyGas": 92596,
+   "hash": "0x32eacc2fa43523efea15fcb93c38b74d25bd45cc706a01e97db2a4e222f3f426",
+   "block": 537,
+   "verifyGas": 91096,
    "totalGas": 359210,
    "attempts": 1
   }

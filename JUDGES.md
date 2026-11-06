@@ -59,7 +59,7 @@ Times are from one machine, on a warm mirror.
 | A wallet signing typed data, and every attack on it | `vajra clear-sign` | 25 s | 4 mined, 18 refused, 0 failures, with a scripted wallet |
 | A second way out, on your own account | `vajra exit-setup`, then `vajra exit` | 20 s each | the harbor holds the balance |
 | A stealth payer taking the money back, and the fix | `vajra stealth-theft`, then `vajra stealth-theft fixed` | 1 min | 25 of 25 taken, then `CoSignerRequired` and 0 taken |
-| A nominee: a rescue signed in advance, sent when nobody answers, and every attack on it | `vajra nominee-e2e` | 8 min | 23 mined, 17 refused, 0 failures. Holds no key: a real process with an empty folder, which it leaves empty |
+| A nominee: a rescue signed in advance, sent when nobody answers, and every attack on it | `vajra nominee-e2e` | 11 min | 34 mined, 21 refused, 0 failures. Holds no key: a real process with an empty folder, which it leaves empty. A node going dark and a sidecar going down are a proxy that only withholds, in front of the real chain |
 | The same, on your own account | `vajra exit-setup --reserve 0.03`, `vajra nominee-setup --out rescue.json`, `vajra nominee-watch --rescue rescue.json` in its own terminal, then `vajra thief 0.6` and answer nothing | 2 min | the harbor holds the balance, and the watcher stops by itself. It ends the demo account: `make judge` starts again |
 | The dashboard, on the mirror | `make dashboard`, then http://localhost:3000 and **Start the demo** | 30 s | the theft as six steps, with no wallet to set up. See below |
 | Quota and USDC paymasters, and every attack | `vajra paymaster-e2e` | 6 min | 15 mined, 50 refused, canonical refused 51 of 51, 66 predictions checked, on V2, 0 failures |
@@ -76,7 +76,7 @@ Times are from one machine, on a warm mirror.
 | Encrypted backup, restore, a stale state refused | `vajra backup-e2e`, or `vajra backup --out file`, `vajra restore --in file --check` | 1 min | 0 failures |
 | One-transaction move from an EOA | `vajra move-e2e`, or `vajra move --key-file file --harbor 0x… --tokens 0x…` | 40 s | three frames, one transaction, 0 failures |
 | Gas table | `vajra measure`, `vajra measure-zk` | 2 min each | close to `docs/GAS.md` |
-| leanSphincs-S, a hash key with no leaves, beside the one we use | `vajra sphincs-bench` | 9 min | 19 mined, 53 refused, 0 failures, with its numbers close to `docs/GAS.md`. `SAMPLES=4` makes it 5 min. A benchmark: no account relies on it. One mined transaction shows a flaw on purpose: `docs/FINDINGS.md` section 21 |
+| leanSphincs-S, a hash key with no leaves, beside the one we use | `vajra sphincs-bench` | 9 min | 19 mined, 54 refused, 0 failures, with its numbers close to `docs/GAS.md`. `SAMPLES=4` makes it 5 min. A benchmark: no account relies on it. One mined transaction shows a flaw on purpose: `docs/FINDINGS.md` section 21 |
 | A staked VERIFY limit over 100,000 | `vajra budget` | 5 s | 400,000 admitted. The 900,000 line says "fee too low": same nonce, not the cap |
 | Hardware logic | `make -C firmware test emulator`, then the three lines below | 1 min | 143 checks, then 7 mined |
 | Leaf registry | the `curl` under [Run a query](README.md#leaf-registry-on-arkiv) in the README | 1 s | the public Arkiv testnet, no install, no key |

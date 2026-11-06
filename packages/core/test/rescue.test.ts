@@ -12,7 +12,9 @@ const epochSalt = keccak256(toHex("epoch"));
 const genesis = keccak256(toHex("genesis"));
 const signer = () => new MasterSigner(WOTS_W16, memoryStore(), () => new Uint8Array(32).fill(5));
 
-const signed = () => signRescue({ signer: signer(), exit, account, epochSalt, harbor, harborSalt, tokens: 1, extra: [thief] }).tx;
+/** One rescue for every test: building the tree is what takes the time, and tests only read it. */
+let rescue: FrameTx | undefined;
+const signed = () => (rescue ??= signRescue({ signer: signer(), exit, account, epochSalt, harbor, harborSalt, tokens: 1, extra: [thief] }).tx);
 const filed = (tx: FrameTx, over: Record<string, unknown> = {}) => JSON.stringify({ ...JSON.parse(rescueFile({ tx, genesis, marginSeconds: 15 })), ...over });
 
 describe("a rescue file", () => {
@@ -83,11 +85,24 @@ describe("a rescue file", () => {
 });
 
 describe("what a rescue pays for", () => {
-  it("allows for a token that fights, on top of what an escape already has", () => {
-    const plain = ops.escape(harbor, harborSalt);
-    const two = rescueCall(harbor, harborSalt, 2);
-    expect(two.execution).toBe(plain.execution + 1_200_000n);
-    expect(two.state).toBe(plain.state + 200_000n);
+  // What the fork charges, from the frame's one pool of state gas. A successful token transfer keeps what it spent, and `escape` still has to
+  // pay a fresh harbor and close the pool after it, so a budget that runs out here halts the frame and burns the leaf.
+  const FRESH_ACCOUNT = 183_600n;
+  const NEW_SLOT = 97_920n;
+
+  it("has state gas for a fresh harbor, the pool closing, and a token that makes three new slots", () => {
+    for (const tokens of [0, 1, 2, 3, 30]) {
+      expect(rescueCall(harbor, harborSalt, tokens).state >= FRESH_ACCOUNT + NEW_SLOT + BigInt(tokens) * 3n * NEW_SLOT).toBe(true);
+    }
+  });
+
+  // The balance read and the transfer each get up to `SWEEP_GAS`, and the harbor's CALL still needs its headroom after them.
+  it("has execution gas for each token to burn all it is allowed", () => {
+    const SWEEP_GAS = 300_000n;
+    const plain = ops.escape(harbor, harborSalt).execution;
+    for (const tokens of [1, 2, 30]) {
+      expect(rescueCall(harbor, harborSalt, tokens).execution - plain >= BigInt(tokens) * 2n * SWEEP_GAS).toBe(true);
+    }
   });
 
   it("goes out a quarter of the delay early, and never more than an hour", () => {

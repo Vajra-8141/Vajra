@@ -1,12 +1,16 @@
 import { readFileSync } from "node:fs";
 import { bytesToHex, hexToBytes } from "viem";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { LEAN_SPHINCS_S_BYTES, coverBits, keccakCalls, leanSphincsKeygen, leanSphincsPublicKey, leanSphincsSign } from "../src/leansphincs.ts";
 
 /** Upstream's vectors, from its own Rust signer and confirmed by its Python one. This signer was written from the spec, and read neither. */
 const { vectors } = JSON.parse(readFileSync(new URL("../../../contracts/test/vectors/leansphincs-s-kat.json", import.meta.url), "utf8")) as {
   vectors: { label: string; seed: `0x${string}`; b: number; message: `0x${string}`; pkSeed: `0x${string}`; pkRoot: `0x${string}`; sig: `0x${string}` }[];
 };
+
+// Each signature is seconds of synchronous hashing, and the file can run past a minute. Yielding between tests lets the worker answer vitest,
+// which gives up after sixty seconds of silence and fails the run, with every test green.
+afterEach(() => new Promise((resolve) => setImmediate(resolve)));
 
 describe("leanSphincs-S", () => {
   for (const v of vectors) {

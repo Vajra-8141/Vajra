@@ -37,7 +37,7 @@ leaf as its sequence would save it, at the cost of being unable to skip a leaf t
 | Daily key, signed by a stock wallet with personal_sign | 42,318 |
 | Daily key on V2, signed by a stock wallet as typed data, on the mirror | 49,923 |
 | The exit's VERIFY frame, on the mirror, with the digest under 430 hashes | about 97,000 |
-| A rescue, which is that same frame, signed in advance, on the mirror. About 490,000 for the whole transaction, to a fresh harbor. At a 10 gwei cap the reserve has to hold about 0.0125 ETH | about 97,000 |
+| A rescue, which is that same frame, signed in advance, on the mirror. About 490,000 for the whole transaction, to a fresh harbor. At a 10 gwei cap the reserve has to hold about 0.0125 ETH, and 0.009 more for each token | about 97,000 |
 
 ## The third w=256 checksum chain
 
@@ -84,15 +84,15 @@ leanSphincs-S is a parameter set from [nconsigny/SPHINCs-](https://github.com/nc
 
 | Path | Key | Bytes in the signature entry | VERIFY gas (min / median / max) | Whole tx (median) | Fits the 100,000 cap |
 |---|---|---|---|---|---|
-| A payment, `validateMaster` on V2, new nonce key | hash key, w=16 | 2,337 | 86,992 / **90,799** / 93,175 | 173,162 | yes |
-| A payment, the same steps, new nonce key | leanSphincs-S | 4,164 | 90,581 / **90,775** / 90,879 | 288,042 | yes |
-| A payment, the same steps, a nonce key used before | leanSphincs-S | 4,164 | 70,654 / **70,722** / 70,820 | 288,042 | yes |
-| A payment, the same steps, linear nonce | leanSphincs-S | 4,164 | 70,649 / **70,776** / 70,922 | 285,994 | yes |
-| Veto, `VajraExit`, new nonce key | hash key, w=16 | 2,337 | 95,565 / **97,392** / 97,773 | 172,867 | yes |
-| Veto, a sender of its own, new nonce key | leanSphincs-S | 4,164 | 101,402 / **101,554** / 101,680 | 284,346 | **no** |
-| Veto, a sender of its own, linear nonce | leanSphincs-S | 4,164 | 81,476 / **81,544** / 81,676 | 282,298 | yes |
-| Escape, `VajraExit`, new nonce key | hash key, w=16 | 2,337 | 94,666 / **97,441** / 97,837 | 490,229 | yes |
-| Escape, a sender of its own, linear nonce | leanSphincs-S | 4,164 | 81,358 / **81,499** / 81,626 | 569,962 | yes |
+| A payment, `validateMaster` on V2, new nonce key | hash key, w=16 | 2,337 | 88,420 / **91,111** / 93,091 | 173,162 | yes |
+| A payment, the same steps, new nonce key | leanSphincs-S | 4,164 | 90,654 / **90,766** / 90,859 | 288,042 | yes |
+| A payment, the same steps, a nonce key used before | leanSphincs-S | 4,164 | 70,620 / **70,750** / 70,839 | 288,042 | yes |
+| A payment, the same steps, linear nonce | leanSphincs-S | 4,164 | 70,659 / **70,776** / 70,903 | 285,994 | yes |
+| Veto, `VajraExit`, new nonce key | hash key, w=16 | 2,337 | 94,533 / **97,293** / 97,758 | 172,743 | yes |
+| Veto, a sender of its own, new nonce key | leanSphincs-S | 4,164 | 101,362 / **101,526** / 101,709 | 284,346 | **no** |
+| Veto, a sender of its own, linear nonce | leanSphincs-S | 4,164 | 81,456 / **81,529** / 81,622 | 282,298 | yes |
+| Escape, `VajraExit`, new nonce key | hash key, w=16 | 2,337 | 94,894 / **97,273** / 97,951 | 490,174 | yes |
+| Escape, a sender of its own, linear nonce | leanSphincs-S | 4,164 | 81,353 / **81,493** / 81,626 | 569,962 | yes |
 
 "The same steps" means what `validateMaster` does, on a sender of its own. V2 has no such path, and adding one is a contract change. The veto and escape rows run against a real `VajraAccountV2`, which needed no change: `setExit` takes any address.
 
