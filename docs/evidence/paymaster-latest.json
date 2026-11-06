@@ -1,7 +1,7 @@
 {
  "chainId": 13370,
  "mirror": true,
- "at": "2026-11-06T20:26:12.435Z",
+ "at": "2026-11-06T23:18:38.074Z",
  "paymasters": {
   "quota": "0xa124c0c38dc4d009c5d1060e966aae922dfee411",
   "usdc": "0xfc258a72dd1bc0de91cfd2627e533e58cc91848c",
@@ -22,68 +22,68 @@
  "transactions": [
   {
    "step": "sponsored daily spend",
-   "hash": "0x1129827aa465a9cc06cd466aeb1acfa27cbc832db7e6835cb24aa3eee3d0abe6",
-   "block": 684,
-   "gasUsed": 526109,
-   "charged": "609113 gas of quota",
+   "hash": "0xa25bf1ee116b9cd8e8eaf5f88ee9aaac03f560bf20e46c788f5b3b304986e7fa",
+   "block": 606,
+   "gasUsed": 526129,
+   "charged": "609133 gas of quota",
    "frames": [
-    41390,
+    41412,
     37762,
     17649,
-    370109,
+    370131,
     39140
    ]
   },
   {
    "step": "first spend under the quota",
-   "hash": "0xdb7de9eb46226e4e6b7f92cf73b2ef6bfaa646985ea8650f25b3328097a49b67",
-   "block": 696,
-   "gasUsed": 526121,
-   "charged": "609125 gas of quota",
+   "hash": "0xb0cce676182d00e6b806b109bf65bf21fe92549a5efadda85b9e9f2a1502d018",
+   "block": 617,
+   "gasUsed": 526153,
+   "charged": "609157 gas of quota",
    "frames": [
-    41390,
+    41412,
     37762,
     17649,
-    370109,
+    370131,
     39140
    ]
   },
   {
    "step": "second spend under the quota",
-   "hash": "0x85141ffb4d8eb1ffc9aa2fff61dba596d5d55d002409010335ffe1e406b5d98d",
-   "block": 699,
-   "gasUsed": 428020,
-   "charged": "511024 gas of quota",
+   "hash": "0x671a1be5dad2003208b5e462ea3ffea16b52b0c6a7ad5f3b61b7c206e1110418",
+   "block": 619,
+   "gasUsed": 428064,
+   "charged": "511068 gas of quota",
    "frames": [
-    41390,
+    41412,
     37593,
     17649,
-    272189,
+    272211,
     39140
    ]
   },
   {
    "step": "8 KB of ignored data, so that the calldata floor sets the cost",
-   "hash": "0x4f6a65d906cd766754acfe692c3503cbe9d873f5fb964a478d4f6446b9e7982a",
-   "block": 733,
+   "hash": "0xc9ca301df517df934d1b8316110955b695ef5d79a9a7cf663190701ee71b8df3",
+   "block": 654,
    "gasUsed": 840087,
    "charged": "996327 gas of quota",
    "frames": [
-    41390,
+    41412,
     37762,
     17649,
-    370109,
+    370131,
     39086
    ]
   },
   {
    "step": "a body that burns its whole limit and fails",
-   "hash": "0x8b048d97f833ac9062167a641b44ce17e29c206c120e59b152a4b0f10601a68a",
-   "block": 736,
-   "gasUsed": 163688,
+   "hash": "0xf9796738a62a63f1bf2ddc124c202534e697277381492cee17fb8c8be5f57ded",
+   "block": 656,
+   "gasUsed": 163710,
    "charged": "245059 gas of quota",
    "frames": [
-    41390,
+    41412,
     37593,
     17649,
     7911,
@@ -92,82 +92,82 @@
   },
   {
    "step": "a spend, to replay",
-   "hash": "0xf9c810a9742f6d36fb520ca9f856d6e825136bac50925ffc3642acc3ae2849bf",
-   "block": 762,
-   "gasUsed": 428032,
-   "charged": "511036 gas of quota",
+   "hash": "0xdd3020ed521642bc502bac65a9172d2b8d6a5c2d46e1304a1daaa41cc9ccb6b2",
+   "block": 680,
+   "gasUsed": 428064,
+   "charged": "511068 gas of quota",
    "frames": [
-    41390,
+    41412,
     37593,
     17649,
-    272189,
+    272211,
     39140
    ]
   },
   {
    "step": "a spend that takes most of the day's quota",
-   "hash": "0xd59ef4e08b348bd6690f3c5f0be5c850c87409a3013432d81e4ded22f23740b5",
-   "block": 802,
-   "gasUsed": 526109,
-   "charged": "609113 gas of quota",
+   "hash": "0x6b2316bdf4302097d8749f400cad0861f0e7e5f92942b8d5263bbaa141631c7e",
+   "block": 718,
+   "gasUsed": 526129,
+   "charged": "609133 gas of quota",
    "frames": [
-    41390,
+    41412,
     37762,
     17649,
-    370109,
+    370131,
     39140
    ]
   },
   {
    "step": "the quota is back",
-   "hash": "0x785a215e89c6df1b1aa12e69493bd6a2c4d65139a5f46b8e4601e459c577e899",
-   "block": 824,
-   "gasUsed": 428201,
-   "charged": "511205 gas of quota",
+   "hash": "0xbde0ae350adff5e68c72a7805d700f971d95f4647c4ebcff37aab8e5f789fad6",
+   "block": 739,
+   "gasUsed": 428221,
+   "charged": "511225 gas of quota",
    "frames": [
-    41390,
+    41412,
     37762,
     17649,
-    272189,
+    272211,
     39140
    ]
   },
   {
    "step": "a spend with gas paid in USDC",
-   "hash": "0x36a5b94753e742f68716c271f314a2fd26f2d70666cb0980d8118c4baa1c823b",
-   "block": 838,
-   "gasUsed": 644195,
-   "charged": "2171773 USDC units",
+   "hash": "0xf0f46836fa7a46e9206ca4bf87caf83d8df30e6be9edb5a029aa2d80e9be9d55",
+   "block": 750,
+   "gasUsed": 644227,
+   "charged": "2171869 USDC units",
    "frames": [
-    41390,
+    41412,
     166699,
     16211,
-    355209,
+    355231,
     44463
    ]
   },
   {
    "step": "a spend, to replay",
-   "hash": "0x8ac9a71d1e53a40a93d15d7b2a2986e527f0b6bf16855f1afa647c8403f8182c",
-   "block": 859,
-   "gasUsed": 448355,
-   "charged": "1584253 USDC units",
+   "hash": "0x90a74096400291c68250e58891f12c8b841cdcf3096655cbc94905664cb9a08a",
+   "block": 767,
+   "gasUsed": 448387,
+   "charged": "1584349 USDC units",
    "frames": [
-    41390,
+    41412,
     68779,
     16211,
-    257289,
+    257311,
     44463
    ]
   },
   {
    "step": "the body revokes the approval",
-   "hash": "0xf558f5613e5876f6ab9bc0a183988d42eb2927e3e697f40c8f0f3ec42ad8eb37",
-   "block": 874,
-   "gasUsed": 265759,
-   "charged": "1501393 USDC units",
+   "hash": "0xdf2100d6aed97219205d591a08b1ebfc55fce9a0ecd44eb258cdc024a8a4d471",
+   "block": 780,
+   "gasUsed": 266690,
+   "charged": "1504186 USDC units",
    "frames": [
-    71960,
+    72831,
     68779,
     36211,
     2383,
@@ -176,12 +176,12 @@
   },
   {
    "step": "the body sends the account's USDC away",
-   "hash": "0xc9b3a62c4f2e5949ab2505f6ae35536066abf7f6c85767561ab0aadb3e934e7c",
-   "block": 890,
-   "gasUsed": 388615,
-   "charged": "1835113 USDC units",
+   "hash": "0x1c8d26250ff62f1202b8afd60b9afbcd807db138de4570662c9ab7203f42c47b",
+   "block": 791,
+   "gasUsed": 387674,
+   "charged": "1832290 USDC units",
    "frames": [
-    72809,
+    71784,
     68779,
     36211,
     112798,
@@ -190,12 +190,12 @@
   },
   {
    "step": "a body that burns its limit and fails",
-   "hash": "0xd70a0a8334d11d62f0109491045c4f81b7abdf6e1a010e95903e90c65331d143",
-   "block": 893,
-   "gasUsed": 198989,
-   "charged": "836155 USDC units",
+   "hash": "0xeff16f551a92cce70f80714f1b1e2f04fca9f5c35f430992d92c2ec10e86394d",
+   "block": 793,
+   "gasUsed": 198999,
+   "charged": "836185 USDC units",
    "frames": [
-    41390,
+    41412,
     68779,
     16211,
     7911,
@@ -204,29 +204,29 @@
   },
   {
    "step": "8 KB of ignored data, so that the calldata floor sets the cost",
-   "hash": "0x7529b4f97b653955171027b92bb95ce4715e1f484e8563a944bdb9a6c8cb7571",
-   "block": 896,
+   "hash": "0x89cbe960fb4a406ae5dd6081cde93942d6829c61bc65ac09c68aa68a783c70ed",
+   "block": 795,
    "gasUsed": 744215,
-   "charged": "3504217 USDC units",
+   "charged": "3504385 USDC units",
    "frames": [
-    41390,
+    41412,
     68779,
     16211,
-    257289,
+    257311,
     44463
    ]
   },
   {
    "step": "collect empties the account, and settle refills it",
-   "hash": "0x2e118c94688de43d28d6ecddb3918a4d112d2bacaee051df64a0b6401eb2eb31",
-   "block": 915,
-   "gasUsed": 320387,
-   "charged": "1200349 USDC units",
+   "hash": "0xff893c3ca496e7b9342f102bca4a7e8117a81d5525d03d4c1cf653db982921d5",
+   "block": 809,
+   "gasUsed": 320443,
+   "charged": "1200517 USDC units",
    "frames": [
-    41390,
+    41412,
     68779,
     16211,
-    129369,
+    129391,
     44463
    ]
   }

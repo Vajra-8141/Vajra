@@ -1,20 +1,20 @@
 {
- "ranAt": "2026-11-06T20:28:52.594Z",
+ "ranAt": "2026-11-06T23:02:49.808Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
  "chainId": 13370,
- "account": "0xbF5054FBb12f666De1135e7891f3D9236df12E92",
- "exit": "0xD758cB8Ae80D60F80865caaD711bB4e72E11b4Ea",
+ "account": "0x556D2CFB2ba8489dc6E64122AFe431ae89cA998f",
+ "exit": "0xbAE7e6b6259159A9b574a6874467d7D715131361",
  "outcomes": {
-  "thiefPending": "ADMITTED 0x269e2a8448e27c0305f038f44964a18d14db5a87b62b0429c6985ba8c7f6baa1",
-  "escapeAgainstPending": "REFUSED 0xbF5054FBb12f666De1135e7891f3D9236df12E92 cannot cover its pending frame transactions: they would owe 11633880856047396 wei (2505038000000000 for this one), its balance ",
-  "raid": "ADMITTED 0x6ca1045696507c492a4b1d63cbb7b9f53c841e3d78701fa3e415b1df9cd3158b",
-  "escapeAdmitted": "ADMITTED 0x2fa1ef78cdf2b215a42e7a71069433ae9ce47605b5d6a511ac5e46e9f49c01eb",
-  "escapeStatus": "Cancelled: 0xbF5054FBb12f666De1135e7891f3D9236df12E92 can no longer cover its pending frame transactions as of block 1019: balance 1499999999282472 wei",
-  "escapeShort": "REFUSED validation frame 0: the payer 0xbf5054fbb12f666de1135e7891f3d9236df12e92 has 1499999999282472 wei, the transaction's maximum cost is 2505038000000000 wei"
+  "thiefPending": "ADMITTED 0x8c9a720b59a7387bec5f5b50fb9ef2a58b189acf9a8fdde4b48070ebfbf63b4a",
+  "escapeAgainstPending": "REFUSED 0x556D2CFB2ba8489dc6E64122AFe431ae89cA998f cannot cover its pending frame transactions: they would owe 11634144856047396 wei (2505302000000000 for this one), its balance ",
+  "raid": "ADMITTED 0xbf522457c6d82bc1c4f93d6ad0c92596f50cbe9f76b9c4d3b90c93bd1098b925",
+  "escapeAdmitted": "ADMITTED 0x504c8593c53f0e2b4f49ae851c921ce8194de3057dacdd858580023cd5bbd1aa",
+  "escapeStatus": "Cancelled: revalidation failed as of block 353: validation frame 0: the payer 0x556d2cfb2ba8489dc6e64122afe431ae89ca998f has 1499999999282248 wei, the transaction's maximum cost is 2505302000000000 we",
+  "escapeShort": "REFUSED validation frame 0: the payer 0x556d2cfb2ba8489dc6e64122afe431ae89ca998f has 1499999999282248 wei, the transaction's maximum cost is 2505302000000000 wei"
  },
  "tokensStuck": "25000000",
  "result": {
-  "hash": "0xf6a19c4e1df1181c1dae05fe054377b6e64deb2efa03ec59bbd5d7d6e75861ec",
+  "hash": "0x52c2e3dc073c5516224fe4078e9e58fdf6a51df2c47d160e209737f5cb35ddc6",
   "tokens": "25000000",
   "framesOk": true
  }

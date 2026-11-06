@@ -45,7 +45,7 @@ Times are from one machine, on a warm mirror.
 | Recovery, step by step, on the demo account | `vajra recover-setup`, `recover-prove --secret <file>`, `recover --proof <file>` | 1 min | the new tree signs |
 | The shielded pool, and every attack | `vajra shielded` | 80 s | 12 mined, 30 refused, 0 failures |
 | One note in, one note out | `vajra shield`, `vajra unshield 0xAddress` | 10 s each | the recipient holds 0.095 ETH: a 0.1 ETH note, less its fee |
-| Notes rebuilt after the machine is gone, what the pool hides, a failed payment that stays money, and every attack | `vajra pool-e2e` | 9 min | 50 mined, 27 refused, 0 failures. **The claim is in the source and on the mirror, not in the V2 on the public devnet** |
+| Notes rebuilt after the machine is gone, what the pool hides, a failed payment that stays money, and every attack | `vajra pool-e2e` | 10 min | 51 mined, 28 refused, 0 failures. **The claim is in the source and on the mirror, not in the V2 on the public devnet** |
 | What a pool hides, on any account | `vajra pool 0xAddress` | 2 s | how little, and what no chain can show. Needs no key |
 | Your own notes on a new machine | `vajra notes-restore --seed-file <file> --account 0xAddress` | 10 s | every note, and what became of it |
 | A refused payment, paid to someone else | `vajra unshield 0xRefuses --no-check`, then `vajra claim 0xAnother --key-file <file>` | 15 s | the note reads as owed, then the new address holds 0.095 ETH |
@@ -59,7 +59,7 @@ Times are from one machine, on a warm mirror.
 | A wallet signing typed data, and every attack on it | `vajra clear-sign` | 25 s | 4 mined, 18 refused, 0 failures, with a scripted wallet |
 | A second way out, on your own account | `vajra exit-setup`, then `vajra exit` | 20 s each | the harbor holds the balance |
 | A stealth payer taking the money back, and the fix | `vajra stealth-theft`, then `vajra stealth-theft fixed` | 1 min | 25 of 25 taken, then `CoSignerRequired` and 0 taken |
-| A nominee: a rescue signed in advance, sent when nobody answers, and every attack on it | `vajra nominee-e2e` | 11 min | 34 mined, 21 refused, 0 failures. Holds no key: a real process with an empty folder, which it leaves empty. A node dying, a stuck head and a sidecar going down are a proxy in front of the real chain, which refuses, replays an old block, and answers for a sidecar that sits on a transaction |
+| A nominee: a rescue signed in advance, sent when nobody answers, and every attack on it | `vajra nominee-e2e` | 12 min | 42 mined, 22 refused, 0 failures. Holds no key: a real process with an empty folder, which it leaves empty. A node dying, a stuck head and a sidecar going down are a proxy in front of the real chain, which refuses, replays an old block, and answers for a sidecar that sits on a transaction |
 | The same, on your own account | `vajra exit-setup --reserve 0.03`, `vajra nominee-setup --out rescue.json`, `vajra nominee-watch --rescue rescue.json` in its own terminal, then `vajra thief 0.6` and answer nothing | 2 min | the harbor holds the balance, and the watcher stops by itself. It ends the demo account: `make judge` starts again |
 | The dashboard, on the mirror | `make dashboard`, then http://localhost:3000 and **Start the demo** | 30 s | the theft as six steps, with no wallet to set up. See below |
 | Quota and USDC paymasters, and every attack | `vajra paymaster-e2e` | 6 min | 15 mined, 50 refused, canonical refused 51 of 51, 66 predictions checked, on V2, 0 failures |

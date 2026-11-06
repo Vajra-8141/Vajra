@@ -1,5 +1,5 @@
 {
- "ranAt": "2026-11-06T20:05:12.764Z",
+ "ranAt": "2026-11-06T23:13:57.397Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
  "chainId": 13370,
  "genesis": "0x74f05f1d3d0589fbf8e763a064aefe6d9941f6ab907cb52993142ede6c23cf3c",
@@ -26,48 +26,48 @@
   "tier": "Light: b = 13, rated 20000 signatures by upstream, an estimate",
   "machine": "AMD Ryzen 7 6800H with Radeon Graphics, node v26.13.0",
   "keygen": {
-   "ms": 18815,
+   "ms": 20052,
    "keccakCalls": 1851418
   },
   "cacheBytes": 16384,
   "signMs": {
    "samples": 181,
-   "min": 1374,
-   "median": 1591,
-   "max": 4011,
-   "mean": 1675
+   "min": 1385,
+   "median": 1586,
+   "max": 3596,
+   "mean": 1690
   },
   "signKeccakCalls": {
    "samples": 181,
-   "min": 136711,
-   "median": 155913,
-   "max": 221102,
-   "mean": 159215
+   "min": 137703,
+   "median": 155950,
+   "max": 222900,
+   "mean": 159946
   },
   "theHashKeyBesideIt": {
-   "keygenMs": 1244,
+   "keygenMs": 1289,
    "signMs": {
     "samples": 48,
-    "min": 7.2,
-    "median": 13.1,
-    "max": 32,
-    "mean": 14
+    "min": 6.7,
+    "median": 10.5,
+    "max": 31.6,
+    "mean": 12
    }
   }
  },
  "deployment": {
   "verifier": {
-   "address": "0x08546a2e532776c779020ac71da79abbc3ee32e5",
+   "address": "0xe70fa9f7e9df5d937fbffa982688f8e24685e66f",
    "deployGas": 6189395,
    "runtimeBytes": 3872
   },
   "implementation": {
-   "address": "0x0947d8b9188ec94f32604701b9934cbcc5cd7dd4",
+   "address": "0x27fd141a245ab7540d817937fdaab7947845da3e",
    "deployGas": 5788126,
    "runtimeBytes": 2541
   },
   "factory": {
-   "address": "0xb256f1af154924097123ff8162ea3de738343f81",
+   "address": "0xfb6abf8d7fc3e374f29e2d3540d3a0647f008fc5",
    "deployGas": 1610617,
    "runtimeBytes": 906
   }
@@ -76,19 +76,19 @@
   "hash key, V2 validateMaster, new nonce key, a payment": {
    "verify": {
     "samples": 24,
-    "min": 88420,
-    "median": 91111,
-    "max": 93091,
-    "mean": 91191
+    "min": 88373,
+    "median": 91754,
+    "max": 93311,
+    "mean": 91265
    },
    "wholeTx": {
     "samples": 24,
-    "min": 173162,
+    "min": 173098,
     "median": 173162,
     "max": 173162,
-    "mean": 173162
+    "mean": 173159
    },
-   "maxCostEth": "0.001514138",
+   "maxCostEth": "0.001514044",
    "signatureBytes": 2337,
    "encodedBytes": 2511,
    "canonical": "admitted",
@@ -97,10 +97,10 @@
   "leanSphincs-S, master shape, new nonce key, a payment": {
    "verify": {
     "samples": 24,
-    "min": 90654,
-    "median": 90766,
-    "max": 90859,
-    "mean": 90767
+    "min": 90591,
+    "median": 90732,
+    "max": 90868,
+    "mean": 90734
    },
    "wholeTx": {
     "samples": 24,
@@ -109,7 +109,7 @@
     "max": 288042,
     "mean": 288042
    },
-   "maxCostEth": "0.001571914",
+   "maxCostEth": "0.001571962",
    "signatureBytes": 4164,
    "encodedBytes": 4305,
    "canonical": "admitted",
@@ -118,10 +118,10 @@
   "leanSphincs-S, master shape, nonce key used before, a payment": {
    "verify": {
     "samples": 24,
-    "min": 70620,
-    "median": 70750,
-    "max": 70839,
-    "mean": 70736
+    "min": 70624,
+    "median": 70742,
+    "max": 70854,
+    "mean": 70738
    },
    "wholeTx": {
     "samples": 24,
@@ -130,7 +130,7 @@
     "max": 288042,
     "mean": 288042
    },
-   "maxCostEth": "0.001572058",
+   "maxCostEth": "0.001571938",
    "signatureBytes": 4164,
    "encodedBytes": 4305,
    "canonical": "admitted",
@@ -139,10 +139,10 @@
   "leanSphincs-S, master shape, linear nonce, a payment": {
    "verify": {
     "samples": 24,
-    "min": 70659,
-    "median": 70776,
-    "max": 70903,
-    "mean": 70777
+    "min": 70619,
+    "median": 70771,
+    "max": 70932,
+    "mean": 70757
    },
    "wholeTx": {
     "samples": 24,
@@ -151,7 +151,7 @@
     "max": 285994,
     "mean": 285994
    },
-   "maxCostEth": "0.001571106",
+   "maxCostEth": "0.00157089",
    "signatureBytes": 4164,
    "encodedBytes": 4273,
    "canonical": "admitted",
@@ -160,19 +160,19 @@
   "hash key, VajraExit, veto": {
    "verify": {
     "samples": 24,
-    "min": 94533,
+    "min": 95610,
     "median": 97293,
-    "max": 97758,
-    "mean": 96852
+    "max": 97887,
+    "mean": 97044
    },
    "wholeTx": {
     "samples": 24,
-    "min": 170037,
-    "median": 172743,
-    "max": 173214,
-    "mean": 172361
+    "min": 171090,
+    "median": 172833,
+    "max": 173439,
+    "mean": 172561
    },
-   "maxCostEth": "0.000662122",
+   "maxCostEth": "0.000662146",
    "signatureBytes": 2337,
    "encodedBytes": 2516,
    "canonical": "admitted",
@@ -181,10 +181,10 @@
   "leanSphincs-S, exit shape, linear nonce, veto": {
    "verify": {
     "samples": 24,
-    "min": 81456,
-    "median": 81529,
-    "max": 81622,
-    "mean": 81532
+    "min": 81451,
+    "median": 81574,
+    "max": 81729,
+    "mean": 81574
    },
    "wholeTx": {
     "samples": 24,
@@ -202,10 +202,10 @@
   "leanSphincs-S, exit shape, new nonce key, veto": {
    "verify": {
     "samples": 24,
-    "min": 101362,
-    "median": 101526,
-    "max": 101709,
-    "mean": 101520
+    "min": 101417,
+    "median": 101554,
+    "max": 101699,
+    "mean": 101553
    },
    "wholeTx": {
     "samples": 24,
@@ -218,24 +218,24 @@
    "signatureBytes": 4164,
    "encodedBytes": 4343,
    "canonical": "refused: prefix gas budget exceeded: 120100 > 100000 (MAX_VERIFY_GAS)",
-   "alt": "refused: entity 0x77318fdbB6b5297fED6572864b0083aB088667B7 declares 120100 validation gas, which exceeds MAX_VERIFY_GAS_PER_ENTITY 100000"
+   "alt": "refused: entity 0xD305cc7654bee3bF9dea0Dc5ae1fD82Ec3B41cb9 declares 120100 validation gas, which exceeds MAX_VERIFY_GAS_PER_ENTITY 100000"
   },
   "hash key, VajraExit, escape": {
    "verify": {
     "samples": 24,
-    "min": 94894,
-    "median": 97273,
-    "max": 97951,
-    "mean": 97014
+    "min": 96181,
+    "median": 97243,
+    "max": 98050,
+    "mean": 97181
    },
    "wholeTx": {
     "samples": 24,
-    "min": 487807,
-    "median": 490174,
-    "max": 490852,
-    "mean": 489897
+    "min": 489073,
+    "median": 490115,
+    "max": 490886,
+    "mean": 490073
    },
-   "maxCostEth": "0.002504348",
+   "maxCostEth": "0.002504206",
    "signatureBytes": 2337,
    "encodedBytes": 2613,
    "canonical": "admitted",
@@ -244,10 +244,10 @@
   "leanSphincs-S, exit shape, linear nonce, escape": {
    "verify": {
     "samples": 24,
-    "min": 81353,
-    "median": 81493,
-    "max": 81626,
-    "mean": 81497
+    "min": 81372,
+    "median": 81518,
+    "max": 81635,
+    "mean": 81510
    },
    "wholeTx": {
     "samples": 24,
@@ -256,7 +256,7 @@
     "max": 569962,
     "mean": 569962
    },
-   "maxCostEth": "0.002561314",
+   "maxCostEth": "0.002561386",
    "signatureBytes": 4164,
    "encodedBytes": 4408,
    "canonical": "admitted",
@@ -277,165 +277,165 @@
  },
  "namedExitWithNoWalk": {
   "what": "FINDINGS section 21: the flaw shown on purpose, on the bytes before the fix, with a sender only this run deploys. The same naming is refused after the fix",
-  "account": "0xAd0a61a44a69876e2c5Bd38500b94eD27E579E00",
-  "hash": "0x0c7a47f16687698210b0edc3980e267477807938b08a4a50c90b9ff77b2f3ede",
+  "account": "0xAA4b8C1be366337033C8B5C2745ca937f2CA8Dc2",
+  "hash": "0xd5e3dca3780a9425a4405edd400e024e31b26a5b4798e4f0237daaeb7ca58426",
   "masterTreeReplaced": true
  },
- "publicKey": "0xa4203b0a889e412e7d56ebd55f54d6af3485519d66bdb9e075c23748c118b6e0",
- "account": "0xA4Bd29Ec70b209c92DdF34837b39cD3Fc452299E",
- "exit": "0x77318fdbB6b5297fED6572864b0083aB088667B7",
- "masterSender": "0x8DD5108aD9944E180061dF3785F3492a5bFf75ab",
+ "publicKey": "0x80a190ce334794ef85f4d4ba489faf0e19b9ad335ff6ed2dc8d5c8cf5278287b",
+ "account": "0x13C7a2967e7B5bA01d62586E9BA457b9CC558b7c",
+ "exit": "0xD305cc7654bee3bF9dea0Dc5ae1fD82Ec3B41cb9",
+ "masterSender": "0xe50126B5621a70e89D5c08948820bE21B3aa5e5D",
  "failures": 0,
  "mined": [
   {
    "step": "hash key exit: the master key names the exit",
-   "hash": "0x91dc1b4d41e153f77987755e9db07b46177a5daa5fbe35781261b3c84497c37a",
-   "block": 67,
-   "verifyGas": 92470,
+   "hash": "0x7b35f6985f168e804fd1f87c10c810826b6e4b669f0c287870e521e9f2fa5016",
+   "block": 455,
+   "verifyGas": 90002,
    "totalGas": 267386,
    "attempts": 1
   },
   {
    "step": "hash key exit: the thief queues 0.6 ETH",
-   "hash": "0x01fbd2175571ab10b0606a5eab2c8aafe6a229f3bbbbec23a5dde1b6f977d971",
-   "block": 70,
-   "verifyGas": 36230,
-   "totalGas": 620122,
+   "hash": "0xbe8f79fb1d21d369787577d470e41c2ca56794faf51c73982c5e18ae4523acfa",
+   "block": 458,
+   "verifyGas": 36252,
+   "totalGas": 620154,
    "attempts": 1
   },
   {
    "step": "leanSphincs-S exit: the master key names the exit",
-   "hash": "0x81b91f46c9a3ca74b8b6bb99a4811892d7c4b8e7e281f7bbaba833a508d53685",
-   "block": 77,
-   "verifyGas": 92725,
+   "hash": "0x5f3583b43f75b8f863b9caba753cc9f0a398eec7bc6834a341a8b5e817fcbd19",
+   "block": 465,
+   "verifyGas": 89804,
    "totalGas": 267386,
    "attempts": 1
   },
   {
    "step": "leanSphincs-S exit: the thief queues 0.6 ETH",
-   "hash": "0xb78fd70c5521ee6f7e6b463f1ab53b37b5db2afabaef2cbdca9f79ebc9d4ab71",
-   "block": 80,
-   "verifyGas": 36230,
-   "totalGas": 620110,
+   "hash": "0xb3f1d65ef2e39d69660a3408958ad11446acc8ef83f1bd65f7add6f1f5e22779",
+   "block": 468,
+   "verifyGas": 36252,
+   "totalGas": 620154,
    "attempts": 1
   },
   {
    "step": "leanSphincs-S, master shape: the first transaction on a nonce key it keeps",
-   "hash": "0xa22f12ff9a68f19106399d25cb20f2265e5d3a2453c474b7a5b7e608c8aed23b",
-   "block": 108,
-   "verifyGas": 90684,
+   "hash": "0xa67a5ffc1e7be530b8bbcaedc7fcdbb6d915977ec04ad7992325eac7012fb4bb",
+   "block": 495,
+   "verifyGas": 90864,
    "totalGas": 288042,
    "attempts": 1
   },
   {
    "step": "leanSphincs-S, master shape, new nonce key, through the canonical mempool",
-   "hash": "0x3aea9ab53b761429562e494a6abbff629379fdf8be992d1fb5a49a49bf679d34",
-   "block": 238,
-   "verifyGas": 90761,
-   "totalGas": 288042,
-   "attempts": 1
-  },
-  {
-   "step": "leanSphincs-S, master shape, new nonce key, through the alt mempool",
-   "hash": "0x5786143a9d45cd390b14bd1f4086f4d71ffd149e5641e12690005614764d60c8",
-   "block": 241,
+   "hash": "0xfba33fed3b5f65ed00e930707d448e0c1e938b15a34ecaf1063e5822f4ba7c3f",
+   "block": 624,
    "verifyGas": 90781,
    "totalGas": 288042,
    "attempts": 1
   },
   {
+   "step": "leanSphincs-S, master shape, new nonce key, through the alt mempool",
+   "hash": "0x47c947c80ce503531dfbb45bd8a1c52c9c912c9124f25631b92549926fe2bb50",
+   "block": 627,
+   "verifyGas": 90810,
+   "totalGas": 288042,
+   "attempts": 1
+  },
+  {
    "step": "leanSphincs-S, master shape, nonce key used before, through the alt mempool",
-   "hash": "0xe3db35944a9a39adabe362675ffa65bf0afe5b6b6265146f17e5f73914523862",
-   "block": 246,
-   "verifyGas": 70708,
+   "hash": "0x1f8f4ccd8b1b2d6e611a8f64a9c1bfc9f1cfce43d998174d911c680e43d58f50",
+   "block": 630,
+   "verifyGas": 70644,
    "totalGas": 288042,
    "attempts": 1
   },
   {
    "step": "hash key exit: veto, through the alt mempool",
-   "hash": "0x6778f761fbf4ac0f93c4192b89ec1fd5430fe0223a275e3d11d7c1c7ed5f9a96",
-   "block": 249,
-   "verifyGas": 96840,
-   "totalGas": 172392,
+   "hash": "0x4250bc91e9e34658595e537db69963edef68eebd6973f349ad05587dc02838dc",
+   "block": 632,
+   "verifyGas": 96345,
+   "totalGas": 171873,
    "attempts": 1
   },
   {
    "step": "hash key exit: escape past a thief's pending transaction, through the canonical mempool",
-   "hash": "0xb2ae0db96beb61a1e5dd17b2f4bf5693ca2df9235532498206e8f68c8f697aed",
-   "block": 252,
-   "verifyGas": 97342,
-   "totalGas": 490243,
+   "hash": "0x3753facd759fa1655093a1340c2c657f7f79bbff3cbc30cfaeadd0829f6f1519",
+   "block": 635,
+   "verifyGas": 97243,
+   "totalGas": 490127,
    "attempts": 1
   },
   {
    "step": "leanSphincs-S exit: veto, through the alt mempool",
-   "hash": "0x2cff4e71f9461227c5898d784cd179385fa4ef620e42d3029de0e1d48b530e85",
-   "block": 255,
-   "verifyGas": 81505,
+   "hash": "0x9339da82bb38107e9bba068c44a362eec2a9877cdb0279bcef6297809a46df23",
+   "block": 638,
+   "verifyGas": 81456,
    "totalGas": 282298,
    "attempts": 1
   },
   {
    "step": "leanSphincs-S exit: escape past a thief's pending transaction, through the canonical mempool",
-   "hash": "0x316b9aae0889bce16e37aa6fd69216938ee327fb616cfffbe27e1da731ce43be",
-   "block": 260,
-   "verifyGas": 81538,
+   "hash": "0xd80ba54b94317583c9c52bc25329c90ab251eaf7b8ff59dc2604aec79956992a",
+   "block": 643,
+   "verifyGas": 81602,
    "totalGas": 569962,
    "attempts": 1
   },
   {
    "step": "Another transaction on the same nonce, signed after that",
-   "hash": "0xabfcc514ddb872d6d3cc65bc8595d4402efc23abd1cf11a75804d1c5885069bc",
-   "block": 266,
-   "verifyGas": 70756,
+   "hash": "0x4396088f04e9dbd6656f1eb43debe77ac2bdc128bcc7cf1114a88d450e31f85c",
+   "block": 648,
+   "verifyGas": 70741,
    "totalGas": 285994,
    "attempts": 1
   },
   {
    "step": "Signed by that copy, which knows nothing of what the first signed",
-   "hash": "0xdf50c759aedd3f410b4b607c008b78dd1f044e846962431851840ce7151fb464",
-   "block": 289,
-   "verifyGas": 70683,
+   "hash": "0x4656a8af20987a0f1eaaddc55e7a6e0b86c8c2a4895df986e9450b03c795e3af",
+   "block": 666,
+   "verifyGas": 70712,
    "totalGas": 285994,
    "attempts": 1
   },
   {
    "step": "A retry of one payment, on a new nonce key",
-   "hash": "0x473508324facd600b00787d50c02af598da70b29d764ba37da506bc23817206d",
-   "block": 294,
-   "verifyGas": 90698,
+   "hash": "0x011c5a94466a293003743e0ee91925be392f3d71cc42c20049aa0eb5ac134ef4",
+   "block": 671,
+   "verifyGas": 90712,
    "totalGas": 288042,
    "attempts": 1
   },
   {
    "step": "The first attempt, sent later, and it still lands",
-   "hash": "0xf3cc3abc0cdca0c1ac98a559ea8b9f5b2f5d82118f41b760dfe8c4f415f8437a",
-   "block": 297,
-   "verifyGas": 90630,
+   "hash": "0x2204f4a3a3f0d4bd9ff403df944843d25d0327ef8be287fc4f9c029ef512599c",
+   "block": 674,
+   "verifyGas": 90708,
    "totalGas": 288042,
    "attempts": 1
   },
   {
    "step": "before the fix, a sender with no walk, named by mistake: the master key names the exit",
-   "hash": "0x50278d5687f60863933ec82c2643d331ff1d6179236b9870939e29ea10040847",
-   "block": 304,
-   "verifyGas": 90079,
+   "hash": "0xb395e832cec8325fd51d75c65013905849d8c271159c71839aa98f12cff578be",
+   "block": 682,
+   "verifyGas": 92173,
    "totalGas": 267386,
    "attempts": 1
   },
   {
    "step": "before the fix, a sender with no walk, named by mistake: the thief queues 0.6 ETH",
-   "hash": "0x85616a61fb577fa31761aee45a16846c2f3e31e8820fe3e950370fd97977e3a4",
-   "block": 306,
+   "hash": "0x043d12c09c323993f1b6f5e79d6dd5813250b30ba17816e128c97d052636bf47",
+   "block": 683,
    "verifyGas": 36230,
-   "totalGas": 620098,
+   "totalGas": 620110,
    "attempts": 1
   },
   {
    "step": "Before the fix, no proof and no paper: queueRecovery, then executeQueued, in one transaction",
-   "hash": "0x0c7a47f16687698210b0edc3980e267477807938b08a4a50c90b9ff77b2f3ede",
-   "block": 310,
-   "verifyGas": 70791,
+   "hash": "0xd5e3dca3780a9425a4405edd400e024e31b26a5b4798e4f0237daaeb7ca58426",
+   "block": 687,
+   "verifyGas": 70912,
    "totalGas": 776725,
    "attempts": 1
   }
