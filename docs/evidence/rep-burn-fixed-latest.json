@@ -1,17 +1,17 @@
 {
- "ranAt": "2026-11-06T12:07:49.349Z",
+ "ranAt": "2026-11-06T13:00:28.693Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
  "chainId": 13370,
- "account": "0x9f971C62abcD3A121e9aC8D8C3b91fbdAAd5114D",
- "exit": "0xbd299989C0738A489D6007c4b2546253cD1D5Ba8",
- "admitted": 550,
- "refused": 0,
- "seconds": 8.167,
- "minedByThief": 3,
- "feesPaidByAccount": "5594898",
+ "account": "0x8CdAB01ABD0b4C87b5d1BA2D242EBb7ED2C873Ec",
+ "exit": "0x3B5B2BBc538640dfD6E9be939dc40d95cc08fc07",
+ "admitted": 549,
+ "refused": 1,
+ "seconds": 8.531,
+ "minedByThief": 4,
+ "feesPaidByAccount": "6312479",
  "reputation": {
-  "address": "0x9f971C62abcD3A121e9aC8D8C3b91fbdAAd5114D",
-  "opsSeen": 553,
+  "address": "0x8CdAB01ABD0b4C87b5d1BA2D242EBb7ED2C873Ec",
+  "opsSeen": 552,
   "opsIncluded": 3,
   "status": "banned",
   "isWhitelisted": false,
@@ -22,18 +22,18 @@
   "isStaked": true
  },
  "outcomes": {
-  "vetoDirect": "REFUSED payer 0x9f971C62abcD3A121e9aC8D8C3b91fbdAAd5114D is banned",
-  "recovery": "REFUSED entity 0x9f971C62abcD3A121e9aC8D8C3b91fbdAAd5114D declares 500000 validation gas, which exceeds MAX_VERIFY_GAS_PER_ENTITY 100000",
-  "separatePayer": "REFUSED sender 0x9f971C62abcD3A121e9aC8D8C3b91fbdAAd5114D is banned",
-  "pin": "ADMITTED 0x88cae16e889f900aba5f9eae2a5f70128d603446a22ba1131455ab70cbe1d635",
-  "escapeCanonical": "REFUSED Invalid params: Frame transaction validation-prefix simulation failed: validation prefix frame reverted",
-  "escapeAlt": "REFUSED validation frame 0: reverted",
-  "exitVeto": "ADMITTED 0x5dc4f1ba3d2085e560529826f9f2077a8269114d6305296cfe0676e385b3534e",
-  "exitRecovery": "ADMITTED 0x8c19860e07f9956a9a67bb74be0cdfac668c7a9c6e4f94412bf51b1a8bae95ef",
-  "exitEscape": "ADMITTED 0x76058648d889369f4a2830710a07ab3458a40e9831b325177f1e4c9726e4a973"
+  "vetoDirect": "REFUSED payer 0x8CdAB01ABD0b4C87b5d1BA2D242EBb7ED2C873Ec is banned",
+  "recovery": "REFUSED entity 0x8CdAB01ABD0b4C87b5d1BA2D242EBb7ED2C873Ec declares 500000 validation gas, which exceeds MAX_VERIFY_GAS_PER_ENTITY 100000",
+  "separatePayer": "REFUSED sender 0x8CdAB01ABD0b4C87b5d1BA2D242EBb7ED2C873Ec is banned",
+  "pin": "ADMITTED 0xabf04a0985f378939f74f094a4c82b641b9ae5be05fce3bd4edfeebea53cf890",
+  "escapeCanonical": "REFUSED Invalid params: A frame transaction in the other nonce-key domain is already pending for this sender",
+  "escapeAlt": "REFUSED payer 0x8CdAB01ABD0b4C87b5d1BA2D242EBb7ED2C873Ec is banned",
+  "exitVeto": "ADMITTED 0x694f1a60126950d1b2207847a553efede6dcc29559d642b704c3da16eb615b67",
+  "exitRecovery": "ADMITTED 0xa7372ff8c65b93e4ee2e05821092c1751dd5baaec422dd82a6fbfc28ca02ac15",
+  "exitEscape": "ADMITTED 0xba98784e3c2b2fc2dfcf9ca22388144d06c29a1c5f4a97fa3832e06d8559e5d9"
  },
  "exitResult": {
-  "harbor": "1986630315984817314",
+  "harbor": "1986621891984040765",
   "frozen": true
  }
 }

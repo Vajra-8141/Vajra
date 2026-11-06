@@ -176,7 +176,7 @@ refusals.push({ attack: "A used paper, set again", refusal: "RecoveryAlreadyUsed
 const paper2 = randomFieldElement();
 await mined("a new paper, after the old one was used", master(owner, account2, epochSalt, [opsV2.setRecovery(await recoveryCommitment(paper2), DELAY, recoveryGate(recoveryTicket(paper2)))]));
 const rotated = newSigner();
-const rotation = signMasterTx({ signer: owner, account: account2, epochSalt, calls: [ops.rotateRoot(rotated.root)], rotation: true, maxHashes: 600 });
+const rotation = signMasterTx({ signer: owner, account: account2, epochSalt, calls: [ops.rotateRoot(rotated.root)], rotation: true, maxHashes: 520 });
 await mined("rotate the key tree", rotation.tx);
 const afterRotation = newSigner();
 const reuse = await proveRecovery({ secret: paper2, newRoot: afterRotation.root, account: account2, epochSalt, chainId: DEVNET.chainId });

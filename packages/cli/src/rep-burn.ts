@@ -147,8 +147,8 @@ console.log(`  seen ${rep.opsSeen}, included ${rep.opsIncluded}, status ${rep.st
 if (lastRefusal) console.log(`  last refusal: ${lastRefusal}`);
 
 console.log("\n2. What the owner can still do, on this node");
-const escape = signMasterTx({ signer, account, epochSalt, calls: [ops.escape(harbor, harborSalt)], maxHashes: 600 }).tx;
-const veto = signMasterTx({ signer, account, epochSalt, calls: [ops.veto(queuedId)], maxHashes: 600 }).tx;
+const escape = signMasterTx({ signer, account, epochSalt, calls: [ops.escape(harbor, harborSalt)], maxHashes: 520 }).tx;
+const veto = signMasterTx({ signer, account, epochSalt, calls: [ops.veto(queuedId)], maxHashes: 520 }).tx;
 const recovery = recoveryTx({ account, newRoot: newTree.root, nullifier: proved.nullifier, proof: proved.proof, ticket: recoveryTicket(paper) });
 const outcomes: Record<string, string> = {};
 await sleep(rule ? 4000 : 0);

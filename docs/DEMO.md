@@ -131,7 +131,7 @@ Then the same beats with `VAJRA_STACK=local`, and say that it is local. The page
 
 **Why Telegram?** It gave us a real push and buttons in a day, and the laptop only makes outbound connections. Any channel would do.
 
-**The MetaMask popup only shows a hash. How do you know what you signed?** You don't, from the popup: it is a `personal_sign` of a digest. That is a real weakness of using a plain wallet as the daily key. The rules are the answer: a page that tricks you into signing a large payment still only reaches the queue, and your phone still buzzes.
+**The MetaMask popup only shows a hash. How do you know what you signed?** On a V1 account you do not, from the popup: it is a `personal_sign` of a digest. On V2 it is EIP-712 typed data, with the asset, the recipient and the amount in it, and the account rebuilds the digest from the transaction, so a popup that shows one thing cannot sign another. An amount shows in wei, and ETH as the zero address. We have run that with a scripted wallet, and have not looked at it in MetaMask itself since the change.
 
 **Why does the chain say "vetoed" for a payment I approved?** Pay is one atomic transaction: it cancels the queued item and sends the money itself, so the queue can never pay twice. Check the recipient's balance.
 

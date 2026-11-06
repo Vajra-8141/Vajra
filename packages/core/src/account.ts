@@ -296,9 +296,8 @@ export function signMasterTx(a: {
 }
 
 /**
- * `validateExit` walks the frames, which `validateMaster` does not, so it has about 18,000 gas less for hashing. Measured: 435
- * hashes fit under the 100,000 cap and 465 do not. The mean digest needs about 500, so one digest in thirty or so passes, and
- * drawing a new one costs a hash.
+ * `validateExit` walks the frames, which `validateMaster` does not, so it has about 18,000 gas less for hashing. The mean digest
+ * needs about 500 hashes, so few pass this, and drawing a new one costs a hash.
  */
 export const EXIT_MAX_HASHES = 430;
 

@@ -74,6 +74,16 @@ contract VajraExitTest is Test {
         exit.setRoot(bytes32(0));
     }
 
+    function test_execute_takesTheReserveBack() public {
+        address to = makeAddr("to");
+        vm.prank(thief);
+        vm.expectRevert(VajraExit.NotAuthorized.selector);
+        exit.execute(thief, 1 ether, "");
+        vm.prank(account);
+        exit.execute(to, 1 ether, "");
+        assertEq(to.balance, 1 ether);
+    }
+
     function test_digest_namesThisAddress() public {
         VajraExit other = VajraExit(payable(factory.create(account, keccak256("other"), SALT, 0, 0)));
         assertTrue(exit.exitDigest(1, ROOT) != other.exitDigest(1, ROOT));

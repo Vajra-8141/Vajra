@@ -1,32 +1,32 @@
 {
- "ranAt": "2026-11-06T12:16:47.212Z",
+ "ranAt": "2026-11-06T12:53:45.053Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. A scripted wallet, not MetaMask",
  "chainId": 13370,
- "account": "0x0d938E73fe92A0151D7c3444EC2698e21672A2E4",
- "failures": 3,
+ "account": "0x550C2fB933eAE11DDFf54eF5eeF1B0BF92d7b42c",
+ "failures": 0,
  "mined": [
   {
    "step": "a spend, signed as typed data",
-   "hash": "0x1dc3d100bf755a62ff6f3d1ece8e78cfccb31d13c1f1c559e91b434b7a56125f",
-   "block": 1008,
-   "verifyGas": 48104,
-   "totalGas": 504715,
+   "hash": "0xf213c2e006bb9068cc314c5cd953e71a34f3915097c5c40c495e3ea2f561dd3d",
+   "block": 58,
+   "verifyGas": 48129,
+   "totalGas": 504740,
    "attempts": 1
   },
   {
    "step": "a spend over the limit, signed as typed data, which queues",
-   "hash": "0x6b88adca69ec82656a8da95b99f78f15f527ab225e1afd63f1895cd0c388bc59",
-   "block": 1010,
-   "verifyGas": 48104,
-   "totalGas": 632496,
+   "hash": "0xace6f2d95fd95a317e004ed7d0805fac86630d4bdfe35c84da222321edc891cc",
+   "block": 59,
+   "verifyGas": 48129,
+   "totalGas": 632497,
    "attempts": 1
   },
   {
    "step": "executing it, signed as typed data",
-   "hash": "0xf4af29695c41c4e9cfc5a170eb80d5c494b0f0a1900456d63fef8bb8866c6372",
-   "block": 1015,
-   "verifyGas": 46462,
-   "totalGas": 283408,
+   "hash": "0xcb6981449b8812fba4f763dd7cb3e360bc6a74b2bc2e531cd0d2d9af2a025897",
+   "block": 64,
+   "verifyGas": 46487,
+   "totalGas": 283462,
    "attempts": 1
   }
  ],
@@ -41,7 +41,7 @@
   },
   {
    "attack": "Resent with another fee",
-   "refusal": "TypeError: Cannot read properties of undefined (reading 'toString')"
+   "refusal": "SignatureNotBoundToTransaction"
   },
   {
    "attack": "Resent with dirty high bits in the recipient word, to die in the SENDER frame",
@@ -61,7 +61,7 @@
   },
   {
    "attack": "Signed for another account",
-   "refusal": "Invalid frame transaction signature"
+   "refusal": "SignatureNotBoundToTransaction"
   },
   {
    "attack": "Signed for another chain",

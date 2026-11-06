@@ -112,10 +112,13 @@ contract VajraExit is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         address target = account;
         uint256 frames = txparam(TxParam.FRAME_COUNT);
         for (uint256 i = txparam(TxParam.CURRENT_FRAME_INDEX) + 1; i < frames; ++i) {
-            if (frameparam(i, FrameParam.MODE) != uint256(FrameMode.SENDER)) continue;
+            uint256 mode = frameparam(i, FrameParam.MODE);
+            if (mode == uint256(FrameMode.VERIFY)) continue;
             bytes4 selector = bytes4(framedataload(0, i));
+            // Every other mode is refused, not skipped. A frame this walk did not read could call `queueRecovery` as this sender.
             if (
-                address(uint160(frameparam(i, FrameParam.RESOLVED_TARGET))) != target || frameparam(i, FrameParam.VALUE) != 0
+                mode != uint256(FrameMode.SENDER) || address(uint160(frameparam(i, FrameParam.RESOLVED_TARGET))) != target
+                    || frameparam(i, FrameParam.VALUE) != 0
                     || (selector != ESCAPE && selector != VETO && selector != FREEZE)
             ) {
                 revert FrameNotAllowed(i);
@@ -151,6 +154,18 @@ contract VajraExit is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         if (newRoot == bytes32(0)) revert RootRequired();
         root = newRoot;
         emit RootSet(newRoot);
+    }
+
+    /// Whatever else the master key wants of this contract: taking back the reserve, or unlocking and withdrawing the stake, which
+    /// is keyed on this address. `validateExit` holds the exit key to the account, so only this can reach the registry.
+    function execute(address target, uint256 value, bytes calldata data) external {
+        if (msg.sender != account) revert NotAuthorized();
+        (bool ok, bytes memory returned) = target.call{value: value}(data);
+        if (!ok) {
+            assembly ("memory-safe") {
+                revert(add(returned, 32), mload(returned))
+            }
+        }
     }
 }
 

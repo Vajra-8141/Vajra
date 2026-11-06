@@ -185,3 +185,138 @@ Both fixed, in `VajraAccount.sol` and `VajraAccountV2`, and deployed:
   the same signature. The nonce and fee are spent and nobody is paid. The owner can sign again. Shown with mocked frame opcodes, not reproduced live.
 
 **Open in both,** as design limits, and in the README: fee burn across many transactions, and a queue with no cap that survives a change of daily key.
+
+## 10. A thief could get the account banned on a node
+
+Suspected by a review of the sidecar, then reproduced. **Real.** It needs only the daily key, and it takes seconds.
+
+The sidecar counts every admission as seen against the payer, a replacement included, and bans an address when `floor(seen / 10) > included + 50`. Our transactions pay for themselves, so that is the account. Ten percent of a fee under ten wei rounds down to nothing, so a thief can replace one transaction at the same fee with no limit at all. Even with a real bump, the ladder from 9 wei to the daily cost cap is 210 rungs, and a mined nonce starts a new one.
+
+On the mirror, with only the daily key (`vajra rep-burn`, `docs/evidence/rep-burn-attack-latest.json`):
+
+    550 admissions in 8.1 seconds, 3 of them mined, 5,595,605 wei of fees: seen 552, included 2, banned
+    veto:     payer ... is banned
+    escape:   payer ... is banned
+    recovery: entity ... declares 500000 validation gas, which exceeds MAX_VERIFY_GAS_PER_ENTITY 100000
+
+The recovery's refusal is the same ban by another door: a banned entity stops counting as staked, so it drops to the unstaked budget.
+
+The canonical mempool keeps no reputation, so a banned escape could go there, and finding 3 is why that is not enough. With a thief transaction pending, it says `A frame transaction in the other nonce-key domain is already pending`. So a ban plus one pending transaction shuts both doors. A recovery has no second door at all: it is over the canonical cap.
+
+**How long it lasts.** A ban is one node's opinion, and it decays hourly: 510 seen falls under the line after an hour, and about twenty admissions put it back. That is from the code, not a run. On a network of one miner's sidecar, that node is the network.
+
+**What does not fix it:**
+
+- **A separate payer.** Tried: the account as sender, a paymaster paying. `sender ... is banned`. Reputation counts the sender as well, so the ban follows the address, whoever pays.
+- **A daily path limit.** Reasoned through, not built. VERIFY cannot write, and an unmined replacement never reaches a SENDER frame, so the contract cannot count admissions. All it could do is narrow the fee window, so that each nonce has fewer rungs. Then the thief needs more nonces, and those are paid for by the victim. That slows the ban without stopping it, and every pending daily transaction would have to escrow most of the cost cap, which makes section 11 worse.
+
+**What fixes it, on our side:** a sender the thief cannot sign for. See section 12. Same attack, same ban, and from the exit: veto, recovery and escape all admitted and mined, with the account banned and a thief transaction pending (`vajra rep-burn fixed`, `docs/evidence/rep-burn-fixed-latest.json`).
+
+**The sidecar rule we propose,** in [`upstream/sidecar-reputation.patch`](upstream/sidecar-reputation.patch), separate from the budget patch:
+
+1. Replacing a live entry does not count as seen. Only one of the two can ever be included, so the second is no new evidence about the sender.
+2. A bump is compared without dividing, so a fee cannot be raised to itself.
+
+It applies on the mirror only by asking: `VAJRA_SIDECAR_RULE=1 make judge`, then `vajra rep-burn rule`. Same attack: 210 replacements, stopped by `DailyTxCostExceeded` at the top of the ladder, seen stays at 3, and veto, recovery, a paymaster's freeze and the escape are all admitted (`docs/evidence/rep-burn-sidecar-rule-latest.json`). The sidecar's own tests for the code it touches pass, 74 of 74.
+
+**What the rule leaves.** A thief can still earn seen without included, by getting a transaction admitted and then mining another on that nonce through the canonical mempool. That is one per block, at the victim's expense, so about 510 blocks instead of 8 seconds. We have not run this.
+
+## 11. A thief could make an escape something the mempool will not hold
+
+Suspected by the same review, then reproduced. **Real, for an account short of ETH.** It is narrower than it first looked, and it has one more way in than was suspected.
+
+The sidecar adds up what pending transactions could take from an account, across nonce domains, and refuses anything that does not fit in the balance. What counts is the maximum cost, not what will be paid. Daily transactions are on the linear nonce and the sidecar refuses a nonce gap, so **a thief can hold only one pending at a time**, up to the daily cost cap. So this takes an account whose ETH is under about the cap plus an escape's 0.0025 ETH. Value in tokens does not help, because tokens do not pay for gas, and the thief can spend ETH down to that line inside the daily limit.
+
+On the mirror, with 25 tokens in the account (`vajra escape-solvency`, `docs/evidence/escape-solvency-attack-latest.json`):
+
+    pending thief transaction at 0.009 ETH of cost, 0.0100 ETH in the account
+    escape:  ... cannot cover its pending frame transactions: they would owe 11634156570333100 wei
+
+A mined transaction goes on counting until the reconciler sees it, so the refusal outlasts the block.
+
+An escape already admitted is not safe either. Sent straight to the node, a thief's spend never appears in the sidecar's sums, and when it lands the escape is cancelled:
+
+    Cancelled: ... can no longer cover its pending frame transactions as of block 416
+
+That one is a race. On the mirror the escape won when offered 0.3 and 0.6 seconds into the slot, and lost at 0.9 and 1.2, and at 1.0 it has gone both ways, so `vajra escape-solvency` can come out either way here. Once the ETH is gone, the escape cannot pay for itself at all, and the tokens stay. That is the top-up race in the README, seen from the escape's side.
+
+**The fix is the same second sender.** The exit pays from its own reserve, so its escape owes nothing against the account's balance. Same attack, then the exit: mined, 25 of 25 tokens in the harbor (`vajra escape-solvency fixed`, `docs/evidence/escape-solvency-fixed-latest.json`).
+
+## 12. Why there are two ways out
+
+A judge will ask: why not a separate sender? **We now have both.** Our rival QueueBit uses a separate sender contract. So does `contracts/src/VajraExit.sol`, and the hash key stays in validation: `validateExit` verifies the Winternitz signature in the VERIFY frame.
+
+Everything that can stop an escape from the account is attached to the account's address. A pending thief transaction holds that sender on the canonical mempool. Reputation is counted per address. Solvency is counted against that address's balance. The daily key can spend all three. The exit is a different address with its own money, and only a Winternitz signature can approve a transaction from it, so the daily key reaches none of them.
+
+| | From the account | From the exit |
+|---|---|---|
+| Needs setting up | no | yes: one contract, one master transaction, a reserve |
+| Who can use it | the master key, for anything | the exit tree, for `veto`, `freeze` and `escape` only |
+| A thief's pending transaction | blocks it on the canonical mempool. **This is why it needs the alt mempool** | does not reach it, on either mempool |
+| A ban on the account | blocks it | does not reach it |
+| The account short of ETH | blocks it | does not reach it |
+| Pays with | the account's balance | its own reserve |
+| VERIFY gas, measured | about 93,000 | about 97,000, at most 430 hashes |
+| One-time key safety | the Arkiv registry, the signer's record, the nonce key | the signer's record and the nonce key. **Not in the Arkiv registry** |
+| Hardware signer | yes | **no**: software only today |
+| Recovery by proof | yes, until the account is banned | yes, with a stake, on the alt mempool only: the pairing is over the canonical cap |
+
+`vajra pin` still shows the blocked exit on the account, unchanged, and it is still why the account's own route needs the alt mempool. `vajra exit-e2e` shows, in one slot with a thief transaction pending, the account's escape refused by the canonical mempool, and the exit's escape admitted by it and mined. **So an escape from the exit does not need the alt mempool,** and we would rather say so than have it found.
+
+**Why keep the first?** The account's route costs nothing until it is used, needs nothing set up in advance, and can do everything the master key can. The exit protects only an account that prepared, and an owner has to fund it before the thief arrives.
+
+**What the exit costs:**
+
+- **ETH sitting idle.** The reserve has to cover the gas price on the day, about 0.0025 ETH for one escape at 2 gwei, and a stake of 0.012 ETH if it is to carry a recovery. An escape does not sweep them. The master key can take them back through `execute`.
+- **A second tree to keep.** It is its own tree because a leaf is single-use through a nonce key, and a nonce key belongs to a sender: one tree on two senders would lose that check. Backed up apart from the master key, it is a real second way out. Kept beside it, it is a second door to the same room.
+- **A second key that can act.** Whoever holds it can freeze, cancel queued spends, and send everything to the sealed harbor. They cannot take anything, unless they hold the harbor too. It cannot cancel a recovery: that stays with the master key, because a paper gets one attempt. So an owner banned from the account's route, with a stolen paper queued, cannot veto it from the exit. The answer then is to escape.
+- **Gas.** The frame walk leaves about 18,000 less for hashing, so a digest over 430 hashes is redrawn. That costs a hash, and leaves little room under the cap.
+
+Every way we could think of to reach it is in `vajra exit-e2e`. The daily key cannot name an exit, replace its tree, or send from its address. A signature from another tree, or for the account's digest, dies. The exit key cannot unfreeze, spend, replace a key, move the harbor, send value, or call anything else.
+
+A recovery through the exit runs the account's own check, shape and all, through `checkRecovery`. The exit key cannot reach `queueRecovery`: `validateExit` refuses the selector, so that route takes a real proof.
+
+## 13. A note could be in many places at once, and could burn the owner's money
+
+Suspected by a review of the unshield nonce key, then reproduced. **Real, and the review found half of it.** Against the V2 bytes before the fix, kept in `artifacts/VajraAccountV2.pre-fix.json` (`vajra proof-spam`, `docs/evidence/proof-spam-pre-fix-latest.json`):
+
+- **One note, many transactions.** The nonce key had the recipient in it, so an outside depositor with one note could prove it to six recipients and have all six pending at once. 6 of 6 admitted, 6 counted as seen against the account, each owed out of its balance, and keyed transactions are exempt from the per-sender cap. So one note feeds sections 10 and 11, with no key at all.
+- **A note could burn the owner's money.** This is what the recipient in the key was for, and it is worse than what it protected. A reverting recipient left the note unspent, so that a fresh proof could pay someone else. But the account pays the fee, and a note only covers it when it is spent. A holder with one note and three contracts that refuse payment burned 0.0072 ETH of the owner's balance in 3 tries at the top of the fee cap, and the note was still good. `docs/ZK.md` said nobody could use the pool to burn the owner's money. That was wrong.
+
+**Weighing the two keys.** The recipient-bound key stops no copy of a proof: a proof is already bound to its recipient, and a copy moved to another address dies with `ShieldProofInvalid` under either key. What the key bought was a retry after a recipient refused. The nullifier alone gives that up, so a note has one mined attempt. To keep that from being a trap, `unshield` no longer reverts once VERIFY has passed:
+
+- The note is spent whatever the recipient does. If it refuses, the money stays in the account and the holder has lost the note. `vajra unshield` asks the recipient first.
+- The copy attack in section 8 stays closed, because the gas is still pinned. VERIFY checks everything `unshield` checks, against the same state.
+- Our first version of this could still be made to revert, and an independent review of the fix found both ways. A recipient returning a huge blob ran the frame out of gas in the copy, so the call is now in assembly and copies nothing. And the circuit takes any field element as a recipient, so high bits passed the proof and failed the decoder. VERIFY now refuses them.
+
+Same attacks after the fix: 1 of 6 admitted, the rest `Frame transaction cannot be replaced: fee too low`. One mined attempt at a refusing contract, the note spent, the second refused. The account's balance fell by a 0.0027 ETH fee and it keeps the rest of the note, so the holder paid. `vajra shielded` now attempts a second valid proof to another recipient, before and after the note is spent, and the old key.
+
+**What is left.** A second proof with a 10% higher fee is a replacement, and counts as seen until the sidecar rule is in. Fees run out at the proof cost cap, a few rungs above an honest fee. Anyone can do the same to a pending proof transaction, since nothing signs its fee.
+
+## 14. A recovery ticket stayed open after it was used
+
+Suspected, then reproduced. **Real, and small.** The ticket went public with the first recovery, and the gate stayed open, so anyone could put a junk proof behind it on a fresh nullifier and have a node run a pairing for free. Against the bytes before the fix: `RecoveryProofInvalid`, after the pairing. After it: `RecoveryGateInvalid`, for a hash.
+
+**The fix:** `queueRecovery` closes the gate. Nothing else does, so a rotation of the key tree leaves an unused paper exactly as it was. `vajra recover` rotates a tree, then recovers with the paper set before it. The next paper comes from `setRecovery`, signed by whichever tree is current, and `vajra recover` does that too, from the rotated tree.
+
+A used paper cannot be set again, and the contract now says so: `RecoveryAlreadyUsed`. Its nullifier is spent and its ticket public, so it would have armed a recovery that could never work. A paper is good for one recovery.
+
+**What is left.** While a recovery is pending its ticket is public and the gate is open, so a junk proof still costs a pairing until the block lands. Closing it needs state, and VERIFY cannot write.
+
+## 15. A wallet signed 32 bytes it could not show
+
+Not an exploit: a hole in what the daily key's owner can check. `personal_sign` of a digest shows a hash, so a person approving a spend was trusting the page. On V2 a wallet now signs EIP-712 typed data: `DailySpend(asset, recipient, amount, nonce, fees, gas)`, or `DailyExecute(id, ...)`.
+
+The account rebuilds the digest from the frames, as before. It hashes the arguments as the raw words in the frame and pins the exact length, so a copy with dirty high bits in an address word no longer matches what was signed. Decoded, that copy would have passed VERIFY and reverted in the SENDER frame, spending the nonce and fee.
+
+`vajra clear-sign`: a typed spend and a typed execute mined, and every attack refused: a signature moved onto another recipient or amount, another fee, cut gas, dirty high bits, trailing bytes, a no-op frame, another account, another chain, another key, and the old blind `personal_sign`, which V2 no longer takes.
+
+V1 keeps `personal_sign`, because that is what it rebuilds, so the old path stays in `packages/core` for V1 accounts. A client tells them apart by asking for `eip712Domain()`. A node that lies about that gets a signature the account refuses. The direct form with an empty `msg`, which the CLI uses, is unchanged.
+
+**The wallet in that run is scripted,** with viem's `signTypedData`. What MetaMask actually displays has not been checked since this change. An amount shows as a raw integer in wei, and ETH as the zero address.
+
+**Also found on the way,** two of them by that same review:
+
+- `validateMaster` on V2 passes the 99,900 limit at about 625 hashes, measured, and sooner on the rotation leaf, and the CLI allowed 660. An unlucky digest would have been signed, revealing a leaf, and refused. `vajra recover` hit this on a rotation. The limit is now 520 where V2 is used.
+- **Open:** the signature blob sits outside the signature hash and is charged by the byte, so anyone can pad a copy of a master or exit transaction, once per signature, and burn up to what the transaction size limit allows from its payer. Traced in the client's code, not run. A length check in VERIFY is the fix, and we tried it: the extra helper call costs about 4,000 gas, which broke the rotation leaf and left the exit no digests worth drawing, so it is out. The exit's reserve should cover this.
+- `validateDaily` skipped every frame that was not SENDER. V2 now refuses all but VERIFY and SENDER, in case a mode we have not read runs as the sender. No attack is known.

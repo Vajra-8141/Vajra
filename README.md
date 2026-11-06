@@ -62,15 +62,16 @@ evidence, on the local mirror and nowhere else.
 | Daily limit, new-payee cooling, public queue, veto | BUILT | `vajra e2e` |
 | Freeze, escape, sealed harbor | BUILT | `vajra e2e` |
 | Key rotation | BUILT | `vajra e2e` |
-| Stock wallets as the daily key | BUILT | personal_sign path mined; exercised with a scripted wallet, not the MetaMask extension |
+| Stock wallets as the daily key | BUILT | V1: personal_sign, mined. V2: EIP-712 typed data, so a wallet can show the asset, recipient and amount, `vajra clear-sign`, LOCAL, with a scripted wallet. What MetaMask shows has not been checked since |
+| A second way out: a sender of its own, `VajraExit` | BUILT, LOCAL | `vajra exit-e2e`: escape past a thief's pending transaction, even on the canonical mempool. See [why both exist](docs/FINDINGS.md#12-why-there-are-two-ways-out) |
 | ERC-8441 stealth, co-signed spend, paymaster | BUILT | `vajra stealth`, passes the ERC's conformance vectors |
 | Dashboard, exposure scanner | BUILT | every flow driven in a real browser over the Nym mixnet, with a scripted wallet |
 | Master key on hardware | BUILT | a real ESP32 signed through the CLI (7 mined) and the dashboard (3 mined), with a person pressing BOOT. **Not safe from a computer it is plugged into**: see [`docs/HARDWARE.md`](docs/HARDWARE.md) |
 | Leaf registry on Arkiv | BUILT | `vajra arkiv`, on the live Arkiv testnet and devnet. The dashboard reads it and verifies each signature in the browser |
 | Phone alert, "Not me" and "Pay, it's me" | IN BUILD | `vajra watch`. Runs end to end on the mirror against a local stand-in for Telegram's servers. Also tried on Nov 6 with a real bot and phone on the mirror: two **Not me** taps cancelled, one **Pay, it's me** tap paid 0.5 ETH, using the software signer. **Not me** also passed on the public devnet with real MetaMask and a real phone. **Pay** has not been tried there, or with the board signing |
 | Nominee | NOT STARTED | |
-| Recovery by proof, Groth16 v1 | BUILT, LOCAL | `vajra recover`: 8 mined, 21 refused, 0 failures. **Not post-quantum**: see below |
-| Shielded pool, fixed denomination v1 | BUILT, LOCAL | `vajra shielded`: 12 mined, 24 refused, 0 failures. **Does not hide that the account paid the recipient**: see below |
+| Recovery by proof, Groth16 v1 | BUILT, LOCAL | `vajra recover`: 12 mined, 24 refused, 0 failures. **Not post-quantum**: see below |
+| Shielded pool, fixed denomination v1 | BUILT, LOCAL | `vajra shielded`: 12 mined, 28 refused, 0 failures. **Does not hide that the account paid the recipient**: see below |
 | STARK recovery and shielded v2 | DESIGNED | spec §9, §10; **no STARK proof exists** |
 | Variable amounts, note-to-note transfers, viewing keys, ERC-8441 note delivery | DESIGNED | spec §10; **not built** |
 
@@ -186,6 +187,14 @@ On the local mirror, by `vajra recover` and `vajra shielded`, each sent for real
 | A valid proof while frozen, or after an escape | `AccountFrozen` |
 | An old note, against money that arrived after the escape | `ValueNotConserved` |
 | An outsider opens a pool on someone else's account | `PoolClosed` |
+| One note, proved to several recipients at once | `Frame transaction cannot be replaced: fee too low`. Fixed: all were admitted before |
+| A note paid to a contract that refuses it, to burn the owner's fees | the note is spent, once. Fixed: this burned 0.0072 ETH in 3 tries, and the note lived on |
+| A recovery's public ticket, reused so that nodes run pairings for nothing | `RecoveryGateInvalid`. Fixed: it reached the pairing |
+| A wallet signature moved onto another recipient, amount, fee, account or chain, or dirtied to die in the SENDER frame | `SignatureNotBoundToTransaction` |
+| Daily key names an exit, replaces its tree, or sends from its address | `EscapeKeyOutranks`, `FrameNotAllowed`, reverted |
+| The exit key tries anything but veto, freeze and escape | `FrameNotAllowed` |
+
+**Two attacks on the mempool itself, and what they stop.** With only the daily key, a thief can get an account banned on a node in 8 seconds, which refuses its escape, veto and recovery there (`vajra rep-burn`). And with the account short of ETH, a pending transaction makes the mempool refuse an escape it cannot cover (`vajra escape-solvency`). Neither touches `VajraExit`, which is a different address with its own money. [`docs/FINDINGS.md`](docs/FINDINGS.md) sections 10 to 12 have both, and a proposed sidecar rule.
 
 ## Run it
 
@@ -231,7 +240,7 @@ The tests that run against the devnet, and write to it:
     packages/cli        the wallet, the bridge, and the live test runs
     apps/dashboard      Next.js: account, exposure scanner, proof page
     firmware            the ESP32 signer, and its logic as a portable library
-    contracts           VajraAccount (deployed), VajraAccountV2 (local), Wots, VajraFactory, SponsorPaymaster, generated verifiers
+    contracts           VajraAccount (deployed), VajraAccountV2, VajraExit, Wots, VajraFactory, SponsorPaymaster, generated verifiers
     circuits            the two Groth16 circuits, their keys, and the build
     stack               the local mirror: Compose, genesis, block producer
     docs                measured gas, devnet findings, proofs, stealth design, demo runbook, upstream patch
@@ -264,6 +273,7 @@ staked budget and precompiles.
 ## What this does not prove
 
 0. **Two reviews found critical bugs after every test passed.** They are fixed, but nothing says they were the last. This has not been audited.
+0. **Without an exit, a thief with the daily key can shut an account out of a node.** The ban lasts as long as the thief keeps at it, and with one transaction pending the canonical mempool is shut too. An exit has to be set up and funded before the thief arrives, and it is software only. The sidecar rule that fixes the cause is a proposal. See [`docs/FINDINGS.md`](docs/FINDINGS.md) section 10.
 1. **This is not production post-quantum cryptography.** The parameters are unreviewed and there is no formal proof. Plain
    keccak chains give multi-target attacks a discount of about 19 bits that WOTS+ or XMSS would remove. Production means
    LMS, XMSS or SPHINCS+, which are heavier.

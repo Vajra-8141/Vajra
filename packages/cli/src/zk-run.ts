@@ -92,8 +92,8 @@ export function newAccount(deployer: Hex, signer: MasterSigner, daily: Address, 
   );
 }
 
-/** V2's VERIFY passes the 99,900 limit at about 625 hashes, measured. A digest over this is redrawn, which costs a hash. */
-const MAX_HASHES = 600;
+/** V2's VERIFY passes the 99,900 limit well under the 660 the CLI once allowed, sooner on the rotation leaf. A digest over this is redrawn, which costs a hash. */
+const MAX_HASHES = 520;
 
 export const master = (signer: MasterSigner, account: Address, epochSalt: Hex, calls: Parameters<typeof signMasterTx>[0]["calls"]) =>
   signMasterTx({ signer, account, epochSalt, calls, maxHashes: MAX_HASHES }).tx;

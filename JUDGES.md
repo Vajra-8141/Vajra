@@ -19,7 +19,7 @@ the sidecar `2e22ff0`. The differences, all of them:
 
 | | Public devnet | Local mirror |
 |---|---|---|
-| Sidecar | as deployed | with [`docs/upstream/sidecar-budget-010.patch`](docs/upstream/), which restores BUDGET-010 and CALLING-040 |
+| Sidecar | as deployed | with [`docs/upstream/sidecar-budget-010.patch`](docs/upstream/), which restores BUDGET-010 and CALLING-040. `sidecar-reputation.patch` goes on top only if you ask: `VAJRA_SIDECAR_RULE=1` |
 | Chain id | 1337 | 13370, so that a local result cannot pass for a public one |
 | Consensus | Lighthouse, 6 s slots | `stack/miner.mjs` drives the engine API, 2 s slots. Every block is still built and validated by ethrex |
 | Hegota | from epoch 2 | from genesis |
@@ -40,12 +40,19 @@ Times are from one machine, on a warm mirror.
 | Rulebook, and every attack on it | `vajra e2e` | 2.5 min | 11 mined, 22 refused, 0 failures |
 | The blocked escape, on both mempools | `vajra pin` | 15 s | canonical refuses, alt mines |
 | Stealth payment and paymaster | `vajra stealth` | 20 s | 0 failures |
-| Recovery by proof, and every attack | `vajra recover` | 70 s | 8 mined, 21 refused, 0 failures |
+| Recovery by proof, and every attack | `vajra recover` | 70 s | 12 mined, 24 refused, 0 failures |
 | Recovery, step by step, on the demo account | `vajra recover-setup`, `recover-prove --secret <file>`, `recover --proof <file>` | 1 min | the new tree signs |
-| The shielded pool, and every attack | `vajra shielded` | 80 s | 12 mined, 24 refused, 0 failures |
+| The shielded pool, and every attack | `vajra shielded` | 80 s | 12 mined, 28 refused, 0 failures |
 | One note in, one note out | `vajra shield`, `vajra unshield 0xAddress` | 10 s each | the recipient holds 0.095 ETH: a 0.1 ETH note, less its fee |
 | The same proof on the sidecar as deployed and as patched | `make unpatched`, then `vajra compare` | 2 min | refused, refused, mined |
 | The flaw in the contract as first deployed, and its fix | `vajra nonce-burn`, then `vajra nonce-burn fixed` | 2 min | 64 of 64 leaves burned and the escape refused, then 0 of 64 and admitted |
+| A thief banning the account on a node, and the way round it | `vajra rep-burn`, then `vajra rep-burn fixed` | 1 min each | banned in about 8 seconds, and escape, veto, recovery and a paymaster all refused. Then all three mined from the exit |
+| The same attack on the proposed sidecar rule | `VAJRA_SIDECAR_RULE=1 make judge`, then `vajra rep-burn rule` | 4 min, with the build | seen does not move, and everything is admitted. This changes the mirror, so `make judge` again afterwards |
+| An escape the mempool will not hold, and the way round it | `vajra escape-solvency`, then `vajra escape-solvency fixed` | 40 s each | `cannot cover`, then `Cancelled`. The second is a race, so it can come out the other way. Then the exit carries the tokens out |
+| The second route, and every attack on it | `vajra exit-e2e` | 45 s | 10 mined, 24 refused, 0 failures, with an escape mined through the canonical mempool past a pending thief transaction |
+| One note in many places, a note burning fees, a public ticket | `vajra proof-spam`, then `vajra proof-spam fixed` | 1 min each | 6 of 6 admitted, the note alive after 3 burns, a pairing run. Then 1 of 6, the note spent, `RecoveryGateInvalid` |
+| A wallet signing typed data, and every attack on it | `vajra clear-sign` | 25 s | 3 mined, 11 refused, 0 failures, with a scripted wallet |
+| A second way out, on your own account | `vajra exit-setup`, then `vajra exit` | 20 s each | the harbor holds the balance |
 | A stealth payer taking the money back, and the fix | `vajra stealth-theft`, then `vajra stealth-theft fixed` | 1 min | 25 of 25 taken, then `CoSignerRequired` and 0 taken |
 | The dashboard, on the mirror | `make dashboard`, then http://localhost:3000 | 30 s | a banner saying it is local. Use a wallet holding `.vajra-local/daily.key` |
 | Releasing a queued payment early, and the race that must not pay twice | `vajra pay-e2e` | 40 s | 0 failures |

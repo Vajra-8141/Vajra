@@ -76,7 +76,7 @@ if (fixed) {
 }
 
 const escapeCalls = [ops.escape(harbor, harborSalt, [DEVNET.usdc])];
-const escape = signMasterTx({ signer, account, epochSalt, calls: escapeCalls, maxHashes: 600 }).tx;
+const escape = signMasterTx({ signer, account, epochSalt, calls: escapeCalls, maxHashes: 520 }).tx;
 console.log(`account ${account}, ${formatEther(await balance())} ETH, ${TOKENS} tokens`);
 
 const outcomes: Record<string, string> = {};
@@ -109,6 +109,8 @@ const nonce0 = await accountNonce();
 const drain = await signDailyTx(dailyTx({ account, dailyKey: daily, nonce: nonce0, calls: [ops.spend(ETH, thief, (await balance()) - parseEther("0.0105"))] }), dailyKey);
 await submit(drain);
 console.log(`  balance now ${formatEther(await balance())} ETH`);
+// The drain goes on counting as pending until the reconciler sees it, and it would crowd out the thief too.
+await sleep(8000);
 await afterBlock();
 const held = await atTheCap(await accountNonce(), 0n, thief);
 outcomes.thiefPending = await verdict("thief's transaction, at the cap", () => sendAlt(held));

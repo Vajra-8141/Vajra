@@ -143,7 +143,7 @@ check((await publicClient.getBalance({ address: recipient })) - before === DENOM
 check((await readPool<bigint>(account, "poolHeld")) === DENOM * 2n, "the pool's accounting fell by one note");
 console.log(`    VERIFY ${Number(BigInt(out.receipt.frameReceipts[0]!.gasUsed))} gas`);
 await refused("The same note again, on the next nonce", { ...honest, nonceSeq: 1n }, "NullifierSpent");
-await refused("The same note, proved to another recipient, after it was spent", unshieldTx({ account, root: copy.root, nullifierHash: copy.nullifierHash, recipient: elsewhere, proof: copy.proof }), "NullifierSpent");
+await refused("The same note, proved to another recipient, after it was spent", { ...unshieldTx({ account, root: copy.root, nullifierHash: copy.nullifierHash, recipient: elsewhere, proof: copy.proof }), nonceSeq: 1n }, "NullifierSpent");
 
 console.log("\n5. The tree moves under a proof");
 leaves = await poolLeaves(account);

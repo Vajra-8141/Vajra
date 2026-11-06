@@ -383,7 +383,10 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
 
         uint256 frames = txparam(TxParam.FRAME_COUNT);
         for (uint256 i = txparam(TxParam.CURRENT_FRAME_INDEX) + 1; i < frames; ++i) {
-            if (frameparam(i, FrameParam.MODE) != uint256(FrameMode.SENDER)) continue;
+            uint256 mode = frameparam(i, FrameParam.MODE);
+            if (mode == uint256(FrameMode.VERIFY)) continue;
+            // V2: refused, not skipped. Only VERIFY frames are known to be harmless here, and a daily key has no use for any other.
+            if (mode != uint256(FrameMode.SENDER)) revert FrameNotAllowed(i);
             if (address(uint160(frameparam(i, FrameParam.RESOLVED_TARGET))) != address(this)) revert FrameNotAllowed(i);
             if (frameparam(i, FrameParam.VALUE) != 0) revert FrameNotAllowed(i);
             bytes4 selector = bytes4(framedataload(0, i));
@@ -577,6 +580,8 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         uint256 nullifierHash = uint256(framedataload(36, 1));
         uint256 recipient = uint256(framedataload(68, 1));
         if (s.noteSpent[nullifierHash]) revert NullifierSpent(nullifierHash);
+        // The circuit takes any field element. High bits would pass the proof and revert in `unshield`'s decoder, after the fee.
+        if (recipient >> 160 != 0) revert ProofTxShapeInvalid();
         // V2: the nullifier alone. With the recipient in the key, one note had a nonce key per recipient, so its holder could keep
         // many valid transactions pending at once. Now a note has one slot, and one mined attempt. See `unshield`.
         bytes32 nonceKey = keccak256(abi.encodePacked(UNSHIELD_TAG, nullifierHash));
@@ -764,7 +769,11 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     }
 
     /// Cancels a queued spend.
+    ///
+    /// V2: the exit may not cancel a recovery. That is for an owner who still holds the master key, and a stolen exit key must not be
+    /// able to kill the one way back of an owner who lost it: a paper gets one attempt.
     function veto(uint256 id) external onlySelfOrExit {
+        if (msg.sender != address(this) && _layout().isRecovery[id]) revert NotAuthorized();
         QueuedItem storage item = _layout().queue[id];
         if (item.state != ItemState.Pending) revert ItemNotPending(id);
         item.state = ItemState.Vetoed;
@@ -923,7 +932,12 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         if (s.poolHeld < DENOMINATION) revert ValueNotConserved();
         s.noteSpent[nullifierHash] = true;
         s.poolHeld -= DENOMINATION;
-        (bool paid,) = recipient.call{value: DENOMINATION - MAX_PROOF_TX_COST}("");
+        // In assembly so that nothing is copied back: a recipient returning a huge blob would otherwise run this frame out of gas.
+        uint256 amount = DENOMINATION - MAX_PROOF_TX_COST;
+        bool paid;
+        assembly ("memory-safe") {
+            paid := call(gas(), recipient, amount, 0, 0, 0, 0)
+        }
         if (paid) emit Unshielded(nullifierHash, recipient);
         else emit UnshieldUnpaid(nullifierHash, recipient);
     }

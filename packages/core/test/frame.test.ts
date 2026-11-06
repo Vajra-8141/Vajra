@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { keccak256, toHex } from "viem";
+import { hashTypedData, keccak256, toHex } from "viem";
 import { DEVNET, rpc, rpcBatch, setRpcFetch, withTimeout } from "../src/devnet.ts";
-import { MAX_VERIFY_GAS, STEALTH_LIMITS, dailyTx, leafNonceKey, masterTx, refusalName, sendAlt, sigHash, stealthTx, walletMessage, withMasterSignature } from "../src/frame.ts";
+import { type Call, MAX_VERIFY_GAS, STEALTH_LIMITS, dailyTx, dailyTypedData, leafNonceKey, masterTx, refusalName, sendAlt, sigHash, stealthTx, walletMessage, withMasterSignature, withTypedSignature } from "../src/frame.ts";
+import { ETH, ops } from "../src/account.ts";
 
 const account = "0x1111111111111111111111111111111111111111" as const;
 const other = "0x2222222222222222222222222222222222222222" as const;
@@ -68,6 +69,35 @@ describe("walletMessage", () => {
   it("refuses any shape it cannot fully cover", () => {
     const two = dailyTx({ account, dailyKey: other, nonce: 1n, calls: [call("0x01"), call("0x02")] });
     expect(() => walletMessage(two)).toThrow();
+  });
+});
+
+describe("dailyTypedData", () => {
+  const to = "0x2222222222222222222222222222222222222222" as const;
+  const typed = (calls: Call[]) => dailyTypedData(dailyTx({ account, dailyKey: other, nonce: 4n, calls }));
+
+  it("shows the asset, the recipient and the amount", () => {
+    const { primaryType, message, domain } = typed([ops.spend(ETH, to, 5n)]);
+    expect(primaryType).toBe("DailySpend");
+    expect(message).toMatchObject({ asset: ETH, recipient: to, amount: 5n, nonce: 4n });
+    expect(domain.verifyingContract).toBe(account);
+  });
+
+  it("names a queued item by its id", () => {
+    const { primaryType, message } = typed([ops.executeQueued(7n)]);
+    expect(primaryType).toBe("DailyExecute");
+    expect(message).toMatchObject({ id: 7n });
+  });
+
+  it("refuses anything a daily key has no business signing", () => {
+    expect(() => typed([ops.freeze()])).toThrow();
+    expect(() => typed([ops.spend(ETH, to, 1n), ops.spend(ETH, to, 2n)])).toThrow();
+  });
+
+  it("puts what was shown into the entry's msg", () => {
+    const tx = dailyTx({ account, dailyKey: other, nonce: 4n, calls: [ops.spend(ETH, to, 5n)] });
+    const signature = `0x${"11".repeat(32)}${"22".repeat(32)}1b` as const;
+    expect(withTypedSignature(tx, signature).signatures[0]!.msg).toBe(hashTypedData(dailyTypedData(tx) as never));
   });
 });
 

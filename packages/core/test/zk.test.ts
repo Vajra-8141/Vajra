@@ -31,7 +31,7 @@ describe("proof transactions", () => {
   });
 
   it("gives a note one nonce key, whoever it pays", () => {
-    const pay = (to: typeof recipient) => unshieldTx({ account, root: 5n, nullifierHash: 9n, recipient: to, proof, work: 0n }).nonceKeys;
+    const pay = (to: `0x${string}`) => unshieldTx({ account, root: 5n, nullifierHash: 9n, recipient: to, proof, work: 0n }).nonceKeys;
     expect(pay(recipient)).toEqual(pay(account));
   });
 

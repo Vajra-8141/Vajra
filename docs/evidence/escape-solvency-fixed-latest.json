@@ -1,21 +1,20 @@
 {
- "ranAt": "2026-11-06T12:10:18.640Z",
+ "ranAt": "2026-11-06T13:06:39.672Z",
  "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch. NOT run on the public devnet",
  "chainId": 13370,
- "account": "0xB656c3C8d673352605b6C5360E551506F5d1DCc1",
- "exit": "0xc1b006FE5caD083Ef200E7Eb7Db1782724120539",
+ "account": "0x8B1786359a6955e87F2ec2Fc26C28FdB0589Fad2",
+ "exit": "0xFdB4041320DD6294eb412D7CC117430babdb0A72",
  "outcomes": {
-  "thiefPending": "ADMITTED 0xba23bcd2935402ce5e725f9a20f913c9661bc0428edb4358a5d178ca64a884ce",
-  "escapeAgainstPending": "REFUSED 0xB656c3C8d673352605b6C5360E551506F5d1DCc1 cannot cover its pending frame transactions: they would owe 11634012570333100 wei (2505084000000000 for this one), its balance ",
-  "raid": "ADMITTED 0xe7cc9fd9798975dd9392e7e6ba40a784c4ddafd5653ba2a6e6a5123bd81293aa",
-  "escapeAdmitted": "ADMITTED 0x97fa29fa897578f34a08b031162852cf2a60a0f7a587529e254ab3bf47ee41da",
-  "escapeStatus": "OnChain: ",
-  "escapeShort": "REFUSED Invalid Transaction: Nonce mismatch: expected 1, got 0",
-  "thiefPendingAgain": "REFUSED AccountFrozen"
+  "thiefPending": "ADMITTED 0x289548c1b8dd18765f36df2bb00db8896460d8ea5c96d86f5c66a2e9ec1f02f7",
+  "escapeAgainstPending": "REFUSED 0x8B1786359a6955e87F2ec2Fc26C28FdB0589Fad2 cannot cover its pending frame transactions: they would owe 11633950856047396 wei (2505108000000000 for this one), its balance ",
+  "raid": "ADMITTED 0x8390ef2631b640077a9a3d3c9fd67d6e122ef60613039388132c0e8b7b5b36ff",
+  "escapeAdmitted": "ADMITTED 0x0c0448d6000d810633aa2784681c5974b6039875dc03c7a76417839152e996ba",
+  "escapeStatus": "Cancelled: 0x8B1786359a6955e87F2ec2Fc26C28FdB0589Fad2 can no longer cover its pending frame transactions as of block 446: balance 1499999999283242 wei",
+  "escapeShort": "REFUSED validation frame 0: the payer 0x8b1786359a6955e87f2ec2fc26c28fdb0589fad2 has 1499999999283242 wei, the transaction's maximum cost is 2505108000000000 wei"
  },
- "tokensStuck": "0",
+ "tokensStuck": "25000000",
  "result": {
-  "hash": "0x0f6d14c747f66349e0ac8ff54b200a7cdc70dea7d28d865dd77caae021749abd",
+  "hash": "0xaf4a9cbe01aa8eb327b35e9082495d4d050983346c90893b8aa1d2f8f57b4207",
   "tokens": "25000000",
   "framesOk": true
  }

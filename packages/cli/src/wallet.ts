@@ -42,7 +42,7 @@ import { Device } from "./device.ts";
 import { claimLeaf, publishUse, theRegistry } from "./registry.ts";
 
 /** Above this, the fitted cost would pass the VERIFY limit; the digest is redrawn before anything is revealed. */
-const MAX_HASHES = 600;
+const MAX_HASHES = 520;
 
 const useDevice = () => process.env.VAJRA_SIGNER === "device";
 

@@ -3,11 +3,13 @@
  * attack is really sent, and has to die with the name shown. Exits non-zero if anything differs from the claim.
  */
 import { writeFileSync } from "node:fs";
-import { type Hex, decodeErrorResult, encodeFunctionData, formatEther, keccak256, parseEther, toHex } from "viem";
+import { type Hex, decodeErrorResult, encodeFunctionData, formatEther, keccak256, parseEther, toHex, zeroHash } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import * as lib from "@forshtat/hegota-support/tx";
 import {
   DEVNET,
   ETH,
+  type FlatProof,
   type FrameTx,
   RpcError,
   accountState,
@@ -23,20 +25,27 @@ import {
   masterDigest,
   ops,
   opsV2,
+  profile,
   publicClient,
   receiptOf,
+  recoveryGate,
+  recoveryTicket,
+  recoveryTx,
   sendAlt,
   sendCanonical,
   sigHash,
   signDaily,
   signDailyTx,
   signExitTx,
+  simulate,
   sleep,
   txHash,
   withMasterSignature,
 } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
+import { proveRecovery, randomFieldElement, recoveryCommitment, stopProver } from "./proving.ts";
+import { V2_STAKE } from "./wallet.ts";
 import { check, evidence, master, mined, newAccount, newSigner, refused, refusals, tally } from "./zk-run.ts";
 
 if (!isLocalStack) throw new Error("this is an attack: it runs on the local mirror only, with VAJRA_STACK=local");
@@ -72,8 +81,15 @@ async function refusedByExit(attack: string, tx: FrameTx, want: string) {
   }
 }
 
+/** Admitted, because the frame is what fails, so this asks the node what would happen instead of spending a leaf's worth of reserve. */
+async function refusedInFrame(attack: string, tx: FrameTx) {
+  const outcome = await simulate(tx);
+  check(outcome.frames?.[1]?.succeeded === false, `${attack}: its frame fails, NotAuthorized`);
+  refusals.push({ attack, refusal: "NotAuthorized, in the SENDER frame" });
+}
+
 console.log("\n1. The owner sets it up");
-const exit = await createExit(deployer, v2!.exitFactory!, account, exitTree.root, epochSalt, parseEther("0.05"));
+const exit = await createExit(deployer, v2!.exitFactory!, account, exitTree.root, epochSalt, parseEther("0.05"), V2_STAKE);
 console.log(`  exit ${exit}, ${formatEther(await publicClient.getBalance({ address: exit }))} ETH of its own`);
 const early = signed([ops.freeze()]);
 await mined("name the exit, master key", master(signer, account, epochSalt, [opsV2.setExit(exit)]));
@@ -123,7 +139,36 @@ await mined("freeze, from the exit, signed before it was named", early);
 check((await accountState(account)).frozen, "the account is frozen");
 await mined("unfreeze, master key", master(signer, account, epochSalt, [ops.unfreeze()]));
 
-console.log("\n5. The master key replaces the tree");
+console.log("\n5. A recovery from the exit: a proof, and no key");
+const paper = randomFieldElement();
+const ticket = recoveryTicket(paper);
+await mined("set recovery, master key", master(signer, account, epochSalt, [opsV2.setRecovery(await recoveryCommitment(paper), 60n, recoveryGate(ticket))]));
+const recoveredTree = newSigner();
+const proved = await proveRecovery({ secret: paper, newRoot: recoveredTree.root, account, epochSalt, chainId: DEVNET.chainId });
+const viaExit = (over: Partial<Parameters<typeof recoveryTx>[0]> = {}) => recoveryTx({ account, exit, newRoot: recoveredTree.root, nullifier: proved.nullifier, proof: proved.proof, ticket, ...over });
+const bent = [...proved.proof] as unknown as bigint[];
+bent[0] = bent[0]! + 1n;
+await refused("A corrupted proof, through the exit", viaExit({ proof: bent as unknown as FlatProof }), "RecoveryProofInvalid");
+await refused("A seen proof, moved onto the attacker's root, through the exit", viaExit({ newRoot: keccak256(toHex("attacker root")) }), "RecoveryProofInvalid");
+await refused("A guessed ticket, through the exit", viaExit({ ticket: keccak256(toHex("a guess")) }), "RecoveryGateInvalid");
+const honestRecovery = viaExit();
+const extra = lib.frame(profile, "SENDER", { target: fresh(), execution: 400_000n, state: 400_000n, value: parseEther("0.01"), data: "0x" });
+await refused("A seen proof, with a frame added that pays the attacker from the reserve", { ...honestRecovery, frames: [...honestRecovery.frames, extra] }, "ProofTxShapeInvalid");
+await refused("A seen proof, resent with a huge fee to burn the reserve", viaExit({ fees: { maxFeePerGas: 100_000_000_000n } }), "ProofTxCostExceeded");
+const starved = { ...honestRecovery, frames: honestRecovery.frames.map((f, i) => (i === 1 ? { ...f, limits: { ...f.limits, execution: 1000n } } : f)) };
+await refused("A seen proof, resent with too little gas, to kill it", starved, "ProofTxShapeInvalid");
+await refusedByExit("The exit key queues a root with no proof", signed([opsV2.queueRecovery(recoveredTree.root, proved.nullifier)]), "FrameNotAllowed");
+const reserveBefore = await publicClient.getBalance({ address: exit });
+await mined("recovery, from the exit", honestRecovery);
+check((await read<string>("recoveryGate")) === zeroHash, "the gate closed");
+check(reserveBefore - (await publicClient.getBalance({ address: exit })) <= parseEther("0.005"), "the exit paid, and no more than the cap on a proof");
+await refused("The same proof, from the account", recoveryTx({ account, newRoot: recoveredTree.root, nullifier: proved.nullifier, proof: proved.proof, ticket }), "NullifierSpent");
+await stopProver();
+const recoveryItem = (await read<bigint>("nextItem")) - 1n;
+await refusedInFrame("The exit key cancels a recovery", signed([ops.veto(recoveryItem)]));
+await mined("veto it, master key", master(signer, account, epochSalt, [ops.veto(recoveryItem)]));
+
+console.log("\n6. The master key replaces the tree, and takes money back");
 const nextTree = newSigner();
 const rotate = { data: encodeFunctionData({ abi: exitAbi, functionName: "setRoot", args: [nextTree.root] }), target: exit, execution: 60_000n, state: 100_000n };
 const oldLeaf = signed([ops.freeze()]);
@@ -131,7 +176,13 @@ await mined("new exit tree, master key", master(signer, account, epochSalt, [rot
 check((await readExit<Hex>("root")) === nextTree.root, "the exit holds the new tree");
 await refusedByExit("A signature from the old exit tree", oldLeaf, "NonceKeyNotBoundToLeaf");
 
-console.log("\n6. With a thief transaction pending, on the mempool that blocks the account itself");
+const reserveTo = fresh();
+const takeBack = { data: encodeFunctionData({ abi: exitAbi, functionName: "execute", args: [reserveTo, parseEther("0.001"), "0x"] }), target: exit, execution: 300_000n, state: 300_000n };
+await mined("take some of the reserve back, master key", master(signer, account, epochSalt, [takeBack]));
+check((await publicClient.getBalance({ address: reserveTo })) === parseEther("0.001"), "the master key can reach the exit's money, and the daily key cannot");
+await refused("Daily key takes the reserve", await signDaily({ key: dailyKey, dailyKey: daily, account, calls: [{ ...takeBack, execution: 100_000n, state: 100_000n }] }), "FrameNotAllowed");
+
+console.log("\n7. With a thief transaction pending, on the mempool that blocks the account itself");
 const head = await publicClient.getBlockNumber();
 while ((await publicClient.getBlockNumber()) === head) await sleep(100);
 const base = (await publicClient.getBlock()).baseFeePerGas ?? 7n;

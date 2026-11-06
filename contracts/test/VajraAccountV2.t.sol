@@ -782,6 +782,22 @@ contract VajraAccountV2Test is Test {
         assertEq(address(account).balance, before);
     }
 
+    function test_unshield_aReturnBombCannotStopTheNoteBeingSpent() public {
+        shieldBoth();
+        ReturnBomb bomb = new ReturnBomb();
+        asSelf();
+        account.unshield{gas: 500_000}(poolRoot, nullifierHash, address(bomb));
+        assertTrue(account.noteSpent(nullifierHash));
+    }
+
+    function test_unshield_refusesHighBitsInTheRecipient() public {
+        shieldBoth();
+        unshieldFrame();
+        setWord(68, bytes32((uint256(1) << 160) | uint256(uint160(recipient))));
+        vm.expectRevert(VajraAccountV2.ProofTxShapeInvalid.selector);
+        account.validateUnshield(unshieldProof, 0);
+    }
+
     function test_unshield_aRecipientThatBurnsItsGasCannotStopTheNoteBeingSpent() public {
         shieldBoth();
         GasBurner burner = new GasBurner();
@@ -1049,6 +1065,19 @@ contract VajraAccountV2Test is Test {
         assertEq(harbor.balance, held);
     }
 
+    function test_exit_cannotCancelARecovery() public {
+        address exit = nameExit();
+        setRecovery();
+        asSelf();
+        account.queueRecovery(NEW_ROOT, nullifier);
+        uint256 id = account.nextItem() - 1;
+        vm.prank(exit);
+        vm.expectRevert(VajraAccountV2.NotAuthorized.selector);
+        account.veto(id);
+        asSelf();
+        account.veto(id);
+    }
+
     function test_exit_canDoNothingElse() public {
         address exit = nameExit();
         vm.startPrank(exit);
@@ -1308,6 +1337,14 @@ contract VajraAccountV2Test is Test {
         assertEq(account.poolHeld(), 2 * DENOM);
         assertFalse(account.poolClosed());
         assertTrue(account.frozen());
+    }
+}
+
+contract ReturnBomb {
+    receive() external payable {
+        assembly {
+            return(0, 450000)
+        }
     }
 }
 
