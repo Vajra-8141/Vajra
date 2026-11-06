@@ -14,9 +14,8 @@ Do these before the rehearsal. Until then, treat the matching beat as untested.
 
 | What | Status | If it fails |
 |---|---|---|
-| Real MetaMask on the public chain | Worked on the mirror on 6 November in Brave, MetaMask 13.55: connect, a small spend, a queued 0.5 ETH with the alarm. Not tried on the public chain | `vajra spend` for moment 1 |
-| Dashboard on the public chain | Not tested since the reset of 6 November. Tested on the mirror in a real browser | Run the whole demo on the mirror and say so |
-| `vajra watch` on the public chain | Not tried. Real bot and real phone passed on the mirror on 6 November: two cancels, one payment | The same: run it on the mirror |
+| MetaMask, dashboard and phone on the public chain | Worked on 6 November in Brave, MetaMask 13.55: a small spend went through, 0.5 ETH queued, and a phone tap cancelled it with the hash key, at 94,977 gas | Run the whole demo on the mirror and say so |
+| **Pay, it's me** on the public chain | Not tried. Passed on the mirror with a real phone | Say it ran on the mirror |
 | A full rehearsal | Not done. The timings below are estimates | |
 
 ## Before you go on stage
@@ -88,7 +87,7 @@ Both signed the same account, on the same chain.
 | Signature type | secp256k1 | Winternitz hash key |
 | Quantum computer can break it? | Yes | No curve to break |
 | Signature size | 65 bytes | 2,144 bytes |
-| Gas to verify | 33,000 to 36,000 | about 90,000 |
+| Gas to verify | 33,000 to 36,000 | 90,000 to 95,000 |
 | Can it change the rules? | No | Yes |
 
 ## If something breaks
