@@ -7,7 +7,7 @@ root="$(dirname "$here")"
 . "$here/env.sh"
 work="$root/.stack"
 mkdir -p "$work/logs"
-"$here/down.sh" >/dev/null 2>&1 || true
+"$here/down.sh" || { echo "could not clear the last run" >&2; exit 1; }
 
 rpc() { curl -s -m 3 "127.0.0.1:$1" -H 'content-type: application/json' -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"$2\",\"params\":[]}"; }
 
@@ -21,6 +21,11 @@ if [ ! -f "$work/sidecar/.vajra-built" ]; then
   (cd "$work/sidecar" && bun install --frozen-lockfile >/dev/null && bun run build >/dev/null)
   touch "$work/sidecar/.vajra-built"
 fi
+
+# Each boot is a new chain, so nothing an old one left behind may survive it: not addresses, not accounts, not notes.
+rm -rf "$root/.vajra-local"
+mkdir -p "$root/.vajra-local"
+printf '%s' "$GENESIS_KEY" > "$root/.vajra-local/deployer.key"
 
 # --- ethrex ---
 [ -f "$work/jwt.hex" ] || openssl rand -hex 32 > "$work/jwt.hex"
@@ -51,7 +56,7 @@ cat > "$data/config.json" <<JSON
   "rpcEndpoint": "http://127.0.0.1:$RPC_PORT",
   "rpcEndpointSubmit": "http://127.0.0.1:$RPC_PORT",
   "stakingRegistryAddress": "$REGISTRY",
-  "bundleInterval": 2
+  "bundleInterval": 2000
 }
 JSON
 (cd "$work/sidecar" && SKANDHA_FAUCET_KEY="$GENESIS_KEY" NODE_ENV=production nohup bun --bun packages/cli/bin/skandha.js standalone \
@@ -61,4 +66,6 @@ JSON
   > "$work/logs/sidecar.log" 2>&1 & echo $! > "$work/sidecar.pid")
 for _ in $(seq 1 60); do rpc "$SIDECAR_PORT/rpc/" eth_chainId | grep -q result && break; sleep 0.5; done
 rpc "$SIDECAR_PORT/rpc/" eth_chainId | grep -q result || { echo "the sidecar did not start" >&2; tail -30 "$work/logs/sidecar.log" >&2; exit 1; }
+# down.sh proved the port was free, so what answers is what was just started. bun's listener is not the pid the shell saw.
+ss -ltnp 2>/dev/null | grep ":$SIDECAR_PORT " | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2 > "$work/sidecar.pid"
 echo "mirror up: ethrex http://127.0.0.1:$RPC_PORT, alt mempool http://127.0.0.1:$SIDECAR_PORT/rpc/"

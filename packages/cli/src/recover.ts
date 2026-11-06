@@ -3,107 +3,40 @@
  * a delay, a new root, and a signature from the new tree. Every attack the design claims to stop is attempted against the
  * real client and the patched sidecar. Exits non-zero if anything behaves differently from the claim.
  */
-import { randomBytes } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { type Address, type Hex, formatEther, keccak256, parseEther, toHex } from "viem";
+import { type Address, formatEther, keccak256, parseEther, toHex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import * as lib from "@forshtat/hegota-support/tx";
 import {
   DEVNET,
-  ETH,
   type FlatProof,
-  type FrameTx,
   LEGACY_GAS_PRICE,
-  MasterSigner,
-  RpcError,
-  WOTS_W16,
+  type MasterSigner,
   accountState,
   accountV2Abi,
-  createAccount,
   deployments,
-  framesSucceeded,
-  harborCommitment,
   isLocalStack,
-  memoryStore,
   ops,
   opsV2,
   profile,
   publicClient,
   recoveryTx,
-  refusalNameV2,
-  sendAlt,
   signDaily,
-  signMasterTx,
   sleep,
-  submit,
   waitForSuccess,
   walletFor,
 } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
+import { check, evidence, master, mined, newAccount, newSigner, refusals, refused, reverts, tally } from "./zk-run.ts";
 import { proveRecovery, randomFieldElement, recoveryCommitment, stopProver } from "./proving.ts";
 
 if (!isLocalStack) throw new Error("recovery needs the patched sidecar: run this with VAJRA_STACK=local, after `vajra judge`");
 
-const newSigner = () => new MasterSigner(WOTS_W16, memoryStore(), () => new Uint8Array(randomBytes(32)));
 const DELAY = 20n;
-const MAX_HASHES = 660;
-const evidence: { step: string; hash: Hex; block: number; verifyGas: number; totalGas: number; attempts: number }[] = [];
-const refusals: { attack: string; refusal: string }[] = [];
-let failures = 0;
-
-const check = (ok: boolean, what: string) => {
-  console.log(`  ${ok ? "ok  " : "FAIL"} ${what}`);
-  if (!ok) failures++;
-};
-
-async function mined(step: string, tx: FrameTx) {
-  const { hash, receipt, attempts } = await submit(tx, { log: (l) => console.log(`    ${l}`) });
-  const verifyGas = Number(BigInt(receipt.frameReceipts[0]!.gasUsed));
-  evidence.push({ step, hash, block: Number(receipt.blockNumber), verifyGas, totalGas: Number(BigInt(receipt.gasUsed)), attempts });
-  check(framesSucceeded(receipt), `${step}: ${hash} block ${Number(receipt.blockNumber)}, VERIFY ${verifyGas} gas`);
-  return { hash, receipt };
-}
-
-/** The attack has to die at admission, with this name. Anything else, including being admitted, is a failure. */
-async function refused(attack: string, tx: FrameTx, want: string) {
-  try {
-    const hash = await sendAlt(tx);
-    check(false, `${attack}: ADMITTED ${hash}`);
-    refusals.push({ attack, refusal: "ADMITTED" });
-  } catch (error) {
-    const message = error instanceof RpcError ? error.message : String(error);
-    const name = refusalNameV2(message);
-    check(name === want || message.includes(want), `${attack}: ${name === want ? name : `${message.slice(0, 200)} (wanted ${want})`}`);
-    refusals.push({ attack, refusal: name.slice(0, 200) });
-  }
-}
 
 const read = <T>(address: Address, functionName: string, args: unknown[] = []) =>
   publicClient.readContract({ address, abi: accountV2Abi as never, functionName, args } as never) as Promise<T>;
-
-async function newAccount(deployer: Hex, signer: MasterSigner, daily: Address, harbor: Address, salt: Hex) {
-  const { v2, genesis } = deployments();
-  const config = {
-    dailyKey: daily,
-    wotsRoot: signer.root,
-    epochSalt: genesis,
-    harborCommitment: harborCommitment(harbor, salt),
-    queueDelay: 60n,
-    coolingPeriod: 60n,
-    maxDailyTxCost: parseEther("0.01"),
-    assets: [ETH],
-    dailyLimits: [parseEther("0.1")],
-    coolingAllowances: [parseEther("0.01")],
-    // Strictly above the sidecar's minimum: BUDGET-010's staked budget is what lets a pairing check through.
-    stake: parseEther("0.012"),
-    unstakeDelay: 86_400,
-  };
-  return createAccount(deployer, v2!.factory, config, parseEther("1"));
-}
-
-const master = (signer: MasterSigner, account: Address, epochSalt: Hex, calls: Parameters<typeof signMasterTx>[0]["calls"]) =>
-  signMasterTx({ signer, account, epochSalt, calls, maxHashes: MAX_HASHES }).tx;
 
 const started = Date.now();
 const deployer = loadOrCreateKey(keyPath("deployer.key"));
@@ -176,11 +109,7 @@ await refused("The same proof, replayed on the next nonce", { ...honest, nonceSe
 const stranger = walletFor(deployer);
 const execute = (item: bigint) =>
   stranger.writeContract({ address: account, abi: accountV2Abi as never, functionName: "executeQueued", args: [item], gas: 3_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy", chain: undefined } as never);
-const early = await publicClient
-  .simulateContract({ address: account, abi: accountV2Abi as never, functionName: "executeQueued", args: [id], account: privateKeyToAccount(deployer) } as never)
-  .then(() => "allowed", (error: Error) => error.message);
-check(/QueuedPendingTimelock/.test(early), `Installing before the delay: ${/QueuedPendingTimelock/.test(early) ? "QueuedPendingTimelock" : early.slice(0, 160)}`);
-refusals.push({ attack: "Installing before the delay", refusal: "QueuedPendingTimelock" });
+await reverts("Installing before the delay", "QueuedPendingTimelock", { address: account, functionName: "executeQueued", args: [id], account: privateKeyToAccount(deployer).address });
 
 console.log(`\n7. The delay passes (${DELAY}s), and anyone installs the root`);
 const item = await read<{ executeAfter: bigint }>(account, "queuedItem", [id]);
@@ -209,11 +138,7 @@ const theft = await proveRecovery({ secret: paper, newRoot: thiefRoot, account: 
 await mined("thief queues a root, with a stolen paper", recoveryTx({ account: account2, newRoot: thiefRoot, nullifier: theft.nullifier, proof: theft.proof }));
 const theftId = (await read<bigint>(account2, "nextItem")) - 1n;
 await mined("owner vetoes it", master(owner, account2, epochSalt, [ops.veto(theftId)]));
-const vetoed = await publicClient
-  .simulateContract({ address: account2, abi: accountV2Abi as never, functionName: "executeQueued", args: [theftId], account: privateKeyToAccount(deployer) } as never)
-  .then(() => "allowed", (error: Error) => error.message);
-check(/RecoveryVetoed/.test(vetoed), `Installing a vetoed root: ${/RecoveryVetoed/.test(vetoed) ? "RecoveryVetoed" : vetoed.slice(0, 160)}`);
-refusals.push({ attack: "Installing a vetoed root", refusal: "RecoveryVetoed" });
+await reverts("Installing a vetoed root", "RecoveryVetoed", { address: account2, functionName: "executeQueued", args: [theftId], account: privateKeyToAccount(deployer).address });
 const again = await proveRecovery({ secret: paper, newRoot: keccak256(toHex("second try")), account: account2, epochSalt, chainId: DEVNET.chainId });
 // Nonce 0 on this key is already used, so an attacker has to come in on nonce 1, and that is where the contract answers.
 const retry = recoveryTx({ account: account2, newRoot: keccak256(toHex("second try")), nullifier: again.nullifier, proof: again.proof });
@@ -234,7 +159,7 @@ writeFileSync(
       account,
       proverMs: proved.ms,
       verifyGas: queueGas,
-      failures,
+      failures: tally.failures,
       mined: evidence,
       refusals,
     },
@@ -242,6 +167,6 @@ writeFileSync(
     1,
   ) + "\n",
 );
-console.log(`\n${evidence.length} mined, ${refusals.length} refused, ${failures} failures, ${Math.round((Date.now() - started) / 1000)}s`);
+console.log(`\n${evidence.length} mined, ${refusals.length} refused, ${tally.failures} failures, ${Math.round((Date.now() - started) / 1000)}s`);
 await stopProver();
-process.exit(failures ? 1 : 0);
+process.exit(tally.failures ? 1 : 0);

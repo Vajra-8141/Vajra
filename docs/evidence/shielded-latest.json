@@ -1,0 +1,199 @@
+{
+ "ranAt": "2026-11-06T04:08:37.711Z",
+ "stack": "local mirror: ethrex 9aa3645 + sidecar 2e22ff0 with sidecar-budget-010.patch",
+ "chainId": 13370,
+ "genesis": "0xe0124d52b9589c6be80c1592bed0853185c47167ba1dc0ac0d25f60725df9468",
+ "verifier": "0xe2b9debd5859418cbee5213d84c8ff6d551ce5aa",
+ "implementation": "0x668e5b07b106c3ea01e113830636e19262d4db12",
+ "account": "0x2eBD87a2008A0d40FF3067349ab47ccCf0AD92df",
+ "denomination": "10000000000000000",
+ "proverMs": 560,
+ "unshieldVerifyGas": 289688,
+ "shieldSenderGas": 896245,
+ "shieldExecutionLimit": 2500000,
+ "failures": 0,
+ "mined": [
+  {
+   "step": "shield note A, master key",
+   "hash": "0x07b910155c405e725d92ff06db61db2eb58edbc3c0699fccfe35c48259f167bf",
+   "block": 61,
+   "verifyGas": 90474,
+   "totalGas": 3296553,
+   "attempts": 1
+  },
+  {
+   "step": "shield note B, master key",
+   "hash": "0xed8078bb7ed15a954be8b69103af38dbbd7c1e80539756890d23a37e4d35f2cb",
+   "block": 65,
+   "verifyGas": 91506,
+   "totalGas": 1132821,
+   "attempts": 1
+  },
+  {
+   "step": "unshield note A",
+   "hash": "0x7b1fdcaf35dd1ebb80e4dfef3d0fd99e826eff2d72ab145a900d93e50fc67de2",
+   "block": 69,
+   "verifyGas": 289688,
+   "totalGas": 627478,
+   "attempts": 1
+  },
+  {
+   "step": "unshield note B, proved 30 deposits ago",
+   "hash": "0x36a192ebb1877ecb851f2e6e896c27f62645e96cff05c7cc41cb46207cf29487",
+   "block": 73,
+   "verifyGas": 289688,
+   "totalGas": 443902,
+   "attempts": 1
+  },
+  {
+   "step": "shield note C, master key",
+   "hash": "0x26b63c3fa84cb94ca81424ebb2b60524b8f80e4c950db67e5a6ab4e8939151a5",
+   "block": 75,
+   "verifyGas": 90558,
+   "totalGas": 1023311,
+   "attempts": 1
+  },
+  {
+   "step": "unshield note C, proved again",
+   "hash": "0x2a56c098167a614d5b5da80ec683f37c35aff2331177c04f5cbd8d128aa28cd5",
+   "block": 78,
+   "verifyGas": 287494,
+   "totalGas": 441466,
+   "attempts": 1
+  },
+  {
+   "step": "shield a note on the small account",
+   "hash": "0xe05b099d6fe4a1574d6c20a0830123178a4cd7e9dc21ac54619cb8e1150418b0",
+   "block": 82,
+   "verifyGas": 90177,
+   "totalGas": 3296232,
+   "attempts": 1
+  },
+  {
+   "step": "shield note D, master key",
+   "hash": "0xe56bf47e540f6c4c5ec7a62ec2b8664030229d43bad4a0bb3caf2a727f824430",
+   "block": 85,
+   "verifyGas": 89496,
+   "totalGas": 1022273,
+   "attempts": 1
+  },
+  {
+   "step": "freeze, master key",
+   "hash": "0x37bfbbc93e0e7358b7aa92f43041be139eb645fd4d2ba223a361dde2dbe4430b",
+   "block": 88,
+   "verifyGas": 85917,
+   "totalGas": 167418,
+   "attempts": 1
+  },
+  {
+   "step": "unfreeze, master key",
+   "hash": "0x2af6aee6035b74d39633da267fa9b2974c57db8caf28bd55c06c5c7512c0f0a3",
+   "block": 91,
+   "verifyGas": 90996,
+   "totalGas": 167418,
+   "attempts": 1
+  },
+  {
+   "step": "escape, master key",
+   "hash": "0xcdde8da7b86a788b2950210979e1ad1dd94d57aa99c9439ede6630ed958f9c8a",
+   "block": 93,
+   "verifyGas": 87798,
+   "totalGas": 373080,
+   "attempts": 1
+  },
+  {
+   "step": "unfreeze after the escape, master key",
+   "hash": "0xb929ca21ebdb0ff33d3347d9d897fc15fe469925504f784912919bbbd03b1d2a",
+   "block": 96,
+   "verifyGas": 91377,
+   "totalGas": 167418,
+   "attempts": 1
+  }
+ ],
+ "refusals": [
+  {
+   "attack": "A deposit of the wrong size",
+   "refusal": "ValueNotConserved"
+  },
+  {
+   "attack": "A commitment outside the field",
+   "refusal": "CommitmentInvalid"
+  },
+  {
+   "attack": "Daily key shields the balance into a note it controls",
+   "refusal": "FrameNotAllowed"
+  },
+  {
+   "attack": "Daily key shields with no value in the frame",
+   "refusal": "EscapeKeyOutranks"
+  },
+  {
+   "attack": "Daily key unshields with no proof",
+   "refusal": "EscapeKeyOutranks"
+  },
+  {
+   "attack": "A corrupted proof",
+   "refusal": "ShieldProofInvalid"
+  },
+  {
+   "attack": "A seen proof, moved to the attacker's address",
+   "refusal": "ShieldProofInvalid"
+  },
+  {
+   "attack": "A proof made for another account",
+   "refusal": "ShieldProofInvalid"
+  },
+  {
+   "attack": "A proof claiming a larger denomination",
+   "refusal": "ShieldProofInvalid"
+  },
+  {
+   "attack": "A note in a tree of the attacker's own",
+   "refusal": "RootUnknown"
+  },
+  {
+   "attack": "A seen proof, with a frame added that pays the attacker",
+   "refusal": "ProofTxShapeInvalid"
+  },
+  {
+   "attack": "A seen proof, resent with a huge fee",
+   "refusal": "ProofTxCostExceeded"
+  },
+  {
+   "attack": "A seen proof, on a nonce key of the attacker's choosing",
+   "refusal": "ProofTxShapeInvalid"
+  },
+  {
+   "attack": "The same note again, on the next nonce",
+   "refusal": "NullifierSpent"
+  },
+  {
+   "attack": "A proof whose root has left the window",
+   "refusal": "RootUnknown"
+  },
+  {
+   "attack": "Daily spend reaching one wei into the notes",
+   "refusal": "ValueNotConserved, in the SENDER frame"
+  },
+  {
+   "attack": "A valid proof, while frozen",
+   "refusal": "AccountFrozen"
+  },
+  {
+   "attack": "A deposit, while frozen",
+   "refusal": "AccountFrozen"
+  },
+  {
+   "attack": "A valid proof, after the escape",
+   "refusal": "AccountFrozen"
+  },
+  {
+   "attack": "An old note, against money that arrived after the escape",
+   "refusal": "ValueNotConserved"
+  },
+  {
+   "attack": "A deposit into a closed pool",
+   "refusal": "PoolClosed"
+  }
+ ]
+}

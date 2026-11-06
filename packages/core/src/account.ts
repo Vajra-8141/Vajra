@@ -38,7 +38,7 @@ export interface Deployments {
   announcer: Address;
   registry: Address;
   /** The local mirror only: everything that needs the patched sidecar. */
-  v2?: { implementation: Address; factory: Address; recoveryVerifier: Address };
+  v2?: { implementation: Address; factory: Address; recoveryVerifier: Address; shieldVerifier: Address; poseidon: Address; denomination: string };
 }
 
 let active = deployed as unknown as Deployments;

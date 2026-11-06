@@ -11,6 +11,7 @@ import {
     SigParam
 } from "@forshtat/hegota-support/contracts/HegotaSupport.sol";
 import {Wots} from "./Wots.sol";
+import {PoolZeros} from "./PoolZeros.sol";
 
 /// What snarkjs generates for the recovery circuit, in `verifiers/`.
 interface IRecoveryVerifier {
@@ -20,11 +21,25 @@ interface IRecoveryVerifier {
         returns (bool);
 }
 
-/// VajraAccount, with recovery by proof. It runs on the local mirror only.
+/// What snarkjs generates for the unshield circuit, in `verifiers/`.
+interface IShieldVerifier {
+    function verifyProof(uint256[2] calldata a, uint256[2][2] calldata b, uint256[2] calldata c, uint256[6] calldata input)
+        external
+        view
+        returns (bool);
+}
+
+/// circomlibjs's generated Poseidon, the same function the circuit computes.
+interface IPoseidon {
+    function poseidon(uint256[2] calldata inputs) external pure returns (uint256);
+}
+
+/// VajraAccount, with recovery by proof and a shielded pool. It runs on the local mirror only.
 ///
 /// `VajraAccount.sol` is what is deployed on the public devnet, and it stays byte for byte as it is, so everything recorded
 /// against it stays true. This file starts from a copy, because recovery has to go through `executeQueued`, and that is
-/// not virtual. Every difference from the original is marked `V2:`.
+/// not virtual, and the pool's funds have to be kept out of `spend` and swept by `escape`, which are not virtual either. Every
+/// difference from the original is marked `V2:`.
 ///
 /// V2: a transaction authorized by a proof carries no signature, so nothing commits to its frames or its fee, and anyone
 /// who sees it in a mempool can resend it changed. VERIFY therefore pins all of it: see `_requireProofShape`.
@@ -63,6 +78,15 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
 
     /// V2: domain of the nonce key a recovery runs on.
     bytes32 private constant RECOVERY_TAG = keccak256("vajra.recovery.v1");
+    /// V2: domain of the nonce key an unshield runs on.
+    bytes32 private constant UNSHIELD_TAG = keccak256("vajra.unshield.v1");
+    /// V2: the BN254 scalar field. A leaf at or above it could never be proven.
+    uint256 private constant FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+    /// V2: levels in the pool's Poseidon tree, about a million notes.
+    uint256 public constant POOL_DEPTH = 20;
+    /// V2: how many recent roots an unshield may prove against. A proof takes time to reach a block and the tree moves under
+    /// it, and validity that hangs on fast-changing state costs the sender reputation with the mempool.
+    uint256 public constant ROOT_HISTORY = 32;
     /// V2: a 256-bit value goes into a proof as two limbs, because it does not fit in the BN254 scalar field.
     uint256 private constant LIMB = 1 << 128;
 
@@ -79,6 +103,11 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     address public immutable STAKING_REGISTRY;
     /// V2: the Groth16 verifier for the recovery circuit.
     IRecoveryVerifier public immutable RECOVERY_VERIFIER;
+    /// V2: the Groth16 verifier for the unshield circuit, and the hash the pool's tree uses.
+    IShieldVerifier public immutable SHIELD_VERIFIER;
+    IPoseidon public immutable POSEIDON;
+    /// V2: the one size of note. Every note being the same size is what stops an amount linking a withdrawal to a deposit.
+    uint256 public immutable DENOMINATION;
     /// V2: the most a transaction authorized by a proof may cost the account. See `_requireProofShape`.
     uint256 public immutable MAX_PROOF_TX_COST;
 
@@ -157,6 +186,15 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         uint64 recoveryDelay;
         mapping(uint256 nullifier => bool) recoverySpent;
         mapping(uint256 id => bool) isRecovery;
+        /// What the notes in the pool are owed. Inside the account's balance, and out of reach of everything but `unshield`
+        /// and `escape`.
+        uint256 poolHeld;
+        uint32 nextNote;
+        uint32 rootCursor;
+        bool poolClosed;
+        mapping(uint256 level => uint256) filled;
+        uint256[ROOT_HISTORY] roots;
+        mapping(uint256 nullifierHash => bool) noteSpent;
     }
 
     // ------------------------------------------------------------------------------------- events and errors ------
@@ -181,6 +219,9 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     event HarborChanged(bytes32 commitment);
     event RecoverySet(uint256 commitment, uint64 delay);
     event RecoveryInstalled(uint256 indexed id, bytes32 newRoot);
+    event Shielded(uint256 indexed commitment, uint256 leaf, uint256 root);
+    event Unshielded(uint256 indexed nullifierHash, address indexed recipient);
+    event PoolDrained(address indexed harbor, uint256 amount);
 
     // The refusal registry, spec §3.
     error AccountFrozen();
@@ -215,13 +256,31 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     error NullifierSpent(uint256 nullifier);
     error ProofTxShapeInvalid();
     error ProofTxCostExceeded(uint256 cost);
+    error ShieldProofInvalid();
+    error RootUnknown(uint256 root);
+    error ValueNotConserved();
+    error CommitmentInvalid();
+    error PoolFull();
+    error PoolClosed();
 
     // ---------------------------------------------------------------------------------------- construction --------
 
     /// The implementation holds no account of its own. It is locked here, and clones initialize through the factory.
-    constructor(uint256 logW, uint256 len2, address stakingRegistry, address recoveryVerifier, uint256 maxProofTxCost) {
+    constructor(
+        uint256 logW,
+        uint256 len2,
+        address stakingRegistry,
+        address recoveryVerifier,
+        address shieldVerifier,
+        address poseidon,
+        uint256 denomination,
+        uint256 maxProofTxCost
+    ) {
         STAKING_REGISTRY = stakingRegistry;
         RECOVERY_VERIFIER = IRecoveryVerifier(recoveryVerifier);
+        SHIELD_VERIFIER = IShieldVerifier(shieldVerifier);
+        POSEIDON = IPoseidon(poseidon);
+        DENOMINATION = denomination;
         MAX_PROOF_TX_COST = maxProofTxCost;
         LOG_W = logW;
         LEN2 = len2;
@@ -275,6 +334,10 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         if (scope != Scope.EXECUTION) {
             uint256 cost = txparam(TxParam.MAX_COST);
             if (cost > s.maxDailyTxCost) revert DailyTxCostExceeded(cost);
+            // V2: fees are paid from the same balance the pool sits in. Without this a thief could burn the notes as gas. Only
+            // a staked sender may read its balance in validation, so an account with a pool has to be staked.
+            uint256 held = s.poolHeld;
+            if (held != 0 && address(this).balance < held + cost) revert ValueNotConserved();
         }
 
         uint256 frames = txparam(TxParam.FRAME_COUNT);
@@ -407,6 +470,41 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
 
     function _verifyRecovery(uint256[8] calldata p, uint256[8] memory input) private view returns (bool) {
         return RECOVERY_VERIFIER.verifyProof([p[0], p[1]], [[p[2], p[3]], [p[4], p[5]]], [p[6], p[7]], input);
+    }
+
+    /// V2: VERIFY frame for an unshield. The proof is the authority here too: whoever holds a note can spend it, with no key,
+    /// so that no signature ties the withdrawal to anyone. A freeze stops it here, before it can reach a mempool.
+    function validateUnshield(uint256[8] calldata proof) external {
+        Layout storage s = _layout();
+        if (s.frozen) revert AccountFrozen();
+
+        uint256 root = uint256(framedataload(4, 1));
+        uint256 nullifierHash = uint256(framedataload(36, 1));
+        uint256 recipient = uint256(framedataload(68, 1));
+        if (s.noteSpent[nullifierHash]) revert NullifierSpent(nullifierHash);
+        _requireProofShape(this.unshield.selector, 100, keccak256(abi.encodePacked(UNSHIELD_TAG, nullifierHash)));
+        if (!_isKnownRoot(s, root)) revert RootUnknown(root);
+
+        // The fee comes out of the account's own balance, so the balance has to cover the notes as well as the fee.
+        uint256 held = s.poolHeld;
+        if (held < DENOMINATION || address(this).balance < held + txparam(TxParam.MAX_COST)) revert ValueNotConserved();
+
+        uint256[6] memory input = [root, nullifierHash, recipient, DENOMINATION, uint256(uint160(address(this))), block.chainid];
+        if (!_verifyShield(proof, input)) revert ShieldProofInvalid();
+
+        approve(Scope.EXECUTION_AND_PAYMENT);
+    }
+
+    function _verifyShield(uint256[8] calldata p, uint256[6] memory input) private view returns (bool) {
+        return SHIELD_VERIFIER.verifyProof([p[0], p[1]], [[p[2], p[3]], [p[4], p[5]]], [p[6], p[7]], input);
+    }
+
+    function _isKnownRoot(Layout storage s, uint256 root) private view returns (bool) {
+        if (root == 0) return false;
+        for (uint256 i; i < ROOT_HISTORY; ++i) {
+            if (s.roots[i] == root) return true;
+        }
+        return false;
     }
 
     /// V2: what stands in for a signature on a transaction authorized by a proof.
@@ -587,6 +685,13 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         }
         (bool sent,) = harbor.call{value: address(this).balance}("");
         if (!sent) emit SweepFailed(address(0));
+        // V2: `balance` included the pool, so the notes have been paid to the harbor. A note must not be able to claim anything
+        // that arrives later, so the pool closes for good. If the harbor refused, the money is still here and so are the notes.
+        if (sent) {
+            emit PoolDrained(harbor, s.poolHeld);
+            s.poolHeld = 0;
+            s.poolClosed = true;
+        }
         emit Escaped(harbor);
     }
 
@@ -626,6 +731,60 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         emit Queued(id, address(0), address(0), uint256(newRoot), executeAfter, QueueReason.Recovery);
     }
 
+    /// V2: puts one note in the pool. Anyone may pay in, and the more who do, the larger the set a withdrawal hides among, but
+    /// the pool belongs to this account: its master key can sweep every note to the harbor. A daily key cannot reach this,
+    /// since `validateDaily` allows neither the selector nor a value.
+    ///
+    /// @param commitment Poseidon(secret, nullifierSeed).
+    function shield(uint256 commitment) external payable {
+        Layout storage s = _layout();
+        if (s.frozen) revert AccountFrozen();
+        if (s.poolClosed) revert PoolClosed();
+        if (msg.value != DENOMINATION) revert ValueNotConserved();
+        if (commitment == 0 || commitment >= FIELD) revert CommitmentInvalid();
+        uint256 leaf = s.nextNote;
+        if (leaf == 1 << POOL_DEPTH) revert PoolFull();
+
+        uint256 node = commitment;
+        uint256 index = leaf;
+        for (uint256 level; level < POOL_DEPTH; ++level) {
+            uint256 left;
+            uint256 right;
+            if (index & 1 == 0) {
+                s.filled[level] = node;
+                left = node;
+                right = PoolZeros.at(level);
+            } else {
+                left = s.filled[level];
+                right = node;
+            }
+            node = POSEIDON.poseidon([left, right]);
+            index >>= 1;
+        }
+
+        uint32 cursor = s.rootCursor;
+        s.roots[cursor] = node;
+        s.rootCursor = uint32((cursor + 1) % ROOT_HISTORY);
+        s.nextNote = uint32(leaf + 1);
+        s.poolHeld += msg.value;
+        // A master key paying in from this account must have the money to back it.
+        if (address(this).balance < s.poolHeld) revert ValueNotConserved();
+        emit Shielded(commitment, leaf, node);
+    }
+
+    /// V2: the SENDER half of an unshield. Its arguments are what VERIFY checked the proof against.
+    function unshield(uint256 root, uint256 nullifierHash, address recipient) external onlySelf {
+        Layout storage s = _layout();
+        if (s.frozen) revert AccountFrozen();
+        if (s.noteSpent[nullifierHash]) revert NullifierSpent(nullifierHash);
+        if (!_isKnownRoot(s, root)) revert RootUnknown(root);
+        if (s.poolHeld < DENOMINATION) revert ValueNotConserved();
+        s.noteSpent[nullifierHash] = true;
+        s.poolHeld -= DENOMINATION;
+        _transfer(address(0), recipient, DENOMINATION);
+        emit Unshielded(nullifierHash, recipient);
+    }
+
     /// Replaces a daily key known to be stolen.
     function setDailyKey(address newKey) external onlySelf {
         Layout storage s = _layout();
@@ -660,6 +819,8 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     function _transfer(address asset, address recipient, uint256 amount) private {
         bool ok;
         if (asset == address(0)) {
+            // V2: what the notes are owed is not this account's to spend, whichever rule let the spend through.
+            if (address(this).balance < amount + _layout().poolHeld) revert ValueNotConserved();
             (ok,) = recipient.call{value: amount}("");
         } else {
             ok = _tokenTransfer(asset, recipient, amount);
@@ -751,6 +912,33 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
 
     function recoverySpent(uint256 nullifier) external view returns (bool) {
         return _layout().recoverySpent[nullifier];
+    }
+
+    function poolHeld() external view returns (uint256) {
+        return _layout().poolHeld;
+    }
+
+    function poolClosed() external view returns (bool) {
+        return _layout().poolClosed;
+    }
+
+    function noteCount() external view returns (uint256) {
+        return _layout().nextNote;
+    }
+
+    function noteSpent(uint256 nullifierHash) external view returns (bool) {
+        return _layout().noteSpent[nullifierHash];
+    }
+
+    function isKnownRoot(uint256 root) external view returns (bool) {
+        return _isKnownRoot(_layout(), root);
+    }
+
+    /// The newest root, or the empty tree's if nothing has been shielded.
+    function poolRoot() external view returns (uint256) {
+        Layout storage s = _layout();
+        if (s.nextNote == 0) return PoolZeros.at(POOL_DEPTH);
+        return s.roots[(s.rootCursor + ROOT_HISTORY - 1) % ROOT_HISTORY];
     }
 
     function isRecovery(uint256 id) external view returns (bool) {

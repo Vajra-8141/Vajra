@@ -97,12 +97,17 @@ export interface CreateOptions {
   fund: string;
 }
 
+/** Strictly above the sidecar's 0.01 minimum: the check that lets a staked entity read its own balance is a strict one. */
+export const V2_STAKE = parseEther("0.012");
+
 export async function createWallet(o: CreateOptions): Promise<Wallet> {
   if (loadWallet()) throw new Error("an account already exists on this machine");
   const device = useDevice() ? await theDevice() : null;
   const root = device ? (await device.info()).root : masterSigner().root;
   const harborSalt = bytesToHex(randomBytes(32));
-  const { w16, genesis } = deployments();
+  const { w16, v2, genesis } = deployments();
+  // On the mirror an account is a V2 one, staked, because a pairing check needs the staked budget. The public devnet has no V2.
+  const factory = v2?.factory ?? w16.factory;
   const funder = loadOrCreateKey(keyPath("deployer.key"));
   const config = {
     dailyKey: o.dailyKey,
@@ -115,11 +120,12 @@ export async function createWallet(o: CreateOptions): Promise<Wallet> {
     assets: [ETH],
     dailyLimits: [parseEther(o.dailyLimit)],
     coolingAllowances: [parseEther(o.coolingAllowance)],
+    ...(v2 ? { stake: V2_STAKE, unstakeDelay: 86_400 } : {}),
   };
-  const account = await predictAccount(w16.factory, config);
+  const account = await predictAccount(factory, config);
   // Pairing comes first, so a missed press cannot leave a funded account that no signer answers for.
   if (device) await device.pair(account, DEVNET.chainId, genesis);
-  await createAccount(funder, w16.factory, config, parseEther(o.fund));
+  await createAccount(funder, factory, config, parseEther(o.fund));
   const wallet: Wallet = { account, harbor: o.harbor, harborSalt };
   writeFileSync(walletPath, JSON.stringify(wallet, null, 1), { mode: 0o600 });
   return wallet;
@@ -235,6 +241,24 @@ export async function runMasterOp(request: MasterOp, log: (line: string) => void
     hashes: signed.hashes,
     leavesLeft: rotating ? ROTATION_LEAF : signer.leavesLeft,
   };
+}
+
+/** One master transaction, for a call that is not in `MasterOp`: the mirror's V2 operations. Software signer only. */
+export async function runCalls(calls: Call[], op: string, log: (line: string) => void = () => {}): Promise<MasterResult> {
+  if (useDevice()) throw new Error("the hardware signer does not know this operation, and it signs nothing it cannot show");
+  const wallet = requireWallet();
+  const signer = masterSigner();
+  const { epochSalt } = await assertRootMatches(signer, wallet.account);
+  const leaf = await claimLeaf({ root: signer.root, leaf: signer.nextLeaf(false), account: wallet.account, op, canSkip: true, log });
+  const signed = signMasterTx({ signer, account: wallet.account, epochSalt, calls, leaf, maxHashes: MAX_HASHES });
+  const use = { root: signer.root, leaf, account: wallet.account, digest: signed.digest, signature: signer.sign(leaf, signed.digest), op };
+  const { hash, receipt } = await submit(signed.tx, { log }).catch(async (error: Error) => {
+    await publishUse(use, log);
+    throw error;
+  });
+  await publishUse({ ...use, txHash: hash }, log);
+  if (!framesSucceeded(receipt)) throw new Error(`${hash} was mined but a frame failed`);
+  return { hash, block: Number(receipt.blockNumber), verifyGas: Number(BigInt(receipt.frameReceipts[0]!.gasUsed)), leaf: signed.leaf, hashes: signed.hashes, leavesLeft: signer.leavesLeft };
 }
 
 export interface WalletStatus {

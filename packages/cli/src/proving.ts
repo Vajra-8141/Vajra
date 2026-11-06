@@ -16,6 +16,8 @@ export const FIELD = 21888242871839275222246405745257275088548364400416034343698
 
 const LIMB = 1n << 128n;
 
+const zeros = JSON.parse(readFileSync(new URL("../../core/src/pool-zeros.json", import.meta.url), "utf8")) as string[];
+
 export const limbs = (value: Hex): [bigint, bigint] => [BigInt(value) / LIMB, BigInt(value) % LIMB];
 
 const poseidonReady = buildPoseidon();
@@ -83,4 +85,62 @@ export async function proveRecovery(s: RecoveryStatement): Promise<Proved & { nu
     nullifier,
   });
   return { ...proved, nullifier };
+}
+
+export const POOL_DEPTH = 20;
+
+export interface Note {
+  secret: bigint;
+  nullifierSeed: bigint;
+}
+
+export const newNote = (): Note => ({ secret: randomFieldElement(), nullifierSeed: randomFieldElement() });
+export const noteCommitment = (note: Note) => poseidon(note.secret, note.nullifierSeed);
+export const noteNullifier = (note: Note) => poseidon(note.nullifierSeed);
+
+/** The pool's tree as the contract builds it, rebuilt from its `Shielded` events. Only the filled part is ever hashed. */
+export async function poolPath(leaves: bigint[], leaf: number): Promise<{ root: bigint; pathElements: bigint[]; pathIndices: number[] }> {
+  if (leaf >= leaves.length) throw new Error(`leaf ${leaf} is not in a tree of ${leaves.length}`);
+  let level = leaves;
+  let index = leaf;
+  const pathElements: bigint[] = [];
+  const pathIndices: number[] = [];
+  for (let depth = 0; depth < POOL_DEPTH; depth++) {
+    const zero = BigInt(zeros[depth]!);
+    pathElements.push(level[index ^ 1] ?? zero);
+    pathIndices.push(index & 1);
+    const next: bigint[] = [];
+    for (let i = 0; i < level.length; i += 2) next.push(await poseidon(level[i]!, level[i + 1] ?? zero));
+    level = next;
+    index >>= 1;
+  }
+  return { root: level[0]!, pathElements, pathIndices };
+}
+
+export interface UnshieldStatement {
+  note: Note;
+  leaves: bigint[];
+  leaf: number;
+  recipient: Address;
+  denomination: bigint;
+  account: Address;
+  chainId: number;
+}
+
+export async function proveUnshield(s: UnshieldStatement): Promise<Proved & { root: bigint; nullifierHash: bigint }> {
+  const { root, pathElements, pathIndices } = await poolPath(s.leaves, s.leaf);
+  const nullifierHash = await noteNullifier(s.note);
+  const proved = await prove("unshield", {
+    secret: s.note.secret,
+    nullifierSeed: s.note.nullifierSeed,
+    pathElements,
+    pathIndices,
+    root,
+    nullifierHash,
+    recipient: BigInt(s.recipient),
+    denomination: s.denomination,
+    accountAddr: BigInt(s.account),
+    chainId: BigInt(s.chainId),
+  });
+  return { ...proved, root, nullifierHash };
 }

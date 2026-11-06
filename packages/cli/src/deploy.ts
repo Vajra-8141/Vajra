@@ -20,6 +20,9 @@ if (isLocalStack && existsSync(deploymentsPath)) useDeployments(JSON.parse(readF
 /** The most a proof transaction may cost an account, since nothing signs its fee. Well above what one needs at 2 gwei. */
 const MAX_PROOF_TX_COST = parseEther("0.02");
 
+/** The one size of note on the mirror. */
+const DENOMINATION = parseEther("0.01");
+
 /** Each implementation costs ~20M gas. `only` redeploys one part and keeps the addresses of the rest. */
 export async function deploy(only?: string) {
   const key = loadOrCreateKey(keyPath("deployer.key"));
@@ -29,7 +32,7 @@ export async function deploy(only?: string) {
 
   async function create(name: string, args: unknown[], value = 0n): Promise<Address> {
     const { abi, bytecode } = load(name);
-    const hash = await wallet.deployContract({ abi, bytecode, args: args as never, value, gas: 30_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" });
+    const hash = await wallet.deployContract({ abi, bytecode, args: args as never, value, gas: name === "VajraAccountV2" ? 45_000_000n : 30_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" });
     const receipt = await waitForSuccess(hash, `deploying ${name}`);
     console.log(`${name} ${receipt.contractAddress}, ${receipt.gasUsed} gas`);
     return receipt.contractAddress!;
@@ -67,9 +70,11 @@ export async function deploy(only?: string) {
   }
   if (isLocalStack && want("v2")) {
     const recoveryVerifier = await create("RecoveryVerifier", []);
-    const implementation = await create("VajraAccountV2", [4, 3, DEVNET.stakingRegistry, recoveryVerifier, MAX_PROOF_TX_COST]);
+    const shieldVerifier = await create("ShieldVerifier", []);
+    const poseidon = await create("PoseidonT3", []);
+    const implementation = await create("VajraAccountV2", [4, 3, DEVNET.stakingRegistry, recoveryVerifier, shieldVerifier, poseidon, DENOMINATION, MAX_PROOF_TX_COST]);
     const factory = await create("VajraFactory", [implementation]);
-    out.v2 = { implementation, factory, recoveryVerifier };
+    out.v2 = { implementation, factory, recoveryVerifier, shieldVerifier, poseidon, denomination: DENOMINATION.toString() };
   }
   writeFileSync(deploymentsPath, JSON.stringify(out, null, 1) + "\n");
   useDeployments(out as never);

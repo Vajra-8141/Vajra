@@ -123,9 +123,33 @@ switch (command) {
   case "measure":
   case "pin":
   case "budget":
-  case "recover":
     await import(`./${command}.ts`);
     break;
+  case "shielded":
+    await import("./shielded.ts");
+    break;
+  case "shield":
+    await (await import("./shield.ts")).shieldCommand();
+    break;
+  case "unshield":
+    await (await import("./shield.ts")).unshieldCommand(rest[0] as Address);
+    break;
+  case "recover-setup": {
+    const { recoverSetup } = await import("./recovery.ts");
+    await recoverSetup({ delay: BigInt(flags.delay ?? 172_800), out: flags.out });
+    break;
+  }
+  case "recover-prove": {
+    const { recoverProve } = await import("./recovery.ts");
+    await recoverProve({ secretFile: flags.secret, out: flags.out, account: flags.account as Address | undefined });
+    break;
+  }
+  case "recover": {
+    // With a proof this is the real thing, on your account. Without one it is the whole story on a fresh account.
+    if (flags.proof) await (await import("./recovery.ts")).recover({ proofFile: flags.proof });
+    else await import("./recover.ts");
+    break;
+  }
   default:
     console.error(`usage: vajra <command>
 
@@ -136,8 +160,14 @@ master:   veto <id> | freeze | unfreeze | escape | rotate | set-daily <address>
 service:  bridge
 signer:   device | device wipe          (VAJRA_SIGNER=device keeps the master key on the hardware)
 registry: leaves [root]                 (what Arkiv knows about a key tree; needs no keys)
+recovery: recover-setup [--delay s] [--out file] | recover-prove --secret file [--out file] | recover --proof file
+          recover                        (no flags: the whole story on a fresh account, with every attack)
+pool:     shield | unshield <recipient>  (one note in, one note out)
+          shielded                       (the whole pool on a fresh account, with every attack)
+          These need the mirror: VAJRA_STACK=local.
 devnet:   deploy [w16|w256|stealth] | e2e | device-e2e | stealth | measure | pin | budget | arkiv`);
     process.exit(1);
 }
 
 if (command !== "bridge") await closeDevice();
+if (command?.startsWith("recover") || command === "shield" || command === "unshield") await (await import("./proving.ts")).stopProver();
