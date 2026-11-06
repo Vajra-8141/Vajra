@@ -10,7 +10,7 @@ for (const route of (process.env.ROUTES ?? "passthrough,tor,nym").split(",")) {
   page.on("pageerror", (e) => errors.push(String(e).slice(0, 180)));
   await page.addInitScript((r) => localStorage.setItem("vajra.reads", r), route);
   const started = Date.now();
-  await page.goto("http://localhost:3000/scanner");
+  await page.goto(`${process.env.BASE ?? "http://localhost:3000"}/scanner`);
   const dot = page.locator(".reads .dot");
   let state = "starting";
   while (Date.now() - started < Number(process.env.LIMIT ?? 75_000)) {

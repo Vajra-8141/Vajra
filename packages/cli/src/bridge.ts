@@ -10,6 +10,7 @@
 import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
 import { ETH, RpcError, readAccount, refusalName } from "@vajra/core";
 import { formatEther } from "viem";
+import { NotOnMirror, attackList, demoExecute, demoReset, demoSpend, demoThief, health, inTurn, labList, mirrorOnly, runAttack, runLab, runRace } from "./demo.ts";
 import { createWallet, lastSigned, loadWallet, runMasterOp, theDevice, walletStatus } from "./wallet.ts";
 
 const LANE = Number(process.env.VAJRA_LANE ?? 0) * 100;
@@ -58,6 +59,17 @@ async function pushQueueToScreen() {
   await device.show(`${formatEther(first.amount)} ${asset} ${left}`);
 }
 
+/** The mirror's demo routes. Each is refused here, before any chain call, on anything but the mirror. */
+const MIRROR_ROUTES: Record<string, (request: never) => Promise<unknown>> = {
+  "/demo/spend": demoSpend,
+  "/demo/thief": demoThief,
+  "/demo/execute": demoExecute,
+  "/demo/reset": demoReset,
+  "/attacks/run": runAttack,
+  "/lab/run": runLab,
+  "/lab/race": runRace,
+};
+
 export function startBridge() {
   setInterval(() => void pushQueueToScreen().catch(() => {}), 15_000);
   const server = createServer(async (req, res) => {
@@ -79,6 +91,15 @@ export function startBridge() {
     try {
       if (req.method === "GET" && req.url === "/status") return send(res, 200, await walletStatus());
       if (req.method === "GET" && req.url === "/signed") return send(res, 200, lastSigned());
+      if (req.method === "GET" && req.url === "/health") return send(res, 200, await health());
+      if (req.method === "GET" && req.url === "/attacks") return send(res, 200, (mirrorOnly(), attackList()));
+      if (req.method === "GET" && req.url === "/lab") return send(res, 200, (mirrorOnly(), labList()));
+      const mirrorRoute = req.method === "POST" ? MIRROR_ROUTES[req.url ?? ""] : undefined;
+      if (mirrorRoute) {
+        mirrorOnly();
+        const request = (await body(req)) as never;
+        return send(res, 200, await inTurn(() => mirrorRoute(request)));
+      }
       if (req.method === "POST" && req.url === "/create") return send(res, 200, await createWallet((await body(req)) as never));
       if (req.method === "POST" && req.url === "/master") {
         const request = (await body(req)) as never;
@@ -90,7 +111,7 @@ export function startBridge() {
       return send(res, 404, { error: "NotFound" });
     } catch (error) {
       console.log("refused:", (error as Error).message);
-      return send(res, 400, refusal(error));
+      return send(res, error instanceof NotOnMirror ? 403 : 400, refusal(error));
     }
   });
   server.listen(PORT, "127.0.0.1", () => console.log(`bridge on http://127.0.0.1:${PORT}, answering ${ORIGIN}`));

@@ -6,6 +6,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { type Address, formatEther, parseEther } from "viem";
 import { DEVNET, LEGACY_GAS_PRICE, deployments, isLocalStack, publicClient, waitForSuccess, walletFor } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
+import { DEMO_ACCOUNT } from "./demo.ts";
 import { deploy, keyPath } from "./deploy.ts";
 import { createWallet, localDailyAddress, runMasterOp } from "./wallet.ts";
 
@@ -27,7 +28,7 @@ await waitForSuccess(
 );
 
 const harbor: Address = privateKeyToAccount(generatePrivateKey()).address;
-const wallet = await createWallet({ dailyKey: localDailyAddress(), harbor, dailyLimit: "0.1", coolingAllowance: "0.01", queueDelay: 60, coolingPeriod: 30, fund: "2" });
+const wallet = await createWallet({ ...DEMO_ACCOUNT, dailyKey: localDailyAddress(), harbor });
 const first = await runMasterOp({ op: "freeze" });
 await runMasterOp({ op: "unfreeze" });
 
@@ -39,6 +40,8 @@ Demo account ${wallet.account}, ${formatEther(await publicClient.getBalance({ ad
 Explorer http://127.0.0.1:18080
 
 This is the local mirror, not the public devnet. It has its own chain id, and nothing here is public-devnet evidence.
+
+Next: make dashboard, then open http://localhost:3000. It walks through the theft with no wallet to set up.
 
     alias vajra='VAJRA_STACK=local node packages/cli/src/main.ts'
 

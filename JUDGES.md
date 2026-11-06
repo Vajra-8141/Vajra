@@ -47,7 +47,7 @@ Times are from one machine, on a warm mirror.
 | The same proof on the sidecar as deployed and as patched | `make unpatched`, then `vajra compare` | 2 min | refused, refused, mined |
 | The flaw in the contract as first deployed, and its fix | `vajra nonce-burn`, then `vajra nonce-burn fixed` | 2 min | 64 of 64 leaves burned and the escape refused, then 0 of 64 and admitted |
 | A stealth payer taking the money back, and the fix | `vajra stealth-theft`, then `vajra stealth-theft fixed` | 1 min | 25 of 25 taken, then `CoSignerRequired` and 0 taken |
-| The dashboard, on the mirror | `make dashboard`, then http://localhost:3000 | 30 s | a banner saying it is local. Use a wallet holding `.vajra-local/daily.key` |
+| The dashboard, on the mirror | `make dashboard`, then http://localhost:3000 | 30 s | the theft as six steps, with no wallet to set up. See below |
 | Releasing a queued payment early, and the race that must not pay twice | `vajra pay-e2e` | 40 s | 0 failures |
 | The phone alert, with a local stand-in for Telegram's servers | `vajra watch-e2e` | 1 min | a stranger refused, Pay refused on software, then cancel and pay both land |
 | The phone alert, for real | a bot from @BotFather, `TELEGRAM_BOT_TOKEN` in `.env`, then `vajra watch` | | Tried on Nov 6 with a real bot and a real phone, on the mirror: two **Not me** taps cancelled, one **Pay, it's me** tap paid 0.5 ETH. Pay used the software signer (`--allow-software-pay`). **Not me** also passed on the public devnet |
@@ -67,6 +67,32 @@ Tests that need no chain:
 
     pnpm install && git submodule update --init
     pnpm test && pnpm test:contracts && pnpm test:firmware
+
+## The dashboard, with no wallet
+
+`make dashboard` opens on the theft as numbered steps. Each tick comes from the chain or the mempool, and every term has a tooltip. If something is not running, the page shows a checklist with the next command instead of an error, and it clears by itself.
+
+| Page | What it does |
+|---|---|
+| The theft | The story: pay, steal, get the alert, cancel, and try to replace the hash key |
+| Try to break in | 17 real attacks through the bridge, each with its named refusal and the node's raw error. The same attacks `vajra e2e` builds, from `packages/cli/src/attacks.ts` |
+| Mempools | One signed transaction to the canonical and alt mempools side by side, with raw errors and gas per frame. Reuses `vajra pin` and `vajra budget` |
+| Lifecycle | New, Submitted, then Mined or Cancelled with a reason, and reputation, from the sidecar's `skandha_explorer` methods |
+| Proof | Every file in `docs/evidence/`, grouped by where it really ran |
+
+**The demo signer.** On the mirror the bridge signs as the daily key, with the throwaway key in `.vajra-local/daily.key`, so no wallet import is needed. The page labels it. It does not exist on the public chain: every demo route refuses unless the bridge runs with `VAJRA_STACK=local` and the node answers as chain 13370, and a dashboard built for the public chain shows no such button. To use your own wallet instead, import that key and open the Account page.
+
+**The phone in the story is a stand-in** drawn by the page, and it says so. No message is sent. Its button is real: a hash key veto, mined on the mirror. For the real alert, see `docs/DEMO.md`.
+
+**The gas limits.** The canonical path still refuses a validation prefix over 100,000. The mirror's patched sidecar keeps per-entity budgets of 100,000 and 1,000,000. The public alt mempool has since dropped its cap, so those budgets describe this mirror, not the public mempool, and the dashboard does not test the public one.
+
+Screenshots are in `docs/screenshots/`. The browser tests are in `apps/dashboard/test/`: `demo.mjs` runs everything above with no wallet in the page.
+
+## A read-only proof page
+
+    pnpm --filter @vajra/dashboard run export:proof
+
+This builds one static page into `apps/dashboard/out/`, from `docs/evidence/`: no wallet, no bridge, no chain reads. It labels each record as public, public before the reset, or mirror. It is built to be hosted, and it has not been.
 
 ## Reading a refusal
 

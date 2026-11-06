@@ -49,6 +49,7 @@ import {
   wotsSign,
 } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
+import { type AttackContext, attack, attacks } from "./attacks.ts";
 import { keyPath } from "./deploy.ts";
 
 const MAX_HASHES = 660;
@@ -154,73 +155,11 @@ let vetoTx: FrameTx;
 }
 
 console.log("\n4. every way a stolen daily key might reach past its rank");
-await refused("daily key calls escape", await dailySigned([ops.escape(thief, harborSalt)]), "EscapeKeyOutranks");
-await refused("daily key changes the harbor", await dailySigned([ops.setHarbor(keccak256("0x01"))]), "HarborImmutable");
-await refused("daily key rotates the master tree", await dailySigned([ops.rotateRoot(keccak256("0x02"))]), "EscapeKeyOutranks");
-await refused("daily key raises its own limit", await dailySigned([ops.setRule(ETH, parseEther("100"), parseEther("100"))]), "EscapeKeyOutranks");
-await refused("daily key replaces itself", await dailySigned([ops.setDailyKey(thief)]), "EscapeKeyOutranks");
-await refused("daily key vetoes", await dailySigned([ops.veto(0n)]), "EscapeKeyOutranks");
-await refused(
-  "daily key burns a master leaf's nonce key",
-  await signDailyTx({ ...dailyTx({ account, dailyKey: daily, nonce: 0n, calls: [ops.spend(ETH, daily, 0n)], verifyGas: 97_000n }), nonceSeq: 0n, nonceKeys: [leafNonceKey(signer.root, 63)] }, dailyPrivate),
-  "DailyNonceKeyInvalid",
-);
-await refused(
-  "daily key adds a second SENDER frame straight to the thief",
-  await dailySigned([ops.spend(ETH, friend, 1n), { target: thief, data: "0x", value: parseEther("0.003"), execution: 50_000n, state: 200_000n }]),
-  "FrameNotAllowed",
-);
-await refused(
-  "daily key attaches value to its call to the account",
-  await dailySigned([{ ...ops.spend(ETH, friend, 1n), value: parseEther("0.003") }]),
-  "FrameNotAllowed",
-);
-{
-  const nonce = BigInt(await publicClient.getTransactionCount({ address: account }));
-  const tx = dailyTx({ account, dailyKey: daily, nonce, calls: [ops.spend(ETH, thief, 1n)] });
-  const expensive = { ...tx, fees: { ...tx.fees, maxFeePerGas: 1_000_000_000_000n, maxPriorityFeePerGas: 1_000_000_000_000n } };
-  await refused("daily key burns the balance through fees", await signDailyTx(expensive, dailyPrivate), "DailyTxCostExceeded");
-}
-
-{
-  // Approving payment in a frame of its own, so that no frame carries the combined scope.
-  const nonce = BigInt(await publicClient.getTransactionCount({ address: account }));
-  const tx = dailyTx({ account, dailyKey: daily, nonce, calls: [ops.spend(ETH, thief, 1n)] });
-  const verify = (scope: number, flags: number) => ({
-    ...tx.frames[0]!,
-    flags,
-    // Small enough that the mempool's cap lets this through to the account's own check.
-    limits: { execution: 45_000n, state: 0n },
-    data: encodeFunctionData({ abi: accountAbi, functionName: "validateDaily", args: [scope] }),
-  });
-  const split = {
-    ...tx,
-    fees: { ...tx.fees, maxFeePerGas: 1_000_000_000_000n, maxPriorityFeePerGas: 1_000_000_000_000n },
-    frames: [verify(2, 2), verify(1, 1), tx.frames[1]!],
-  };
-  await refused("daily key splits approval across two frames to dodge the fee cap", await signDailyTx(split, dailyPrivate), "DailyTxCostExceeded");
-}
+const attackContext: AttackContext = { account, dailyPrivate, daily, harborSalt, root: signer.root, friend, thief };
+for (const a of attacks.filter((a) => a.group !== "outsider")) await refused(a.title, await a.build(attackContext), a.expected);
 
 console.log("\n5. an outsider with no key at all");
-{
-  const stranger = generatePrivateKey();
-  const nonce = BigInt(await publicClient.getTransactionCount({ address: account }));
-  const forged = await signDailyTx(dailyTx({ account, dailyKey: privateKeyToAccount(stranger).address, nonce, calls: [ops.spend(ETH, thief, 1n)] }), stranger);
-  await refused("a stranger signs as the daily key", forged, "NotDailyKey");
-}
-{
-  // Any signature the key ever made must be worthless here, even one for a message that has nothing to do with this.
-  const old = keccak256(toHex("a message the owner once signed on some website"));
-  const s = await sign({ hash: old, privateKey: dailyPrivate });
-  const packed = `0x${(s.yParity ?? 0).toString(16).padStart(2, "0")}${s.r.slice(2)}${s.s.slice(2)}` as Hex;
-  const nonce = BigInt(await publicClient.getTransactionCount({ address: account }));
-  const tx = dailyTx({ account, dailyKey: daily, nonce, calls: [ops.spend(ETH, thief, parseEther("0.0001"))] });
-  await refused(
-    "an old signature over an unrelated message",
-    { ...tx, signatures: [{ ...tx.signatures[0]!, msg: old, signature: packed }] },
-    "SignatureNotBoundToTransaction",
-  );
-}
+for (const id of ["stranger", "old-signature"]) await refused(attack(id).title, await attack(id).build(attackContext), attack(id).expected);
 
 console.log("\n6. one-time keys, layer by layer");
 {
@@ -256,13 +195,10 @@ console.log("\n6b. a stock wallet as the daily key");
   const signature = await wallet.signMessage({ message: { raw: walletMessage(unsigned) } });
   await mined("daily spend signed with personal_sign", withWalletSignature(unsigned, signature));
 
+  await refused(attack("moved-signature").title, await attack("moved-signature").build(attackContext), attack("moved-signature").expected);
+
   const next = BigInt(await publicClient.getTransactionCount({ address: account }));
   const honest = dailyTx({ account, dailyKey: daily, nonce: next, calls: [ops.spend(ETH, friend, 1n)] });
-  const approved = await wallet.signMessage({ message: { raw: walletMessage(honest) } });
-
-  const swapped = { ...withWalletSignature(honest, approved), frames: dailyTx({ account, dailyKey: daily, nonce: next, calls: [ops.spend(ETH, thief, 1n)] }).frames };
-  await refused("a wallet signature moved onto a different recipient", swapped, "SignatureNotBoundToTransaction");
-
   const stranger = privateKeyToAccount(generatePrivateKey());
   const forged = await stranger.signMessage({ message: { raw: walletMessage(honest) } });
   await refused("personal_sign from any other key", withWalletSignature(honest, forged), /signature/i);

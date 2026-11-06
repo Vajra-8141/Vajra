@@ -8,6 +8,9 @@ const ROUTE = process.env.ROUTE ?? "nym";
 /** With a real signer a person presses its button: each operation then waits for a file named after it in this directory. */
 const GATE = process.env.GATE;
 const SHOTS = process.env.SHOTS ?? "/tmp";
+const BASE = process.env.BASE ?? "http://localhost:3000";
+/** Arkiv, the recorded public hashes and the mainnet scanner are outside the mirror, so a run against it stays off them. */
+const MIRROR = process.env.VAJRA_STACK === "local";
 const STATE = process.env.VAJRA_STACK === "local" ? ".vajra-local" : ".vajra";
 const key = readFileSync(new URL(`../../../${STATE}/daily.key`, import.meta.url), "utf8").trim();
 const daily = privateKeyToAccount(key);
@@ -56,7 +59,7 @@ const waitFor = async (fn, what, ms = 150_000) => {
 };
 
 const started = Date.now();
-await page.goto("http://localhost:3000/");
+await page.goto(`${BASE}/account`);
 const up = await waitFor(async () => (await page.locator(".big").first().textContent({ timeout: 500 }).catch(() => "")).includes("ETH"), "the balance", 120_000);
 check(up, `the balance loaded over ${ROUTE} after ${((Date.now() - started) / 1000).toFixed(0)}s`);
 await shot("1-account");
@@ -117,6 +120,7 @@ await approve("veto", () => page.getByRole("button", { name: "Veto" }).first(), 
 check((await banner("ok")).includes("on chain"), `the master key vetoed it: ${await banner("ok")}${await banner("error")}`);
 
 // The page reads Arkiv after an operation. A row that says verified was checked in this browser, not taken from anyone.
+if (!MIRROR) {
 const leaves = page.locator(".leaves");
 const direct = page.getByRole("button", { name: "Read Arkiv directly" });
 if (ROUTE === "nym") {
@@ -128,6 +132,7 @@ const veto = leaves.locator("tbody tr", { hasText: "veto" }).first();
 await waitFor(async () => (await veto.count()) > 0 || (await leaves.textContent()).includes("did not answer"), "Arkiv to show the veto", 90_000);
 check((await veto.count()) > 0 && (await veto.textContent()).includes("signature verified"), `the veto is on Arkiv, verified in this browser: ${(await leaves.locator(".banner").first().textContent({ timeout: 500 }).catch(() => "")).slice(0, 90)}`);
 await shot("3b-arkiv");
+}
 
 await approve("freeze", () => page.getByRole("button", { name: "Freeze" }), async () => (await banner("frozen")).includes("Frozen"));
 check((await banner("frozen")).includes("Frozen"), "the freeze shows");
@@ -139,21 +144,23 @@ await shot("4-frozen");
 await approve("unfreeze", () => page.getByRole("button", { name: "Unfreeze" }), async () => (await banner("frozen")) === "");
 check((await banner("frozen")) === "", "the account unfroze");
 
-await page.goto("http://localhost:3000/proof");
+if (!MIRROR) {
+await page.goto(`${BASE}/proof`);
 await waitFor(async () => (await page.locator(".tag.good").count()) > 3, "live receipts", 60_000);
 check((await page.locator("text=on chain now").count()) > 3, `the proof page confirmed ${await page.locator("text=on chain now").count()} transactions live`);
 await shot("5-proof");
 
-await page.goto("http://localhost:3000/scanner");
+await page.goto(`${BASE}/scanner`);
 await waitFor(async () => (await page.locator(".reads .dot").getAttribute("class")).match(/ready|exposed/), "reads", 60_000);
 await page.fill("textarea", "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045\n0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2\n0x000000000000000000000000000000000000dEaD");
 await page.click("button.primary");
 await waitFor(async () => (await page.locator("tbody tr").count()) === 3, "the batch", 90_000);
 check((await page.locator("tbody tr").count()) === 3, `the batch scan finished: ${await page.locator("section.card h2").last().textContent().catch(() => "")}`);
 await shot("6-scanner");
+}
 
 await page.setViewportSize({ width: 400, height: 820 });
-await page.goto("http://localhost:3000/");
+await page.goto(`${BASE}/account`);
 const phoneReady = await waitFor(async () => (await page.locator(".big").first().textContent({ timeout: 500 }).catch(() => "")).includes("ETH"), "the account at phone width", 120_000);
 check(phoneReady, "the account view rendered at phone width");
 const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);

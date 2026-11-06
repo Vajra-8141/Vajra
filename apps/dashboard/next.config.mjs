@@ -6,8 +6,13 @@ try {
   // No key: reads use Arkiv's public endpoint, which has a small shared budget.
 }
 
+// `pnpm export:proof` builds only the *.export.tsx routes into out/: one static page, with no way to reach a bridge or a wallet.
+const proofExport = process.env.VAJRA_EXPORT === "proof" ? { output: "export", distDir: "out", pageExtensions: ["export.tsx"] } : {};
+
 /** @type {import("next").NextConfig} */
 export default {
   transpilePackages: ["@vajra/core"],
+  devIndicators: false,
   env: { NEXT_PUBLIC_ARKIV_KEY: process.env.ARKIV ?? "", NEXT_PUBLIC_VAJRA_STACK: process.env.VAJRA_STACK ?? "", NEXT_PUBLIC_VAJRA_LANE: process.env.VAJRA_LANE ?? "0" },
+  ...proofExport,
 };

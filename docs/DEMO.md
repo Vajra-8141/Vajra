@@ -92,7 +92,7 @@ Both signed the same account, on the same chain.
 
 ## If something breaks
 
-**MetaMask fails:** `vajra spend 0xAddress 0.0001` from a terminal, and say the wallet would sign the same thing.
+**MetaMask fails:** `vajra spend 0xAddress 0.0001` from a terminal, and say the wallet would sign the same thing. On the mirror, the first page runs the whole story with the demo signer and needs no wallet. Say that it is a demo signer.
 
 **The alert does not arrive:** the laptop beep and the red page come from the dashboard, which reads the same queue. Use the **Veto** button in the queue list, and say what you are doing. Check terminal 3 afterwards.
 
@@ -101,7 +101,7 @@ Both signed the same account, on the same chain.
     make judge
     make dashboard                                # own terminal. With a bot in .env it starts the watcher too
 
-Then the same beats with `VAJRA_STACK=local`, and say that it is local. The page shows a banner saying so. Reads are direct, not over Nym, and the proof page shows 0 confirmed, because it looks up public transactions.
+Then the same beats with `VAJRA_STACK=local`, and say that it is local. The page shows a banner saying so. Reads are direct, not over Nym, and the proof page does not look up public transactions from the mirror: it says so beside each one.
 
 **Nothing runs:** the proof page and `docs/evidence/`. The explorer keeps its history in memory, and a devnet reset wipes everything.
 

@@ -229,7 +229,7 @@ The tests that run against the devnet, and write to it:
 
     packages/core       WOTS, frame transactions, stealth payments, exposure. Runs in a browser and in Node.
     packages/cli        the wallet, the bridge, and the live test runs
-    apps/dashboard      Next.js: account, exposure scanner, proof page
+    apps/dashboard      Next.js: the guided theft, account, break-in panel, mempool panel, lifecycle, exposure scanner, proof page
     firmware            the ESP32 signer, and its logic as a portable library
     contracts           VajraAccount (deployed), VajraAccountV2 (local), Wots, VajraFactory, SponsorPaymaster, generated verifiers
     circuits            the two Groth16 circuits, their keys, and the build

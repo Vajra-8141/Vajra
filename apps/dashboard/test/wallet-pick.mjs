@@ -11,7 +11,7 @@ await page.addInitScript(() => {
   window.addEventListener("eip6963:requestProvider", announce);
   announce();
 });
-await page.goto("http://localhost:3000/");
+await page.goto(`${process.env.BASE ?? "http://localhost:3000"}/account`);
 const button = page.getByRole("button", { name: "Connect wallet" }).first();
 await button.waitFor({ timeout: 60_000 });
 await button.click();

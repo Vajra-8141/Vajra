@@ -13,7 +13,7 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? 
 const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
-await page.goto("http://localhost:3000/");
+await page.goto(`${process.env.BASE ?? "http://localhost:3000"}/account`);
 const panel = page.locator(".signed");
 await panel.waitFor({ timeout: 60_000 });
 const until = async (test, ms = 30_000) => {

@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { Chrome } from "../components/chrome";
+import { AccountProvider } from "../lib/account";
 import { ReadsProvider } from "../lib/reads";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "VAJRA",
-  description: "An Ethereum account with bank-account rules and a hash-based master key.",
+  description: "Keep your wallet. A stolen key gets a daily limit, and a hash key outranks it.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -13,7 +14,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <ReadsProvider>
-          <Chrome>{children}</Chrome>
+          <AccountProvider>
+            <Chrome>{children}</Chrome>
+          </AccountProvider>
         </ReadsProvider>
       </body>
     </html>

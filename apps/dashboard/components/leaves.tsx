@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Address, Hex } from "viem";
-import { DEVNET, routedFetch } from "@vajra/core";
+import { DEVNET, isLocalStack, routedFetch } from "@vajra/core";
 import { ARKIV_EXPLORER, LeafRegistry, type LeafSnapshot, leafState } from "@vajra/core/registry";
 
 /** A mixnet round trip is slow, and nothing is waiting to sign here. */
@@ -32,7 +32,21 @@ interface Props {
  * What Arkiv knows about this account's one-time keys. Every signature shown here was verified in this browser, so the page
  * takes nobody's word for it, including Arkiv's.
  */
-export function OneTimeKeys({ root, nextLeaf, writer, hardware, ready, directOnly, tick }: Props) {
+export function OneTimeKeys(props: Props) {
+  if (isLocalStack) {
+    return (
+      <section className="card leaves" aria-labelledby="leaves">
+        <h2 id="leaves">One-time keys on Arkiv</h2>
+        <p className="sub" style={{ marginTop: 0 }}>
+          Off on the mirror. Nothing here is published to Arkiv, so there is nothing to read. Next key: {props.nextLeaf === null ? "unknown" : `#${props.nextLeaf}`}.
+        </p>
+      </section>
+    );
+  }
+  return <ArkivKeys {...props} />;
+}
+
+function ArkivKeys({ root, nextLeaf, writer, hardware, ready, directOnly, tick }: Props) {
   const [allowed, setAllowed] = useState(false);
   const mustAsk = directOnly && !allowed;
   const registry = useMemo(

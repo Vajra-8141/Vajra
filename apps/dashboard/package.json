@@ -9,6 +9,7 @@
     "prebuild": "node scripts/copy-evidence.mjs",
     "build": "next build",
     "start": "next start",
+    "export:proof": "node scripts/copy-evidence.mjs && VAJRA_EXPORT=proof next build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
