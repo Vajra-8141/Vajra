@@ -240,7 +240,9 @@ const heldBefore = await held(account);
 const allBefore = await publicClient.getBalance({ address: account });
 done("escape", home, ["escape"]);
 const atTheHarbor = await publicClient.getBalance({ address: harbor });
-check(atTheHarbor > allBefore - parseEther("0.01") && atTheHarbor >= heldBefore && (await publicClient.getBalance({ address: account })) === 0n, `the account is empty, and the harbor holds all it had but the fee: ${formatEther(atTheHarbor)} ETH, ${formatEther(heldBefore)} of it what the notes were owed`);
+// A frame transaction refunds its unused gas after the frames have run, so the account gets that change back after the sweep, and it stays frozen.
+const leftBehind = await publicClient.getBalance({ address: account });
+check(atTheHarbor > allBefore - parseEther("0.01") && atTheHarbor >= heldBefore && leftBehind < parseEther("0.01"), `the harbor holds all the account had but the fee: ${formatEther(atTheHarbor)} ETH, ${formatEther(heldBefore)} of it what the notes were owed, and the account keeps only its gas refund, ${formatEther(leftBehind)} ETH`);
 const swept = done("rebuild after the escape", join(dir, "after-rotation"), ["notes-restore", "--account", account]);
 check(/swept to the harbor/.test(swept) && !/: in the pool/.test(swept), `no note reads as money still in the pool: ${line(swept, /\d+ notes found.*/)}`);
 await meter("after the escape", account, "This pool is closed");

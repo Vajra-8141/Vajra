@@ -171,9 +171,9 @@ and needs a new deployment:
     cd circuits && bash scripts/build.sh recovery RecoveryVerifier && bash scripts/build.sh unshield ShieldVerifier
     node scripts/gen-pool-constants.mjs && node scripts/gen-vectors.mjs
 
-### Why there is no shared pool
+### Why there is no shared pool yet
 
-A pool shared across accounts would hide a note among far more of them. It was on the list on one condition: that freeze and escape keep working. They cannot, so it was dropped for this hackathon. Nothing was built, so this is reasoning from the code and not a measurement.
+A pool shared across accounts would hide a note among far more of them. It was on the list on one condition: that freeze and escape keep working. A design check found they cannot, as they stand today, and the owner has put it on hold. Nothing was built, so this is reasoning from the code and not a measurement.
 
 `escape` sends the account's own balance, and it knows no notes. If a contract can tell which notes in a shared pool are one account's, so can everyone, and the set shrinks back to what it is today. If it cannot tell, a freeze could still work, because a spender can be made to prove their account is not frozen. An escape cannot: it would have to move notes it cannot find. A rescue is fixed bytes held by someone with no note secrets, so it would move nothing.
 

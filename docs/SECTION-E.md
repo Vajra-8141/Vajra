@@ -9,7 +9,7 @@ First written on 2026-11-07 at about 01:16 IST, when the owner stopped the work 
 | A thief hiding a theft from every alert, section 22 | **Found and fixed in the client, and two ways back in fixed after the review** |
 | 2. Nominee | **Built and reviewed, with the review's fixes in and passing on the mirror. One decision is left with the owner** |
 | 3. Better pool | **Being built on `section-e-pool` by a parallel agent. Not finished, not reviewed, and not in this branch** |
-| 4. Shared pool across accounts | Not started. The owner asked if it could run in parallel, and the advice was to wait for item 3 |
+| 4. Shared pool across accounts | **On hold, by the owner, until they say otherwise.** Nothing is built. A read-only design check is in `docs/ZK.md` |
 | leanSphincs-S as the exit's key, which the owner chose | **Decided, not built** |
 
 ## Commits on `section-e`
@@ -148,7 +148,7 @@ Run on `2bdbf85`, before the review's fixes, on one clean mirror, all with 0 fai
 4. Find out why the extension's approval window does not open here, or run that suite on a machine where it is known to pass.
 5. The owner decides: whether `escape` sweeps tokens last, the public redeploy for section 21, and updating any hosted dashboard for the reader fix.
 6. Build the exit contract for leanSphincs-S. The bench sender cannot take back its reserve, replace its key, or carry a recovery.
-7. Item 4, if the rules can hold.
+7. Item 4 is on hold until the owner says otherwise.
 
 ## Left running on the machine
 
