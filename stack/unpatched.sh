@@ -10,7 +10,7 @@ if [ ! -d "$work/sidecar-unpatched/.git" ]; then
 fi
 docker compose -f "$here/docker-compose.yml" --profile compare up -d --build sidecar-unpatched
 for _ in $(seq 1 60); do
-  curl -s -m 3 http://127.0.0.1:14338/rpc/ -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' | grep -q 0x343a && { echo "unpatched sidecar up: http://127.0.0.1:14338/rpc/"; exit 0; }
+  curl -s -m 3 "http://127.0.0.1:$VAJRA_UNPATCHED_PORT/rpc/" -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' | grep -q 0x343a && { echo "unpatched sidecar up: http://127.0.0.1:$VAJRA_UNPATCHED_PORT/rpc/"; exit 0; }
   sleep 1
 done
 echo "the unpatched sidecar did not come up" >&2

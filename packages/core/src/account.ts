@@ -37,6 +37,8 @@ export interface Deployments {
   paymaster: Address;
   announcer: Address;
   registry: Address;
+  /** The local mirror only. Both need the patched sidecar's staked budget. */
+  paymasters?: { quota: Address; usdc: Address; feeCap: string; usdcPerEth: string };
   /** The local mirror only: everything that needs the patched sidecar. */
   v2?: { implementation: Address; factory: Address; recoveryVerifier: Address; shieldVerifier: Address; poseidon: Address; denomination: string; noteFee: string; workBits: number };
 }

@@ -184,6 +184,15 @@ switch (command) {
   case "nonce-burn":
     await import("./nonce-burn.ts");
     break;
+  case "paymaster-e2e":
+    await import("./paymaster-e2e.ts");
+    break;
+  case "precompile-check":
+    await import("./precompile-check.ts");
+    break;
+  case "explain":
+    await (await import("./explain.ts")).explainCommand(rest[0] as Hex);
+    break;
   case "pay-e2e":
     await import("./pay-e2e.ts");
     break;
@@ -243,6 +252,8 @@ pool:     shield | unshield <recipient>  (one note in, one note out)
           compare                        (the same proof, offered to the sidecar as deployed and as patched)
           measure-zk                     (the gas rows for proofs)
           These need the mirror: VAJRA_STACK=local.
+gas:      explain <hash>                 (why a mined, pending or refused transaction went the way it did)
+          paymaster-e2e                  (both paymasters, every attack; needs the mirror)
 devnet:   deploy [w16|w256|stealth] | e2e | device-e2e | stealth | measure | pin | budget | arkiv`);
     process.exit(1);
 }

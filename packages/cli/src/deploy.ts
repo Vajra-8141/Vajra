@@ -1,6 +1,6 @@
 /** Deploys the implementations and factories. Safe to run again after a devnet reset: `pnpm vajra deploy`. */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { type Address, type Hex, concat, keccak256, numberToHex, parseEther, size } from "viem";
+import { type Address, type Hex, concat, encodeFunctionData, keccak256, numberToHex, parseAbi, parseEther, size } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { DEVNET, LEGACY_GAS_PRICE, genesisHash, isLocalStack, publicClient, useDeployments, waitForSuccess, walletFor } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
@@ -24,6 +24,23 @@ const MAX_PROOF_TX_COST = parseEther("0.005");
 /** Mirror runs attacks by the dozen, so it asks for less. A real user grinds once, for a few seconds. */
 const WORK_BITS = isLocalStack ? 10 : 18;
 const DENOMINATION = parseEther(isLocalStack ? "0.1" : "0.01");
+
+/** The paymasters' fee cap, and a price for the mirror's stand-in token. The price is a number we chose, and the contract says so. */
+export const PAYMASTER_FEE_CAP = 3_000_000_000n;
+const USDC_PER_ETH = 3_000_000_000n;
+const PAYMASTER_STAKE = parseEther("0.012");
+const PAYMASTER_FLOAT = parseEther("5");
+const ONE_DAY = 86_400;
+
+/** Stake is keyed on the caller, so the paymaster stakes for itself. Its gas float is a plain transfer. */
+export async function stakePaymaster(key: Hex, address: Address) {
+  const wallet = walletFor(key);
+  const send = { gas: 1_000_000n, gasPrice: LEGACY_GAS_PRICE, type: "legacy" } as const;
+  await waitForSuccess(await wallet.sendTransaction({ to: address, value: PAYMASTER_FLOAT, ...send }), "funding the paymaster");
+  const addStake = encodeFunctionData({ abi: parseAbi(["function addStake(uint32)"]), functionName: "addStake", args: [ONE_DAY] });
+  const data = encodeFunctionData({ abi: parseAbi(["function callRegistry(bytes) payable"]), functionName: "callRegistry", args: [addStake] });
+  await waitForSuccess(await wallet.sendTransaction({ to: address, data, value: PAYMASTER_STAKE, ...send }), "staking the paymaster");
+}
 
 /** Each implementation costs ~20M gas. `only` redeploys one part and keeps the addresses of the rest. */
 export async function deploy(only?: string) {
@@ -77,6 +94,13 @@ export async function deploy(only?: string) {
     const implementation = await create("VajraAccountV2", [4, 3, DEVNET.stakingRegistry, recoveryVerifier, shieldVerifier, poseidon, DENOMINATION, MAX_PROOF_TX_COST, WORK_BITS]);
     const factory = await create("VajraFactory", [implementation]);
     out.v2 = { implementation, factory, recoveryVerifier, shieldVerifier, poseidon, denomination: DENOMINATION.toString(), noteFee: MAX_PROOF_TX_COST.toString(), workBits: WORK_BITS };
+  }
+  // The mirror only, with no switch to change that: the deployed sidecar's flat cap has no room for these.
+  if (isLocalStack && want("paymasters")) {
+    const quota = await create("QuotaPaymaster", [deployer, DEVNET.stakingRegistry, PAYMASTER_FEE_CAP, ONE_DAY]);
+    const usdc = await create("UsdcPaymaster", [deployer, DEVNET.stakingRegistry, PAYMASTER_FEE_CAP, DEVNET.usdc, USDC_PER_ETH]);
+    for (const address of [quota, usdc]) await stakePaymaster(key, address);
+    out.paymasters = { quota, usdc, feeCap: PAYMASTER_FEE_CAP.toString(), usdcPerEth: USDC_PER_ETH.toString() };
   }
   writeFileSync(deploymentsPath, JSON.stringify(out, null, 1) + "\n");
   useDeployments(out as never);

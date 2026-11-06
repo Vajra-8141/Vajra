@@ -223,9 +223,9 @@ export interface SimulationResult {
   failure?: unknown;
 }
 
-/** What ethrex would do with this transaction: its canonical verdict, and full execution regardless of that verdict. */
-export const simulate = (tx: FrameTx, block: string = "latest") =>
-  rpc<SimulationResult>(DEVNET.execution, "ethrex_simulateFrameTransaction", [encodeTx(tx), block, { trace: false }]);
+/** What ethrex would do with this transaction: its canonical verdict, and full execution regardless of that verdict. `simulate` adds the alt mempool. */
+export const simulateFrames = (tx: FrameTx, block: string = "latest", trace = false) =>
+  rpc<SimulationResult>(DEVNET.execution, "ethrex_simulateFrameTransaction", [encodeTx(tx), block, { trace }]);
 
 /**
  * Into the alt mempool. The miner's sidecar comes first, because the gateway has been seen to hold transactions it never
