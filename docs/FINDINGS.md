@@ -419,4 +419,4 @@ An account that names nobody refuses every DEFAULT frame, as before, so a daily 
 
 **What is left.** Naming a paymaster is a real grant. A stolen daily key can then spend what the account approved to it on gas, up to `maxDailyTxCost` a transaction, with no limit on how many, and use up the day's quota. The tip part can reach a colluding block producer, up to the paymaster's `feeCap`. So keep the approval small, and name only what the daily key should use. V1 keeps its gap: `VajraAccount` is unchanged. And only the two frames' positions and target are held: what they do is up to the named paymaster.
 
-**None of sections 16 to 19 is on the public devnet.** They have had no second independent review, and nothing here has been audited.
+**The fixes in sections 16 to 19 are in the V2 deployed on the public devnet on 6 November, but only recovery and one note were run there. Their tests ran on the mirror.** They have had no second independent review, and nothing here has been audited.

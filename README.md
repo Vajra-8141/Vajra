@@ -80,7 +80,7 @@ evidence, on the local mirror and nowhere else.
 | Passkey before **Pay, it's me** | BUILT, LOCAL | Client-side only: the phone and the local service check it, and **the contracts do not know about it** |
 | Nominee | NOT STARTED | |
 | Recovery by proof, Groth16 v1 | BUILT, PUBLIC | `vajra recover`: 12 mined, 24 refused, 0 failures, on the public devnet and on the mirror. **Not post-quantum**: see below |
-| Shielded pool, fixed denomination v1 | BUILT, LOCAL | `vajra shielded`: 12 mined, 28 refused, 0 failures. **Does not hide that the account paid the recipient**: see below |
+| Shielded pool, fixed denomination v1 | BUILT, LOCAL, ONE NOTE ON PUBLIC | `vajra shielded`, on the mirror: 12 mined, 28 refused, 0 failures. One 0.01 ETH note in and out on the public devnet. **Does not hide that the account paid the recipient**: see below |
 | STARK recovery and shielded v2 | DESIGNED | spec §9, §10; **no STARK proof exists** |
 | Variable amounts, note-to-note transfers, viewing keys, ERC-8441 note delivery | DESIGNED | spec §10; **not built** |
 
