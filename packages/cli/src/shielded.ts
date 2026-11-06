@@ -22,6 +22,8 @@ import {
   publicClient,
   signDaily,
   simulate,
+  proofWork,
+  unshieldNonceKey,
   unshieldTx,
   waitForSuccess,
   walletFor,
@@ -107,6 +109,7 @@ const tx = (over: Partial<Parameters<typeof unshieldTx>[0]> = {}) =>
 
 const bent = [...proofA.proof] as unknown as bigint[];
 bent[2] = bent[2]! + 1n;
+await refused("A real proof, with no work done", tx({ work: proofWork(account, proofA.proof, unshieldNonceKey(proofA.nullifierHash, recipient)) + 1n }), "ProofWorkMissing");
 await refused("A corrupted proof", tx({ proof: bent as unknown as FlatProof }), "ShieldProofInvalid");
 await refused("A seen proof, moved to the attacker's address", tx({ recipient: fresh() }), "ShieldProofInvalid");
 const other = await proveUnshield({ note: a, leaves, leaf: 0, recipient, denomination: DENOM, account: fresh(), chainId });

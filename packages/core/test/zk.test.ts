@@ -10,7 +10,7 @@ const proof = [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n] as unknown as FlatProof;
 describe("proof transactions", () => {
   it("is exactly [VERIFY, SENDER], because that is all the account approves", () => {
     for (const tx of [
-      recoveryTx({ account, newRoot: root, nullifier: 9n, proof }),
+      recoveryTx({ account, newRoot: root, nullifier: 9n, proof, ticket: root }),
       unshieldTx({ account, root: 5n, nullifierHash: 9n, recipient, proof }),
     ]) {
       expect(tx.frames).toHaveLength(2);
@@ -36,7 +36,7 @@ describe("proof transactions", () => {
   });
 
   it("sends the SENDER frame exactly the gas the contract pins", () => {
-    const frames = [recoveryTx({ account, newRoot: root, nullifier: 9n, proof }), unshieldTx({ account, root: 5n, nullifierHash: 9n, recipient, proof })].map((tx) => tx.frames[1]!);
+    const frames = [recoveryTx({ account, newRoot: root, nullifier: 9n, proof, ticket: root }), unshieldTx({ account, root: 5n, nullifierHash: 9n, recipient, proof })].map((tx) => tx.frames[1]!);
     expect(frames[0]!.limits).toMatchObject(PROOF_FRAME_GAS.recovery);
     expect(frames[1]!.limits).toMatchObject(PROOF_FRAME_GAS.unshield);
   });

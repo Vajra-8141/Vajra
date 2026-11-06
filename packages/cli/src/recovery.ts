@@ -24,6 +24,8 @@ import {
   submit,
   waitForSuccess,
   walletFor,
+  recoveryGate,
+  recoveryTicket,
 } from "@vajra/core";
 import { fileStore, loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
@@ -48,7 +50,7 @@ export async function recoverSetup(o: { delay: bigint; out?: string }) {
   const secret = randomFieldElement();
   writeFileSync(file, numberToHex(secret, { size: 32 }) + "\n", { mode: 0o600 });
   const commitment = await recoveryCommitment(secret);
-  const result = await runCalls([opsV2.setRecovery(commitment, o.delay)], "setRecovery", console.log);
+  const result = await runCalls([opsV2.setRecovery(commitment, o.delay, recoveryGate(recoveryTicket(secret)))], "setRecovery", console.log);
   console.log(`mined ${result.hash}\ncommitment ${numberToHex(commitment, { size: 32 })}\nveto window ${o.delay}s`);
   console.log(`\nThe secret is in ${file}.\nCopy it to paper or steel and delete the file: on this machine it is one more thing to steal.`);
 }
@@ -66,9 +68,9 @@ export async function recoverProve(o: { secretFile?: string; out?: string; accou
   const file = o.out ?? proofPath;
   writeFileSync(
     file,
-    JSON.stringify({ account, newRoot: next.root, nullifier: proved.nullifier.toString(), proof: proved.proof.map(String) }, null, 1) + "\n",
+    JSON.stringify({ account, newRoot: next.root, nullifier: proved.nullifier.toString(), proof: proved.proof.map(String), ticket: recoveryTicket(secret) }, null, 1) + "\n",
   );
-  console.log(`proved in ${proved.ms} ms\nnew root ${next.root}\nproof in ${file}, which holds no secret\nnext: vajra recover --proof ${file}`);
+  console.log(`proved in ${proved.ms} ms\nnew root ${next.root}\nproof in ${file}. It cannot spend anything, but it does hold the ticket, so keep it private until it is used\nnext: vajra recover --proof ${file}`);
 }
 
 /**
@@ -77,13 +79,13 @@ export async function recoverProve(o: { secretFile?: string; out?: string; accou
  */
 export async function recover(o: { proofFile: string }) {
   needsMirror();
-  const saved = JSON.parse(readFileSync(o.proofFile, "utf8")) as { account: Address; newRoot: Hex; nullifier: string; proof: string[] };
+  const saved = JSON.parse(readFileSync(o.proofFile, "utf8")) as { account: Address; newRoot: Hex; nullifier: string; proof: string[]; ticket: Hex };
   const account = saved.account;
   const nullifier = BigInt(saved.nullifier);
   const proof = saved.proof.map(BigInt) as unknown as FlatProof;
 
   if (!(await read<boolean>(account, "recoverySpent", [nullifier]))) {
-    const { hash, receipt } = await submit(recoveryTx({ account, newRoot: saved.newRoot, nullifier, proof }), { log: console.log });
+    const { hash, receipt } = await submit(recoveryTx({ account, newRoot: saved.newRoot, nullifier, proof, ticket: saved.ticket }), { log: console.log });
     if (!framesSucceeded(receipt)) throw new Error(`${hash} was mined but a frame failed`);
     console.log(`mined ${hash}, VERIFY ${Number(BigInt(receipt.frameReceipts[0]!.gasUsed))} gas`);
   }

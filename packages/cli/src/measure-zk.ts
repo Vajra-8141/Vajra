@@ -6,7 +6,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { type Hex, keccak256, parseEther, toHex } from "viem";
-import { DEVNET, LEGACY_GAS_PRICE, accountState, accountV2Abi, deployments, isLocalStack, opsV2, publicClient, recoveryTx, simulate, unshieldTx, waitForSuccess, walletFor } from "@vajra/core";
+import { DEVNET, recoveryGate, recoveryTicket, LEGACY_GAS_PRICE, accountState, accountV2Abi, deployments, isLocalStack, opsV2, publicClient, recoveryTx, simulate, unshieldTx, waitForSuccess, walletFor } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 import { newNote, noteCommitment, proveRecovery, proveUnshield, randomFieldElement, recoveryCommitment, stopProver } from "./proving.ts";
@@ -38,7 +38,7 @@ async function verifyGas(tx: Parameters<typeof simulate>[0], label: string) {
 }
 
 const secret = randomFieldElement();
-await mined("set recovery", master(signer, account, epochSalt, [opsV2.setRecovery(await recoveryCommitment(secret), 3600n)]));
+await mined("set recovery", master(signer, account, epochSalt, [opsV2.setRecovery(await recoveryCommitment(secret), 3600n, recoveryGate(recoveryTicket(secret)))]));
 const recovery: number[] = [];
 const recoveryTotal: number[] = [];
 const proverRecovery: number[] = [];
@@ -46,7 +46,7 @@ for (let i = 0; i < SAMPLES; i++) {
   const newRoot = keccak256(toHex(`root ${i} ${Date.now()}`)) as Hex;
   const proved = await proveRecovery({ secret, newRoot, account, epochSalt, chainId });
   proverRecovery.push(proved.ms);
-  const gas = await verifyGas(recoveryTx({ account, newRoot, nullifier: proved.nullifier, proof: proved.proof }), "recovery");
+  const gas = await verifyGas(recoveryTx({ account, newRoot, nullifier: proved.nullifier, proof: proved.proof, ticket: recoveryTicket(secret) }), "recovery");
   recovery.push(gas.verify);
   if (gas.total) recoveryTotal.push(gas.total);
 }

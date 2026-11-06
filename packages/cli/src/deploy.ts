@@ -21,6 +21,8 @@ if (isLocalStack && existsSync(deploymentsPath)) useDeployments(JSON.parse(readF
 const MAX_PROOF_TX_COST = parseEther("0.005");
 
 /** The one size of note on the mirror. */
+/** Mirror runs attacks by the dozen, so it asks for less. A real user grinds once, for a few seconds. */
+const WORK_BITS = isLocalStack ? 10 : 18;
 const DENOMINATION = parseEther("0.1");
 
 /** Each implementation costs ~20M gas. `only` redeploys one part and keeps the addresses of the rest. */
@@ -72,9 +74,9 @@ export async function deploy(only?: string) {
     const recoveryVerifier = await create("RecoveryVerifier", []);
     const shieldVerifier = await create("ShieldVerifier", []);
     const poseidon = await create("PoseidonT3", []);
-    const implementation = await create("VajraAccountV2", [4, 3, DEVNET.stakingRegistry, recoveryVerifier, shieldVerifier, poseidon, DENOMINATION, MAX_PROOF_TX_COST]);
+    const implementation = await create("VajraAccountV2", [4, 3, DEVNET.stakingRegistry, recoveryVerifier, shieldVerifier, poseidon, DENOMINATION, MAX_PROOF_TX_COST, WORK_BITS]);
     const factory = await create("VajraFactory", [implementation]);
-    out.v2 = { implementation, factory, recoveryVerifier, shieldVerifier, poseidon, denomination: DENOMINATION.toString(), noteFee: MAX_PROOF_TX_COST.toString() };
+    out.v2 = { implementation, factory, recoveryVerifier, shieldVerifier, poseidon, denomination: DENOMINATION.toString(), noteFee: MAX_PROOF_TX_COST.toString(), workBits: WORK_BITS };
   }
   writeFileSync(deploymentsPath, JSON.stringify(out, null, 1) + "\n");
   useDeployments(out as never);

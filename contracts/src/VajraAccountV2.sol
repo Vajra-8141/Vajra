@@ -117,6 +117,9 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     /// V2: the most a transaction authorized by a proof may cost the account. See `_requireProofShape`. An unshield pays this
     /// out of the note, so a note always carries its own fee and nobody can use the pool to burn the owner's free balance.
     uint256 public immutable MAX_PROOF_TX_COST;
+    /// V2: leading zero bits an unshield's hash must have. A proof has no signature, so nothing else makes a fake one cost its
+    /// sender anything before a node runs the pairing. It slows a CPU far more than a GPU, so this is a toll and not a wall.
+    uint256 public immutable PROOF_WORK_BITS;
 
     // -------------------------------------------------------------------------------------------- storage ---------
 
@@ -191,6 +194,8 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         // V2, from here down.
         uint256 recoveryCommitment;
         uint64 recoveryDelay;
+        /// V2: keccak of a ticket only the paper can make. A proof without it dies for a hash, before the pairing.
+        bytes32 recoveryGate;
         mapping(uint256 nullifier => bool) recoverySpent;
         mapping(uint256 id => bool) isRecovery;
         /// What the notes in the pool are owed. Inside the account's balance, and out of reach of everything but `unshield`
@@ -262,6 +267,8 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     error RecoveryNotSet();
     error NullifierSpent(uint256 nullifier);
     error ProofTxShapeInvalid();
+    error RecoveryGateInvalid();
+    error ProofWorkMissing();
     error ProofTxCostExceeded(uint256 cost);
     error DailyNonceKeyInvalid();
     error RecoveryDelayRequired();
@@ -283,7 +290,8 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         address shieldVerifier,
         address poseidon,
         uint256 denomination,
-        uint256 maxProofTxCost
+        uint256 maxProofTxCost,
+        uint256 proofWorkBits
     ) {
         STAKING_REGISTRY = stakingRegistry;
         RECOVERY_VERIFIER = IRecoveryVerifier(recoveryVerifier);
@@ -292,6 +300,7 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         DENOMINATION = denomination;
         require(maxProofTxCost < denomination || denomination == 0, "a note has to cover its own fee");
         MAX_PROOF_TX_COST = maxProofTxCost;
+        PROOF_WORK_BITS = proofWorkBits;
         LOG_W = logW;
         LEN2 = len2;
         CHAINS = 256 / logW + len2;
@@ -466,7 +475,7 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     ///
     /// @param proof Groth16 `a`, `b` and `c`, flattened. The statement's public values come from storage, the chain, and
     /// the SENDER frame this transaction is pinned to.
-    function validateRecovery(uint256[8] calldata proof) external {
+    function validateRecovery(uint256[8] calldata proof, bytes32 ticket) external {
         Layout storage s = _layout();
         uint256 commitment = s.recoveryCommitment;
         if (commitment == 0) revert RecoveryNotSet();
@@ -474,6 +483,7 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         uint256 newRoot = uint256(framedataload(4, 1));
         uint256 nullifier = uint256(framedataload(36, 1));
         if (s.recoverySpent[nullifier]) revert NullifierSpent(nullifier);
+        if (keccak256(abi.encode(ticket)) != s.recoveryGate) revert RecoveryGateInvalid();
         if (newRoot == 0) revert RootRequired();
         _requireProofShape(
             this.queueRecovery.selector,
@@ -508,7 +518,7 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
 
     /// V2: VERIFY frame for an unshield. The proof is the authority here too: whoever holds a note can spend it, with no key,
     /// so that no signature ties the withdrawal to anyone. A freeze stops it here, before it can reach a mempool.
-    function validateUnshield(uint256[8] calldata proof) external {
+    function validateUnshield(uint256[8] calldata proof, uint256 work) external {
         Layout storage s = _layout();
         if (s.frozen) revert AccountFrozen();
 
@@ -516,13 +526,11 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
         uint256 nullifierHash = uint256(framedataload(36, 1));
         uint256 recipient = uint256(framedataload(68, 1));
         if (s.noteSpent[nullifierHash]) revert NullifierSpent(nullifierHash);
-        _requireProofShape(
-            this.unshield.selector,
-            100,
-            keccak256(abi.encodePacked(UNSHIELD_TAG, nullifierHash, recipient)),
-            UNSHIELD_EXECUTION_GAS,
-            UNSHIELD_STATE_GAS
-        );
+        bytes32 nonceKey = keccak256(abi.encodePacked(UNSHIELD_TAG, nullifierHash, recipient));
+        _requireProofShape(this.unshield.selector, 100, nonceKey, UNSHIELD_EXECUTION_GAS, UNSHIELD_STATE_GAS);
+        if (uint256(keccak256(abi.encode(address(this), proof, nonceKey, work))) >> (256 - PROOF_WORK_BITS) != 0) {
+            revert ProofWorkMissing();
+        }
         if (!_isKnownRoot(s, root)) revert RootUnknown(root);
 
         // The note pays its own fee, so what the balance has to cover is the notes, and no more.
@@ -755,12 +763,14 @@ contract VajraAccountV2 is HegotaSupport(Devnet.ERC8421_WORKSHOP) {
     ///
     /// @param commitment Poseidon(s). Zero turns recovery off.
     /// @param delay How long the master key has to veto. Spec 04 section 9.2 says 48 hours.
-    function setRecovery(uint256 commitment, uint64 delay) external onlySelf {
+    function setRecovery(uint256 commitment, uint64 delay, bytes32 gate) external onlySelf {
         if (commitment >= FIELD) revert CommitmentInvalid();
         if (commitment != 0 && delay == 0) revert RecoveryDelayRequired();
+        if (commitment != 0 && gate == bytes32(0)) revert RecoveryGateInvalid();
         Layout storage s = _layout();
         s.recoveryCommitment = commitment;
         s.recoveryDelay = delay;
+        s.recoveryGate = gate;
         emit RecoverySet(commitment, delay);
     }
 

@@ -30,6 +30,8 @@ import {
   sleep,
   waitForSuccess,
   walletFor,
+  recoveryGate,
+  recoveryTicket,
 } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
@@ -63,15 +65,17 @@ const newTree = newSigner();
 const statement = { secret, newRoot: newTree.root, account, epochSalt, chainId: DEVNET.chainId };
 const proved = await proveRecovery(statement);
 console.log(`  proved in ${proved.ms} ms, verified against the key`);
-const tx = (over: Partial<Parameters<typeof recoveryTx>[0]> = {}) => recoveryTx({ account, newRoot: newTree.root, nullifier: proved.nullifier, proof: proved.proof, ...over });
+const tx = (over: Partial<Parameters<typeof recoveryTx>[0]> = {}) => recoveryTx({ account, newRoot: newTree.root, nullifier: proved.nullifier, proof: proved.proof, ticket: recoveryTicket(secret), ...over });
 await refused("A proof, before any commitment is set", tx(), "RecoveryNotSet");
 
 console.log("\n2. Set the commitment, with the master key");
-await mined("set recovery", master(oldTree, account, epochSalt, [opsV2.setRecovery(await recoveryCommitment(secret), DELAY)]));
+await mined("set recovery", master(oldTree, account, epochSalt, [opsV2.setRecovery(await recoveryCommitment(secret), DELAY, recoveryGate(recoveryTicket(secret)))]));
 check((await read<bigint>(account, "recoveryDelay")) === DELAY, `delay is ${DELAY}s`);
 
+await refused("A proof with a guessed ticket, which must die for a hash and not a pairing", tx({ ticket: keccak256(toHex("a guess")) }), "RecoveryGateInvalid");
+
 console.log("\n3. The daily key tries to reach recovery");
-await refused("Daily key changes the commitment", await signDaily({ key: dailyKey, dailyKey: daily, account, calls: [opsV2.setRecovery(1n, 0n)] }), "EscapeKeyOutranks");
+await refused("Daily key changes the commitment", await signDaily({ key: dailyKey, dailyKey: daily, account, calls: [opsV2.setRecovery(1n, 0n, recoveryGate(recoveryTicket(1n)))] }), "EscapeKeyOutranks");
 await refused("Daily key queues a root with no proof", await signDaily({ key: dailyKey, dailyKey: daily, account, calls: [opsV2.queueRecovery(newTree.root, 1n)] }), "EscapeKeyOutranks");
 
 const burnOn = async (nonceKey: bigint) => signDailyTx({ ...dailyTx({ account, dailyKey: daily, nonce: 0n, calls: [ops.spend(ETH, daily, 0n)], verifyGas: 97_000n }), nonceSeq: 0n, nonceKeys: [nonceKey] }, dailyKey);
@@ -144,16 +148,16 @@ console.log("\n9. A stolen paper, with the owner still holding the master key");
 const owner = newSigner();
 const account2 = await newAccount(deployer, owner, daily, harbor, keccak256(toHex("second")));
 const paper = randomFieldElement();
-await mined("set recovery on the second account", master(owner, account2, epochSalt, [opsV2.setRecovery(await recoveryCommitment(paper), DELAY)]));
+await mined("set recovery on the second account", master(owner, account2, epochSalt, [opsV2.setRecovery(await recoveryCommitment(paper), DELAY, recoveryGate(recoveryTicket(paper)))]));
 const thiefRoot = keccak256(toHex("thief tree"));
 const theft = await proveRecovery({ secret: paper, newRoot: thiefRoot, account: account2, epochSalt, chainId: DEVNET.chainId });
-await mined("thief queues a root, with a stolen paper", recoveryTx({ account: account2, newRoot: thiefRoot, nullifier: theft.nullifier, proof: theft.proof }));
+await mined("thief queues a root, with a stolen paper", recoveryTx({ account: account2, ticket: recoveryTicket(paper), newRoot: thiefRoot, nullifier: theft.nullifier, proof: theft.proof }));
 const theftId = (await read<bigint>(account2, "nextItem")) - 1n;
 await mined("owner vetoes it", master(owner, account2, epochSalt, [ops.veto(theftId)]));
 await reverts("Installing a vetoed root", "RecoveryVetoed", { address: account2, functionName: "executeQueued", args: [theftId], account: privateKeyToAccount(deployer).address });
 const again = await proveRecovery({ secret: paper, newRoot: keccak256(toHex("second try")), account: account2, epochSalt, chainId: DEVNET.chainId });
 // A new root is a new nonce key, so this reaches the contract on nonce 0, and the nullifier is what stops it.
-await refused("The thief tries again with the same paper", recoveryTx({ account: account2, newRoot: keccak256(toHex("second try")), nullifier: again.nullifier, proof: again.proof }), "NullifierSpent");
+await refused("The thief tries again with the same paper", recoveryTx({ account: account2, ticket: recoveryTicket(paper), newRoot: keccak256(toHex("second try")), nullifier: again.nullifier, proof: again.proof }), "NullifierSpent");
 
 const queueGas = evidence.find((e) => e.step === "queue recovery")?.verifyGas ?? null;
 mkdirSync(new URL("../../../docs/evidence/", import.meta.url), { recursive: true });

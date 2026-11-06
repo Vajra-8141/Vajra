@@ -6,7 +6,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { keccak256, toHex } from "viem";
 import { toWire } from "@forshtat/hegota-support/rpc";
-import { DEVNET, RpcError, accountState, encodeTx, isLocalStack, opsV2, recoveryTx, refusalNameV2, rpc, sendCanonical } from "@vajra/core";
+import { DEVNET, recoveryGate, recoveryTicket, RpcError, accountState, encodeTx, isLocalStack, opsV2, recoveryTx, refusalNameV2, rpc, sendCanonical } from "@vajra/core";
 import { loadOrCreateKey } from "@vajra/core/node";
 import { keyPath } from "./deploy.ts";
 import { proveRecovery, randomFieldElement, recoveryCommitment, stopProver } from "./proving.ts";
@@ -26,11 +26,11 @@ const fresh = () => privateKeyToAccount(generatePrivateKey()).address;
 const account = await newAccount(deployer, signer, fresh(), fresh(), keccak256(toHex("compare")));
 const { epochSalt } = await accountState(account);
 const secret = randomFieldElement();
-await mined("set recovery", master(signer, account, epochSalt, [opsV2.setRecovery(await recoveryCommitment(secret), 20n)]));
+await mined("set recovery", master(signer, account, epochSalt, [opsV2.setRecovery(await recoveryCommitment(secret), 20n, recoveryGate(recoveryTicket(secret)))]));
 
 const next = newSigner();
 const proved = await proveRecovery({ secret, newRoot: next.root, account, epochSalt, chainId: DEVNET.chainId });
-const tx = recoveryTx({ account, newRoot: next.root, nullifier: proved.nullifier, proof: proved.proof });
+const tx = recoveryTx({ account, newRoot: next.root, nullifier: proved.nullifier, proof: proved.proof, ticket: recoveryTicket(secret) });
 const bytes = keccak256(encodeTx(tx));
 console.log(`\none recovery transaction, keccak of its bytes ${bytes}, from an account with a stake\n`);
 

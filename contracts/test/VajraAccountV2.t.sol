@@ -36,6 +36,8 @@ contract VajraAccountV2Test is Test {
     bytes32 constant ROOT = keccak256("first tree");
     bytes32 constant HARBOR_SALT = keccak256("harbor salt");
     uint64 constant DELAY = 2 days;
+    bytes32 constant TICKET = keccak256("the ticket on the paper");
+    bytes32 constant GATE = keccak256(abi.encode(TICKET));
     /// `PROOF_VERIFY_GAS` in packages/core/src/zk.ts.
     uint256 constant PROOF_FRAME_GAS = 500_000;
 
@@ -104,7 +106,7 @@ contract VajraAccountV2Test is Test {
         }
 
         implementation = new VajraAccountV2(
-            4, 3, address(new StakeSink()), address(new RecoveryVerifier()), address(new ShieldVerifier()), poseidon, DENOM, MAX_PROOF_COST
+            4, 3, address(new StakeSink()), address(new RecoveryVerifier()), address(new ShieldVerifier()), poseidon, DENOM, MAX_PROOF_COST, 0
         );
         vm.etch(helper(APPROVE), type(ApproveDouble).runtimeCode);
 
@@ -192,7 +194,7 @@ contract VajraAccountV2Test is Test {
 
     function setRecovery() private {
         asSelf();
-        account.setRecovery(commitment, DELAY);
+        account.setRecovery(commitment, DELAY, GATE);
     }
 
     /// The owner opens the pool, and an outsider pays in after.
@@ -223,13 +225,51 @@ contract VajraAccountV2Test is Test {
         setRecovery();
         recoveryFrame();
         expectApproved();
-        account.validateRecovery(recoveryProof);
+        account.validateRecovery(recoveryProof, TICKET);
+    }
+
+    function test_recovery_aWrongTicketDiesBeforeThePairing() public {
+        setRecovery();
+        recoveryFrame();
+        uint256 before = gasleft();
+        vm.expectRevert(VajraAccountV2.RecoveryGateInvalid.selector);
+        account.validateRecovery(recoveryProof, keccak256("a guess"));
+        assertLt(before - gasleft(), 30_000, "a fake must cost a hash, not a pairing");
+    }
+
+    function test_setRecovery_refusesACommitmentWithNoGate() public {
+        asSelf();
+        vm.expectRevert(VajraAccountV2.RecoveryGateInvalid.selector);
+        account.setRecovery(commitment, DELAY, bytes32(0));
+    }
+
+    function test_unshield_needsItsWork() public {
+        shieldBoth();
+        address poseidon = address(account.POSEIDON());
+        VajraAccountV2 tolled = new VajraAccountV2(
+            4, 3, account.STAKING_REGISTRY(), address(account.RECOVERY_VERIFIER()), address(account.SHIELD_VERIFIER()), poseidon, DENOM, MAX_PROOF_COST, 8
+        );
+        implementation = tolled;
+        vm.etch(helper(APPROVE), type(ApproveDouble).runtimeCode);
+        vm.etch(address(account), abi.encodePacked(hex"363d3d373d3d3d363d73", address(tolled), hex"5af43d82803e903d91602b57fd5bf3"));
+        unshieldFrame();
+        bytes32 key = keccak256(abi.encodePacked(keccak256("vajra.unshield.v1"), nullifierHash, uint256(uint160(recipient))));
+        uint256 work;
+        while (uint256(keccak256(abi.encode(address(account), unshieldProof, key, work))) >> 248 != 0) work++;
+        uint256 wrong = work + 1;
+        while (uint256(keccak256(abi.encode(address(account), unshieldProof, key, wrong))) >> 248 == 0) wrong++;
+        uint256 before = gasleft();
+        vm.expectRevert(VajraAccountV2.ProofWorkMissing.selector);
+        account.validateUnshield(unshieldProof, wrong);
+        assertLt(before - gasleft(), 60_000, "no work must cost a hash, not a pairing");
+        expectApproved();
+        account.validateUnshield(unshieldProof, work);
     }
 
     function test_recovery_refusedBeforeACommitmentExists() public {
         recoveryFrame();
         vm.expectRevert(VajraAccountV2.RecoveryNotSet.selector);
-        account.validateRecovery(recoveryProof);
+        account.validateRecovery(recoveryProof, TICKET);
     }
 
     function test_recovery_refusesACorruptedProof() public {
@@ -238,7 +278,7 @@ contract VajraAccountV2Test is Test {
         uint256[8] memory bent = recoveryProof;
         bent[0] += 1;
         vm.expectRevert(VajraAccountV2.RecoveryProofInvalid.selector);
-        account.validateRecovery{gas: PROOF_FRAME_GAS}(bent);
+        account.validateRecovery{gas: PROOF_FRAME_GAS}(bent, TICKET);
     }
 
     function test_recovery_everyWordOfTheProofMatters() public {
@@ -249,7 +289,7 @@ contract VajraAccountV2Test is Test {
             bent[i] ^= 1;
             vm.expectRevert(VajraAccountV2.RecoveryProofInvalid.selector);
             // A point off the curve makes the precompile burn all it is given, so each try gets a frame's worth, as on chain.
-            account.validateRecovery{gas: PROOF_FRAME_GAS}(bent);
+            account.validateRecovery{gas: PROOF_FRAME_GAS}(bent, TICKET);
         }
     }
 
@@ -261,15 +301,15 @@ contract VajraAccountV2Test is Test {
         // With the nonce key to match, so that it is the proof that stops this.
         setTx(NONCE_KEY_0, uint256(keccak256(abi.encodePacked(keccak256("vajra.recovery.v1"), nullifier, attacker))));
         vm.expectRevert(VajraAccountV2.RecoveryProofInvalid.selector);
-        account.validateRecovery(recoveryProof);
+        account.validateRecovery(recoveryProof, TICKET);
     }
 
     function test_recovery_proofIsBoundToTheCommitment() public {
         asSelf();
-        account.setRecovery(commitment + 1, DELAY);
+        account.setRecovery(commitment + 1, DELAY, GATE);
         recoveryFrame();
         vm.expectRevert(VajraAccountV2.RecoveryProofInvalid.selector);
-        account.validateRecovery(recoveryProof);
+        account.validateRecovery(recoveryProof, TICKET);
     }
 
     function test_recovery_proofIsBoundToTheChain() public {
@@ -277,7 +317,7 @@ contract VajraAccountV2Test is Test {
         recoveryFrame();
         vm.chainId(1);
         vm.expectRevert(VajraAccountV2.RecoveryProofInvalid.selector);
-        account.validateRecovery(recoveryProof);
+        account.validateRecovery(recoveryProof, TICKET);
     }
 
     function test_recovery_proofIsBoundToTheNullifier() public {
@@ -287,7 +327,7 @@ contract VajraAccountV2Test is Test {
         setWord(36, bytes32(other));
         setTx(NONCE_KEY_0, uint256(keccak256(abi.encodePacked(keccak256("vajra.recovery.v1"), other, NEW_ROOT))));
         vm.expectRevert(VajraAccountV2.RecoveryProofInvalid.selector);
-        account.validateRecovery(recoveryProof);
+        account.validateRecovery(recoveryProof, TICKET);
     }
 
     function test_recovery_refusesASpentNullifier() public {
@@ -295,7 +335,7 @@ contract VajraAccountV2Test is Test {
         queue();
         recoveryFrame();
         vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.NullifierSpent.selector, nullifier));
-        account.validateRecovery(recoveryProof);
+        account.validateRecovery(recoveryProof, TICKET);
     }
 
     function test_recovery_worksWhileFrozen() public {
@@ -304,14 +344,14 @@ contract VajraAccountV2Test is Test {
         account.freeze();
         recoveryFrame();
         expectApproved();
-        account.validateRecovery(recoveryProof);
+        account.validateRecovery(recoveryProof, TICKET);
     }
 
     // The shape a signature would have pinned. One test each, because any one left open is a way to drain the account.
 
     function shapeRefused() private {
         vm.expectRevert(VajraAccountV2.ProofTxShapeInvalid.selector);
-        account.validateRecovery(recoveryProof);
+        account.validateRecovery(recoveryProof, TICKET);
     }
 
     function test_shape_refusesAnAddedFrame() public {
@@ -411,11 +451,11 @@ contract VajraAccountV2Test is Test {
         unshieldFrame();
         setFrame(EXECUTION_GAS_LIMIT, 1000);
         vm.expectRevert(VajraAccountV2.ProofTxShapeInvalid.selector);
-        account.validateUnshield(unshieldProof);
+        account.validateUnshield(unshieldProof, 0);
         unshieldFrame();
         setFrame(STATE_GAS_LIMIT, 0);
         vm.expectRevert(VajraAccountV2.ProofTxShapeInvalid.selector);
-        account.validateUnshield(unshieldProof);
+        account.validateUnshield(unshieldProof, 0);
     }
 
     function test_recovery_refusesAnEmptyRootInVerify() public {
@@ -423,7 +463,7 @@ contract VajraAccountV2Test is Test {
         recoveryFrame();
         setWord(4, bytes32(0));
         vm.expectRevert(VajraAccountV2.RootRequired.selector);
-        account.validateRecovery(recoveryProof);
+        account.validateRecovery(recoveryProof, TICKET);
     }
 
     function test_recovery_feeCannotEatTheNotes() public {
@@ -433,7 +473,7 @@ contract VajraAccountV2Test is Test {
         recoveryFrame();
         setTx(MAX_COST, 0.001 ether + 1);
         vm.expectRevert(VajraAccountV2.ValueNotConserved.selector);
-        account.validateRecovery(recoveryProof);
+        account.validateRecovery(recoveryProof, TICKET);
     }
 
     // ------------------------------------------------- the daily key stays on the linear nonce ----
@@ -488,7 +528,7 @@ contract VajraAccountV2Test is Test {
         recoveryFrame();
         setTx(MAX_COST, MAX_PROOF_COST + 1);
         vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.ProofTxCostExceeded.selector, MAX_PROOF_COST + 1));
-        account.validateRecovery(recoveryProof);
+        account.validateRecovery(recoveryProof, TICKET);
     }
 
     // ------------------------------------------------------------------- recovery: queue ----
@@ -513,26 +553,26 @@ contract VajraAccountV2Test is Test {
     function test_setRecovery_refusesACommitmentOutsideTheField() public {
         asSelf();
         vm.expectRevert(VajraAccountV2.CommitmentInvalid.selector);
-        account.setRecovery(type(uint256).max, DELAY);
+        account.setRecovery(type(uint256).max, DELAY, GATE);
     }
 
     function test_setRecovery_refusesNoVetoWindow() public {
         asSelf();
         vm.expectRevert(VajraAccountV2.RecoveryDelayRequired.selector);
-        account.setRecovery(commitment, 0);
+        account.setRecovery(commitment, 0, GATE);
     }
 
     function test_setRecovery_zeroTurnsItOff() public {
         setRecovery();
         asSelf();
-        account.setRecovery(0, 0);
+        account.setRecovery(0, 0, bytes32(0));
         assertEq(account.recoveryCommitment(), 0);
     }
 
     function test_setRecovery_refusesOutsiders() public {
         vm.prank(thief);
         vm.expectRevert(VajraAccountV2.NotAuthorized.selector);
-        account.setRecovery(1, 0);
+        account.setRecovery(1, 0, GATE);
     }
 
     function test_queueRecovery_refusesAReplay() public {
@@ -665,7 +705,7 @@ contract VajraAccountV2Test is Test {
         shieldBoth();
         unshieldFrame();
         expectApproved();
-        account.validateUnshield(unshieldProof);
+        account.validateUnshield(unshieldProof, 0);
     }
 
     function test_unshield_refusedWhileFrozen() public {
@@ -674,14 +714,14 @@ contract VajraAccountV2Test is Test {
         asSelf();
         account.freeze();
         vm.expectRevert(VajraAccountV2.AccountFrozen.selector);
-        account.validateUnshield(unshieldProof);
+        account.validateUnshield(unshieldProof, 0);
     }
 
     function test_unshield_refusesAnUnknownRoot() public {
         openPool(firstNote);
         unshieldFrame();
         vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.RootUnknown.selector, poolRoot));
-        account.validateUnshield(unshieldProof);
+        account.validateUnshield(unshieldProof, 0);
     }
 
     function test_unshield_refusesARootThatLeftTheRing() public {
@@ -691,7 +731,7 @@ contract VajraAccountV2Test is Test {
         }
         unshieldFrame();
         vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.RootUnknown.selector, poolRoot));
-        account.validateUnshield(unshieldProof);
+        account.validateUnshield(unshieldProof, 0);
     }
 
     function test_unshield_acceptsARootDeepInTheRing() public {
@@ -701,7 +741,7 @@ contract VajraAccountV2Test is Test {
         }
         unshieldFrame();
         expectApproved();
-        account.validateUnshield(unshieldProof);
+        account.validateUnshield(unshieldProof, 0);
     }
 
     function test_unshield_everyWordOfTheProofMatters() public {
@@ -711,7 +751,7 @@ contract VajraAccountV2Test is Test {
             uint256[8] memory bent = unshieldProof;
             bent[i] ^= 1;
             vm.expectRevert(VajraAccountV2.ShieldProofInvalid.selector);
-            account.validateUnshield{gas: PROOF_FRAME_GAS}(bent);
+            account.validateUnshield{gas: PROOF_FRAME_GAS}(bent, 0);
         }
     }
 
@@ -721,7 +761,7 @@ contract VajraAccountV2Test is Test {
         setWord(68, bytes32(uint256(uint160(thief))));
         setTx(NONCE_KEY_0, uint256(keccak256(abi.encodePacked(keccak256("vajra.unshield.v1"), nullifierHash, uint256(uint160(thief))))));
         vm.expectRevert(VajraAccountV2.ShieldProofInvalid.selector);
-        account.validateUnshield(unshieldProof);
+        account.validateUnshield(unshieldProof, 0);
     }
 
     function test_unshield_proofIsBoundToTheChain() public {
@@ -729,7 +769,7 @@ contract VajraAccountV2Test is Test {
         unshieldFrame();
         vm.chainId(1);
         vm.expectRevert(VajraAccountV2.ShieldProofInvalid.selector);
-        account.validateUnshield(unshieldProof);
+        account.validateUnshield(unshieldProof, 0);
     }
 
     function test_unshield_refusesASpentNote() public {
@@ -738,7 +778,7 @@ contract VajraAccountV2Test is Test {
         account.unshield(poolRoot, nullifierHash, recipient);
         unshieldFrame();
         vm.expectRevert(abi.encodeWithSelector(VajraAccountV2.NullifierSpent.selector, nullifierHash));
-        account.validateUnshield(unshieldProof);
+        account.validateUnshield(unshieldProof, 0);
     }
 
     function test_unshield_refusesAnAddedFrame() public {
@@ -746,7 +786,7 @@ contract VajraAccountV2Test is Test {
         unshieldFrame();
         setTx(FRAME_COUNT, 3);
         vm.expectRevert(VajraAccountV2.ProofTxShapeInvalid.selector);
-        account.validateUnshield(unshieldProof);
+        account.validateUnshield(unshieldProof, 0);
     }
 
     function test_unshield_paysOneNoteLessItsFee() public {
@@ -827,7 +867,7 @@ contract VajraAccountV2Test is Test {
         unshieldFrame();
         setTx(MAX_COST, MAX_PROOF_COST);
         expectApproved();
-        account.validateUnshield(unshieldProof);
+        account.validateUnshield(unshieldProof, 0);
         vm.deal(address(account), address(account).balance - MAX_PROOF_COST);
         asSelf();
         account.unshield(poolRoot, nullifierHash, recipient);
@@ -840,7 +880,7 @@ contract VajraAccountV2Test is Test {
         vm.deal(address(account), address(account).balance - 1);
         unshieldFrame();
         vm.expectRevert(VajraAccountV2.ValueNotConserved.selector);
-        account.validateUnshield(unshieldProof);
+        account.validateUnshield(unshieldProof, 0);
     }
 
     function test_conservation_dailyFeesCannotEatTheNotes() public {
@@ -860,7 +900,7 @@ contract VajraAccountV2Test is Test {
         vm.deal(address(account), 1 ether);
         unshieldFrame();
         vm.expectRevert(VajraAccountV2.ValueNotConserved.selector);
-        account.validateUnshield(unshieldProof);
+        account.validateUnshield(unshieldProof, 0);
     }
 
     function test_escape_drainsThePoolToTheHarbor() public {
