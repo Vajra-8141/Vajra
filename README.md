@@ -50,50 +50,6 @@ measured otherwise. At w=16 a full WOTS verification fits under the 100,000-gas 
 w=256 is refused even with a stake, because the deployed sidecar has not implemented ERC-8421's 1,000,000-gas staked
 budget. [`docs/FINDINGS.md`](docs/FINDINGS.md) has the evidence, and [`docs/upstream/`](docs/upstream/) has a patch.
 
-## What works
-
-Status follows the ledger in the spec: a module is BUILT only if it runs on the live devnet. BUILT, LOCAL means it runs, with recorded
-evidence, on the local mirror and nowhere else.
-
-| Module | Status | Evidence |
-|---|---|---|
-| WOTS verifier and key tree | BUILT | Solidity checked against an independent TypeScript implementation |
-| Dual-path account | BUILT | master and daily paths, both mined |
-| Daily limit, new-payee cooling, public queue, veto | BUILT | `vajra e2e` |
-| Freeze, escape, sealed harbor | BUILT | `vajra e2e` |
-| Key rotation | BUILT | `vajra e2e` |
-| Stock wallets as the daily key | BUILT | V1: personal_sign, mined. V2: EIP-712 typed data, so a wallet can show the asset, recipient and amount, `vajra clear-sign`, LOCAL, with a scripted wallet. What MetaMask shows has not been checked since |
-| A second way out: a sender of its own, `VajraExit` | BUILT, LOCAL | `vajra exit-e2e`: escape past a thief's pending transaction, even on the canonical mempool. See [why both exist](docs/FINDINGS.md#12-why-there-are-two-ways-out) |
-| ERC-8441 stealth, co-signed spend, paymaster | BUILT | `vajra stealth`, passes the ERC's conformance vectors |
-| Dashboard, exposure scanner | BUILT | every flow driven in a real browser over the Nym mixnet, with a scripted wallet |
-| Master key on hardware | BUILT | a real ESP32 signed through the CLI (7 mined) and the dashboard (3 mined), with a person pressing BOOT. **Not safe from a computer it is plugged into**: see [`docs/HARDWARE.md`](docs/HARDWARE.md) |
-| Leaf registry on Arkiv | BUILT | `vajra arkiv`, on the live Arkiv testnet and devnet. The dashboard reads it and verifies each signature in the browser |
-| Daily quota paymaster, USDC paymaster | BUILT, LOCAL | `vajra paymaster-e2e`, on V2: 15 mined, 50 attacks refused, the canonical mempool refused all 51 offered, 0 failures. **The first version could be drained, with every test passing**: see [`docs/FINDINGS.md`](docs/FINDINGS.md). Not audited |
-| Admission simulator, `vajra explain`, `@vajra/sdk` | BUILT, LOCAL | `simulate` gives each mempool's verdict, rule and fix. Its 66 verdicts in that run were held against what the nodes then did. Alt verdicts only on the mirror: elsewhere they stay unknown |
-| Phone alert, "Not me" and "Pay, it's me" | IN BUILD | `vajra watch`. Runs end to end on the mirror against a local stand-in for Telegram's servers. Also tried on Nov 6 with a real bot and phone on the mirror: two **Not me** taps cancelled, one **Pay, it's me** tap paid 0.5 ETH, using the software signer. **Not me** also passed on the public devnet with real MetaMask and a real phone. **Pay** has not been tried there, or with the board signing |
-| Browser extension | BUILT, LOCAL | `apps/extension/test/e2e.mjs`: loaded in Brave, a dapp connected over EIP-1193 and EIP-6963, and paid, on the mirror. Pays only: see below |
-| Phone app | BUILT, LOCAL | `apps/phone/test/e2e.mjs`: the PWA in Brave against the real service. Not tried on a physical phone |
-| Web Push, self-hosted VAPID | BUILT, LOCAL | `apps/phone/test/real-push.mjs`: a theft on the mirror, through Google's real push service, to a notification in a real service worker |
-| Address book and first-seen warnings | BUILT, LOCAL | in the extension, the phone and `packages/shared` |
-| Encrypted backup, and a restore that proves itself | BUILT, LOCAL | `vajra backup-e2e`: root match, stale leaves refused |
-| One-transaction move from an EOA | BUILT, LOCAL | `vajra move-e2e`, and from the extension's move page |
-| Passkey before **Pay, it's me** | BUILT, LOCAL | Client-side only: the phone and the local service check it, and **the contracts do not know about it** |
-| leanSphincs-S, a hash key with no leaves | BENCHMARK, LOCAL | `vajra sphincs-bench`. Fits a VERIFY frame under the 100,000 cap, with no stake, on both mempools, if its sender keeps one nonce: about 81,500 gas for a veto. About the same as the hash key like for like, and a transaction costs 63% more. No account relies on it yet: it is to become the exit's key, and that contract is not built. Research parameters, not audited: see [`docs/GAS.md`](docs/GAS.md) and [`docs/FINDINGS.md`](docs/FINDINGS.md#20-leansphincs-s-measured) |
-| Nominee: a rescue signed in advance, held by someone with no key | BUILT, LOCAL | `vajra nominee-e2e`: 42 mined, 22 refused, 0 failures, with a real process holding no key, a node that goes dark, and a sidecar that is down. Its page, in a real browser. **No contract change**, and **not run on the public devnet**. It cannot tell you from a thief: see below |
-| Recovery by proof, Groth16 v1 | BUILT, PUBLIC | `vajra recover`: 12 mined, 24 refused, 0 failures, on the public devnet and on the mirror. **Not post-quantum**: see below |
-| Shielded pool, fixed denomination v1 | BUILT, LOCAL, ONE NOTE ON PUBLIC | `vajra shielded`, on the mirror: 12 mined, 30 refused, 0 failures. One 0.01 ETH note in and out on the public devnet. **Does not hide that the account paid the recipient**: see below |
-| Notes rebuilt from one seed | BUILT, LOCAL | `vajra notes-restore`: every note found again on a machine that starts empty, from the seed and the chain, and spent from there. A rotation does not touch it, and a backup carries it. **The seed can spend, so it is as sensitive as a key.** No contract change. See [`docs/FINDINGS.md`](docs/FINDINGS.md#24-notes-rebuilt-from-one-seed) |
-| What the pool hides: a meter | BUILT, LOCAL | `vajra pool <address>`, and a card on the account page. Counts addresses and not notes, keeps what the chain shows apart from what no chain can show, and has no top setting. A failed read gives no figure. No contract change |
-| A failed payment stays money: a claim | BUILT, LOCAL, **NOT ON PUBLIC** | `vajra pool-e2e`: 51 mined, 28 refused, 0 failures, for all three of these. A recipient that refuses no longer costs the holder the money: it stays out of a thief's reach until they claim it. The note's fee is still gone. It changes `unshield`, so it needs a redeploy, which has not happened. **It has had no review** |
-| STARK recovery and shielded v2 | DESIGNED | spec §9, §10; **no STARK proof exists** |
-| Variable amounts, note-to-note transfers, viewing keys, ERC-8441 note delivery | DESIGNED | spec §10; **not built** |
-
-**The privacy boundary:** dashboard reads are private and the harbor is sealed until used. Balances, rules and the queue are
-public on chain, and sending a transaction shows your IP to the mempool. The shielded pool hides which deposit
-paid a withdrawal, not that the account paid the recipient. The leaf registry is the
-exception to private reads: Arkiv refuses requests from the Nym route, so the dashboard asks before reading it directly, and the
-bridge connects to Arkiv directly, which shows it your IP and key tree.
-
 ## Recovery by proof, and a shielded pool that obeys the rulebook
 
 **Recovery:** lose the master key, and a Groth16 proof of a secret you keep offline queues a new key tree. It goes through the same
