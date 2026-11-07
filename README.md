@@ -9,11 +9,37 @@ curve for a quantum computer to break.
 If your seed phrase is stolen, a thief can take a day's limit and no more. Anything bigger waits in public, where you can
 cancel it. And when you press escape, a thief's pending transaction cannot stop you.
 
+**Try it now:** https://wallet-production-a086.up.railway.app (test money, a phone works best)
+
+**Run everything yourself:** `make judge`, explained in [`JUDGES.md`](JUDGES.md)
+
+## Contents
+
+- [Flaws we found and fixed](#flaws-we-found-and-fixed)
+- [Where it runs](#where-it-runs)
+- [The wallet](#the-wallet)
+- [Why this needs the alternative mempool](#why-this-needs-the-alternative-mempool)
+- [Recovery by proof, and a shielded pool that obeys the rulebook](#recovery-by-proof-and-a-shielded-pool-that-obeys-the-rulebook)
+- [A phone alert for anything queued](#a-phone-alert-for-anything-queued)
+- [A nominee, for when you are not there](#a-nominee-for-when-you-are-not-there)
+- [Extension, phone app, backup and move](#extension-phone-app-backup-and-move)
+- [Leaf registry on Arkiv](#leaf-registry-on-arkiv)
+- [Tested attacks](#tested-attacks)
+- [Run it](#run-it)
+- [How it fits together](#how-it-fits-together)
+- [Against the judging criteria](#against-the-judging-criteria)
+- [CROPS](#crops)
+- [What this does not prove](#what-this-does-not-prove)
+
+## Flaws we found and fixed
+
 > **Two flaws we found in our own contract, now fixed on chain.** A thief holding only the daily key could spend every nonce key the master key
 > needs, which ended the master key. And whoever paid a stealth account could take the money back with no co-signature. Independent reviews found both,
 > and we reproduced both on the local mirror: 64 of 64 leaves burned, 25 of 25 tokens taken. Each fix is one check. The public devnet was reset on
 > 2026-11-06, and what is deployed there now has them. The bytes first deployed are kept, so `vajra nonce-burn` and `vajra stealth-theft` still show the attacks.
 > See [`docs/FINDINGS.md`](docs/FINDINGS.md) sections 8 and 9.
+
+## Where it runs
 
 Built on [EIP-8141](https://eips.ethereum.org/EIPS/eip-8141) frame transactions and the ERC-8421 alternative mempool.
 Everything in the core, recovery by proof and the shielded pool now run on the public devnet (chain 1337), through the alt mempool. Paymasters and the attack suites run on a local
@@ -24,6 +50,14 @@ A transaction admitted by the alt mempool and mined, on the chain as it stands s
 
 **About the evidence.** The devnet was reset on 2026-11-06, which wiped every earlier transaction. `vajra e2e`, `vajra pin` and `vajra stealth` have been rerun on the new chain, genesis `0x2ad3f67b…`, on the fixed contracts.
 The hardware, dashboard and Arkiv records in `docs/evidence/` were captured before the reset, so their transactions can no longer be looked up.
+
+## The wallet
+
+**Try it: https://wallet-production-a086.up.railway.app**
+
+A self-serve wallet that runs on a phone or a laptop, on the public devnet, with test money. Keys are made on the device and never leave it. It is a PWA, so add it to the home screen on a phone. The code is in [`apps/wallet`](apps/wallet): `server.ts` is the small service that sponsors new wallets, relays and sends alerts, and it only ever sees public values.
+
+Every feature is in the app: instant and queued payments, Not me, freeze, escape, a second way out, recovery by paper, stealth payments, the private pool, moving the hash key to a phone, and alerts by Telegram or push.
 
 ## Why this needs the alternative mempool
 
@@ -136,14 +170,6 @@ These run on the local mirror. See [`JUDGES.md`](JUDGES.md) for the commands.
 
 **Move.** `vajra move` sends one frame transaction from an EOA, which creates the account and moves the ETH and listed tokens. The frames are an atomic batch, so a failed transfer means no account and no money moved. The EOA stays on as the daily key. The refund of unused gas lands after the last frame, so a few millionths of an ETH stay behind. A stock wallet cannot sign a frame transaction, so this asks for the private key: from a file in the CLI, and in the extension's page, where it goes no further than the extension.
 
-## The wallet
-
-**Try it: https://wallet-production-a086.up.railway.app**
-
-A self-serve wallet that runs on a phone or a laptop, on the public devnet, with test money. Keys are made on the device and never leave it. It is a PWA, so add it to the home screen on a phone. The code is in [`apps/wallet`](apps/wallet): `server.ts` is the small service that sponsors new wallets, relays and sends alerts, and it only ever sees public values.
-
-Every feature is in the app: instant and queued payments, Not me, freeze, escape, a second way out, recovery by paper, stealth payments, the private pool, moving the hash key to a phone, and alerts by Telegram or push.
-
 ## Leaf registry on Arkiv
 
 A one-time key must never sign twice, on any device. The signer's counter fails when a backup is restored, and the chain's nonce only
@@ -196,6 +222,9 @@ an escape: malformed returns, return bombs and gas burners are all tested.
 
 On the local mirror, by `vajra recover`, `vajra shielded` and `vajra pool-e2e`, each sent for real:
 
+<details>
+<summary>Attacks on recovery, the pool and the exit</summary>
+
 | Attack | Refusal |
 |---|---|
 | Anyone sends a corrupted proof, or one from the wrong secret, account, chain or epoch | `RecoveryProofInvalid`, `ShieldProofInvalid` |
@@ -225,9 +254,14 @@ On the local mirror, by `vajra recover`, `vajra shielded` and `vajra pool-e2e`, 
 | Daily key names an exit, replaces its tree, or sends from its address | `EscapeKeyOutranks`, `FrameNotAllowed`, reverted |
 | The exit key tries anything but veto, freeze and escape | `FrameNotAllowed` |
 
+</details>
+
 **Two attacks on the mempool itself, and what they stop.** With only the daily key, a thief can get an account banned on a node in 8 seconds, which refuses its escape, veto and recovery there (`vajra rep-burn`). And with the account short of ETH, a pending transaction makes the mempool refuse an escape it cannot cover (`vajra escape-solvency`). Neither touches `VajraExit`, which is a different address with its own money. [`docs/FINDINGS.md`](docs/FINDINGS.md) sections 10 to 12 have both, and a proposed sidecar rule.
 
 On the local mirror, by `vajra nominee-e2e`, each sent for real, against a rescue signed in advance:
+
+<details>
+<summary>Attacks on the nominee rescue</summary>
 
 | Attack | Refusal |
 |---|---|
@@ -243,7 +277,12 @@ On the local mirror, by `vajra nominee-e2e`, each sent for real, against a rescu
 | A key spent by another transaction, with nothing at the harbor | the tool says so, and never says it was rescued |
 | The owner signs after losing the exit's seed | `nominee-setup` refuses, and makes no new tree |
 
+</details>
+
 On the local mirror, by `vajra paymaster-e2e`, each sent for real, from accounts holding no ETH:
+
+<details>
+<summary>Attacks on the paymasters</summary>
 
 | Attack | Refusal |
 |---|---|
@@ -262,6 +301,8 @@ On the local mirror, by `vajra paymaster-e2e`, each sent for real, from accounts
 | The same contract with no stake | `unstaked payer accessed` |
 | A batch that undoes a charge, then settle. **This drained the first version** | `PayFrameMissing`, `NothingToSettle`: nothing moves |
 | Extra collect frames, to burn the approval | `FrameNotAllowed`, on V2 |
+
+</details>
 
 A body that revokes the approval or empties the account changes nothing: the USDC was taken before it ran. The USDC price is a number the owner sets, and the contract says so.
 
@@ -344,25 +385,25 @@ staked budget and precompiles.
 
 ## What this does not prove
 
-0. **Two reviews found critical bugs after every test passed.** They are fixed, but nothing says they were the last. This has not been audited.
-0. **Without an exit, a thief with the daily key can shut an account out of a node.** The ban lasts as long as the thief keeps at it, and with one transaction pending the canonical mempool is shut too. An exit has to be set up and funded before the thief arrives, and it is software only. The sidecar rule that fixes the cause is a proposal. See [`docs/FINDINGS.md`](docs/FINDINGS.md) section 10.
-1. **This is not production post-quantum cryptography.** The parameters are unreviewed and there is no formal proof. Plain
+1. **Two reviews found critical bugs after every test passed.** They are fixed, but nothing says they were the last. This has not been audited.
+2. **Without an exit, a thief with the daily key can shut an account out of a node.** The ban lasts as long as the thief keeps at it, and with one transaction pending the canonical mempool is shut too. An exit has to be set up and funded before the thief arrives, and it is software only. The sidecar rule that fixes the cause is a proposal. See [`docs/FINDINGS.md`](docs/FINDINGS.md) section 10.
+3. **This is not production post-quantum cryptography.** The parameters are unreviewed and there is no formal proof. Plain
    keccak chains give multi-target attacks a discount of about 19 bits that WOTS+ or XMSS would remove. Production means
    LMS, XMSS or SPHINCS+. We measured one candidate from that last family, leanSphincs-S. It costs about the same to verify and more to send: see [`docs/GAS.md`](docs/GAS.md).
-2. **Stealth spending has a remaining case, even with the fix.** A sender who also owns a quantum computer can spend what it sent. See
+4. **Stealth spending has a remaining case, even with the fix.** A sender who also owns a quantum computer can spend what it sent. See
    [`docs/STEALTH.md`](docs/STEALTH.md).
-3. **By default the master key is a software signer, on the same machine as the wallet.** Its seed sits in a file, so a
+5. **By default the master key is a software signer, on the same machine as the wallet.** Its seed sits in a file, so a
    phished seed phrase cannot reach it, but malware on that machine gets both keys and the rulebook protects nothing. The two
    keys only outrank each other if they live apart, which is what the hardware signer is for, but on this board that only holds
    while it is unplugged. Any program on a computer it is plugged into can copy the key in half a second and press its button,
    both measured in [`docs/HARDWARE.md`](docs/HARDWARE.md). It is a prototype, not a secure element, and it has no PIN.
-4. **The rulebook does not bound gas across transactions.** A thief can burn the account's ETH through many transactions,
+6. **The rulebook does not bound gas across transactions.** A thief can burn the account's ETH through many transactions,
    each under the per-transaction cost cap. That leaves through fees, not the daily limit. With no ETH left, a recovery cannot pay for
    itself until someone tops the account up, and the thief can race each top-up. A thief can also fill the queue with spends: changing the
    daily key does not cancel them, so each needs a veto, and an unvetoed one still matures. An escape ends them all.
-5. **A 64-leaf tree is a demo lifetime.** Rotation works. Backing up one-time key state across devices is the known unsolved
+7. **A 64-leaf tree is a demo lifetime.** Rotation works. Backing up one-time key state across devices is the known unsolved
    problem of stateful hash signatures.
-6. **Devnet only.** Chain 1337 can reset at any time, and the explorer keeps its history in memory. Recorded evidence is in
+8. **Devnet only.** Chain 1337 can reset at any time, and the explorer keeps its history in memory. Recorded evidence is in
    [`docs/evidence/`](docs/evidence/). Recovery and one note through the pool are on the public devnet. The attack suites and paymasters are on a local chain only, and their evidence cannot be checked on any
    public explorer: run them yourself.
-7. **Quantum timelines are uncertain.** The claim is not that Q-day is close. It is that migration rails have to exist first.
+9. **Quantum timelines are uncertain.** The claim is not that Q-day is close. It is that migration rails have to exist first.
